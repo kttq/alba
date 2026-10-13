@@ -1,4 +1,8 @@
-use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{
+    fs,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 
 use alba::config::{
     self, AmPm, AnimationFps, ClockConfig, ColonDots, ColonGap, ColonStyle, Config, DigitGap,
@@ -188,6 +192,26 @@ fn wrong_type_names_its_line() {
 }
 
 #[test]
+fn table_that_is_not_a_table_names_its_line() {
+    assert_error("units = \"metric\"\nclock = []\n", 2, "expected a table");
+    assert_error("weather = [4]\n", 1, "expected a table");
+}
+
+#[test]
+fn choice_that_is_not_a_string_names_its_line() {
+    assert_error(
+        "\nlanguage = { en = {} }\n",
+        2,
+        "expected one of `en`, `es`",
+    );
+    assert_error(
+        "[weather]\nflash = 8\n",
+        2,
+        "expected one of `8s`, `20s`, `off`",
+    );
+}
+
+#[test]
 fn coordinate_out_of_range_names_its_line() {
     assert_error(
         "latitude = 91\nlongitude = 0\n",
@@ -262,6 +286,10 @@ fn temporary_home(test: &str) -> PathBuf {
     home
 }
 
+fn make_read_only(directory: &Path) {
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
+}
+
 #[test]
 fn config_lives_under_home() {
     assert_eq!(
@@ -300,7 +328,7 @@ fn failed_template_write_still_loads_defaults() {
     let path = config::path(&home);
     let directory = path.parent().unwrap();
     fs::create_dir_all(directory).unwrap();
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
+    make_read_only(directory);
 
     let loaded = config::load(&path).unwrap();
 

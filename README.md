@@ -27,7 +27,7 @@ A typo stops alba with the line and the reason, such as `config error: line 3: u
 location = "buenos aires"
 ```
 
-Weather needs only your city. alba looks it up through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api) and shows the place it found in the top border, so you notice a wrong match.
+Weather needs only your city. alba looks it up through [Open-Meteo geocoding](https://open-meteo.com/en/docs/geocoding-api) and shows the place it found at the top of the bezel, so you notice a wrong match.
 
 Narrow an ambiguous name with a comma and a full country name, as in `"paris, united states"`. Avoid country codes: Open-Meteo prefers region codes, so `"toronto, ca"` finds nothing.
 

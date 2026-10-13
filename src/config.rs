@@ -1,6 +1,6 @@
 use std::{
-    fmt, fs,
-    io::{self, Write},
+    fmt, fs, io,
+    marker::PhantomData,
     ops::Range,
     path::{Path, PathBuf},
 };
@@ -61,12 +61,15 @@ pub fn load(path: &Path) -> Result<Config, ConfigError> {
     Config::parse(&text)
 }
 
-/// `create_new` keeps a file that appeared since the read.
+/// Writes a temporary file, then links it into place, so an interrupted write never leaves a
+/// partial config. The link fails if a file appeared since the read, so nothing is overwritten.
 fn write_template(path: &Path) -> io::Result<()> {
-    if let Some(directory) = path.parent() {
-        fs::create_dir_all(directory)?;
-    }
-    fs::File::create_new(path)?.write_all(TEMPLATE.as_bytes())
+    let directory = path.parent().unwrap_or(Path::new("."));
+    fs::create_dir_all(directory)?;
+    let temporary = directory.join(format!(".config.toml.{}", std::process::id()));
+    let written = fs::write(&temporary, TEMPLATE).and_then(|()| fs::hard_link(&temporary, path));
+    let _ = fs::remove_file(&temporary);
+    written
 }
 
 /// The settings from `config.toml`, parsed and validated.
@@ -127,94 +130,68 @@ pub struct WeatherConfig {
     pub stars: Stars,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Language {
-    #[default]
-    En,
-    Es,
+/// An option that takes one of a few strings. Unlike a derived enum, it rejects a table.
+macro_rules! string_choice {
+    ($(#[$meta:meta])* $name:ident { $($(#[$variant_meta:meta])* $variant:ident = $value:literal),+ $(,)? }) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+        pub enum $name {
+            $($(#[$variant_meta])* $variant),+
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                const VALUES: &[&str] = &[$($value),+];
+                let value = deserializer.deserialize_any(StringChoiceVisitor(VALUES))?;
+                match value.as_str() {
+                    $($value => Ok(Self::$variant),)+
+                    _ => Err(de::Error::unknown_variant(&value, VALUES)),
+                }
+            }
+        }
+    };
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Units {
-    #[default]
-    Metric,
-    Imperial,
+struct StringChoiceVisitor(&'static [&'static str]);
+
+impl de::Visitor<'_> for StringChoiceVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let values: Vec<_> = self.0.iter().map(|value| format!("`{value}`")).collect();
+        write!(formatter, "one of {}", values.join(", "))
+    }
+
+    fn visit_str<E: de::Error>(self, value: &str) -> Result<String, E> {
+        Ok(value.to_string())
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum WeekStart {
-    #[default]
-    Monday,
-    Sunday,
-}
+string_choice!(Language { #[default] En = "en", Es = "es" });
 
-/// The off-beat style of the colon, in the second half of each second.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ColonStyle {
-    #[default]
-    Ghost,
-    Blank,
-    Steady,
-}
+string_choice!(Units { #[default] Metric = "metric", Imperial = "imperial" });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ColonDots {
-    #[default]
-    Square,
-    Tall,
-}
+string_choice!(WeekStart { #[default] Monday = "monday", Sunday = "sunday" });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum AmPm {
-    #[default]
-    Stack,
-    Text,
-}
+string_choice!(
+    /// The off-beat style of the colon, in the second half of each second.
+    ColonStyle { #[default] Ghost = "ghost", Blank = "blank", Steady = "steady" }
+);
 
-/// How often a thunderstorm flashes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-pub enum Flash {
-    #[default]
-    #[serde(rename = "8s")]
-    EightSeconds,
-    #[serde(rename = "20s")]
-    TwentySeconds,
-    #[serde(rename = "off")]
-    Off,
-}
+string_choice!(ColonDots { #[default] Square = "square", Tall = "tall" });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FlashTarget {
-    #[default]
-    Cloud,
-    Bolt,
-    Both,
-}
+string_choice!(AmPm { #[default] Stack = "stack", Text = "text" });
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MoonDarkSide {
-    #[default]
-    Faint,
-    Solid,
-    None,
-}
+string_choice!(
+    /// How often a thunderstorm flashes.
+    Flash { #[default] EightSeconds = "8s", TwentySeconds = "20s", Off = "off" }
+);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Stars {
-    #[default]
-    Glyphs,
-    Pixels,
-    None,
-}
+string_choice!(FlashTarget { #[default] Cloud = "cloud", Bolt = "bolt", Both = "both" });
+
+string_choice!(MoonDarkSide { #[default] Faint = "faint", Solid = "solid", None = "none" });
+
+string_choice!(Stars { #[default] Glyphs = "glyphs", Pixels = "pixels", None = "none" });
 
 /// An option that takes one of a few integers. Each variant's discriminant is its value.
 macro_rules! integer_choice {
@@ -345,8 +322,29 @@ struct ConfigFile {
     location: Option<String>,
     latitude: Option<Spanned<Latitude>>,
     longitude: Option<Spanned<Longitude>>,
+    #[serde(deserialize_with = "table")]
     clock: ClockConfig,
+    #[serde(deserialize_with = "table")]
     weather: WeatherConfig,
+}
+
+/// A derived struct also accepts an array, filling its fields by position.
+fn table<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<T, D::Error> {
+    struct TableVisitor<T>(PhantomData<T>);
+
+    impl<'de, T: Deserialize<'de>> de::Visitor<'de> for TableVisitor<T> {
+        type Value = T;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a table")
+        }
+
+        fn visit_map<A: de::MapAccess<'de>>(self, map: A) -> Result<T, A::Error> {
+            T::deserialize(de::value::MapAccessDeserializer::new(map))
+        }
+    }
+
+    deserializer.deserialize_map(TableVisitor(PhantomData))
 }
 
 impl Config {
