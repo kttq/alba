@@ -38,7 +38,7 @@ impl App {
     pub fn render(&self, area: Rect, buffer: &mut Buffer, now: &Zoned) {
         let text_clock = Span::raw(now.strftime("%H:%M").to_string());
         let width = text_clock.width() as u16;
-        // A pane smaller than the clock renders nothing rather than clipping it.
+        // `centered` shrinks the area to fit the pane, which would clip the clock.
         if area.width < width || area.height == 0 {
             return;
         }

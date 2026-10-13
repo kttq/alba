@@ -51,3 +51,16 @@ fn other_keys_do_nothing() {
         assert_eq!(App::new().key(event), Control::Continue, "{event:?}");
     }
 }
+
+#[test]
+fn pane_narrower_than_the_clock_renders_nothing() {
+    let app = App::new();
+    let now = default_instant();
+    let mut terminal = Terminal::new(TestBackend::new(4, 3)).unwrap();
+
+    terminal
+        .draw(|frame| app.render(frame.area(), frame.buffer_mut(), &now))
+        .unwrap();
+
+    terminal.backend().assert_buffer_lines(["    "; 3]);
+}

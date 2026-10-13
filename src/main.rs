@@ -1,7 +1,7 @@
 use std::{io, process::ExitCode, time::Duration};
 
 use alba::app::{App, Control};
-use jiff::{Timestamp, Zoned};
+use jiff::{SignedDuration, Timestamp, Zoned};
 use ratatui::{
     DefaultTerminal,
     crossterm::event::{self, Event},
@@ -58,23 +58,34 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
     }
 }
 
-/// Ticks and draws on every whole wall-clock second, and at once on key and resize events.
+/// Ticks on every whole wall-clock second. Draws after each tick, and at once on key and resize
+/// events.
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
+    let mut now = Zoned::now();
+    app.tick(&now);
     loop {
-        let now = Zoned::now();
-        app.tick(&now);
         terminal.draw(|frame| app.render(frame.area(), frame.buffer_mut(), &now))?;
-        if event::poll(until_next_second(Timestamp::now()))?
+        let next_tick = next_whole_second(now.timestamp());
+        if event::poll(until(next_tick))?
             && let Event::Key(key) = event::read()?
             && app.key(key) == Control::Quit
         {
             return Ok(());
         }
+        if Timestamp::now() >= next_tick {
+            now = Zoned::now();
+            app.tick(&now);
+        }
     }
 }
 
-fn until_next_second(now: Timestamp) -> Duration {
+fn next_whole_second(now: Timestamp) -> Timestamp {
     const NANOS_PER_SECOND: i128 = 1_000_000_000;
-    let elapsed = now.as_nanosecond().rem_euclid(NANOS_PER_SECOND);
-    Duration::from_nanos((NANOS_PER_SECOND - elapsed) as u64)
+    let into_second = now.as_nanosecond().rem_euclid(NANOS_PER_SECOND) as i64;
+    now - SignedDuration::from_nanos(into_second) + SignedDuration::from_secs(1)
+}
+
+/// Zero once `deadline` has passed.
+fn until(deadline: Timestamp) -> Duration {
+    Duration::try_from(deadline.duration_since(Timestamp::now())).unwrap_or(Duration::ZERO)
 }
