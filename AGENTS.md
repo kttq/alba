@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-GitHub Issues in kttq/pana. See `docs/agents/issue-tracker.md`.
+GitHub Issues in kttq/alba. See `docs/agents/issue-tracker.md`.
 
 ### Domain docs
 

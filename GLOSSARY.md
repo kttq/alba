@@ -1,15 +1,15 @@
-# pana
+# alba
 
-pana is a tiny terminal companion: a glanceable widget with a clock, a month calendar, and the current weather, drawn as pixel art in a terminal pane.
+alba is a tiny terminal companion: a glanceable widget with a clock, a month calendar, and the current weather, drawn as pixel art in a terminal pane.
 
 ## Language
 
 **Pane**:
-The terminal area pana draws into, measured in columns and rows.
+The terminal area alba draws into, measured in columns and rows.
 _Avoid_: Window, screen
 
 **Size tier**:
-One of four fixed layouts (Full, Compact, Mini, Strip), chosen as the largest that fits the pane.
+One of seven fixed layouts (Large, Wide, Tall, Medium, Compact, Mini, Strip), chosen as the largest that fits the pane.
 _Avoid_: Breakpoint, mode
 
 **Home view**:
@@ -31,3 +31,11 @@ _Avoid_: Sprite (reserve for the const data that encodes icons and digits), emoj
 **Bezel**:
 An optional frame around the whole widget, like the edge of a pocket gadget.
 _Avoid_: Border, box
+
+**Timeline**:
+A bar for the current day or night: sunrise to sunset with the sun on it, or sunset to sunrise with tonight's moon on it.
+_Avoid_: Sun arc, progress bar, day bar
+
+**Ghost segment**:
+An unlit segment of the LCD clock, shown faintly so every digit keeps the shape of an 8.
+_Avoid_: Shadow digit, background segment

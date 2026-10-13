@@ -1,2 +1,2 @@
-# ratico
+# alba
 tiny terminal companion
