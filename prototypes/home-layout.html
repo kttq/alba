@@ -1,0 +1,703 @@
+<!doctype html>
+<!--
+  PROTOTYPE · throwaway. Not production code.
+  Question (wayfinder ticket "Home view layout for each size tier, with or without a bezel", kttq/pana#4):
+  what does the Home view look like at each size tier, and does pana have a bezel?
+  Plan: three structurally different Home layouts (A stack, B split, C gadget), switchable via ?variant=,
+  rendered on a terminal-like character grid in Departure Mono, with pane size, language, bezel and palette controls.
+  Clock digits and weather icons are PLACEHOLDERS; their design belongs to other tickets.
+  D and E break free of the proposal's constraints at the user's request: two-colour half-block pixel art,
+  a seven-segment LCD clock with ghost segments, a sun arc, a 12-hour rain sparkline, and reverse-video highlights.
+  Open by double-clicking. Keys: ← → variant · b bezel · l language · p palette · d date · w weather · t time.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PROTOTYPE · pana home layout</title>
+<style>
+  @font-face { font-family: "DM"; src: local("Departure Mono"), local("DepartureMono-Regular"); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 16px 96px; background: #3a3a3a; color: #ddd; font: 13px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  .note { color: #aaa; margin: 0 0 12px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-bottom: 14px; }
+  .controls label { color: #aaa; }
+  .controls button, .controls input { font: inherit; }
+  .controls input[type=number] { width: 56px; }
+  .seg button { background: #555; color: #eee; border: 0; padding: 3px 8px; cursor: pointer; }
+  .seg button.on { background: #e8bd6a; color: #16120e; }
+  .main { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .pane { outline: 1px dashed #888; outline-offset: 0; display: block; }
+  .state { font: 12px/1.5 ui-monospace, monospace; background: #2a2a2a; padding: 10px 12px; min-width: 300px; white-space: pre; }
+  .gallery { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 22px; align-items: flex-end; }
+  .gallery figure { margin: 0; }
+  .gallery figcaption { font: 11px ui-monospace, monospace; color: #aaa; margin-top: 4px; }
+  .switcher { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; gap: 10px; align-items: center;
+    background: #fff; color: #111; border-radius: 999px; padding: 6px 10px; box-shadow: 0 4px 18px rgba(0,0,0,.5); font-weight: 600; }
+  .switcher button { border: 0; background: #111; color: #fff; border-radius: 999px; width: 30px; height: 30px; cursor: pointer; font-size: 15px; }
+  .switcher span { min-width: 220px; text-align: center; }
+</style>
+</head>
+<body>
+<h1>PROTOTYPE · pana Home view layout</h1>
+<p class="note">Throwaway. Digits and icons are placeholders. Blocks and box lines are drawn as full-cell shapes, the way Ghostty draws them. The dashed outline is the pane.</p>
+
+<div class="controls" id="controls"></div>
+<div class="main">
+  <canvas class="pane" id="pane"></canvas>
+  <div class="state" id="state"></div>
+</div>
+<div class="gallery" id="gallery"></div>
+
+<div class="switcher">
+  <button id="prev" title="previous variant (←)">←</button>
+  <span id="vlabel"></span>
+  <button id="next" title="next variant (→)">→</button>
+</div>
+
+<script>
+// ---------- state & url ----------
+const Q = new URLSearchParams(location.search);
+const state = {
+  variant: Q.get('variant') || 'D',
+  cond: Q.get('cond') || 'rain',
+  time: Q.get('time') || 'now',
+  ghost: Q.get('ghost') || 'on',
+  phase: Q.get('phase') || 'auto',
+  cols: +Q.get('cols') || 85,
+  rows: +Q.get('rows') || 26,
+  lang: Q.get('lang') || 'en',
+  date: Q.get('date') || 'now',
+  bezel: Q.get('bezel') || 'open',
+  palette: Q.get('palette') || 'gkrc-dark',
+  zoom: +Q.get('zoom') || 2,
+};
+const syncURL = () => history.replaceState(null, '', '?' + new URLSearchParams(state));
+
+// ---------- palettes (16 terminal colors + fg/bg) ----------
+const PALETTES = {
+  'gkrc-dark':  { bg: '#16120e', fg: '#e3d6b8', c: ['#16120e','#d25f42','#8f9a5a','#d49a3a','#7f93a8','#a8707a','#7aa08c','#cfc1a3','#8d7d65','#dd7357','#b0b878','#e8bd6a','#a3b3c2','#c9939a','#9fc0ab','#f3ead3'] },
+  'gkrc-light': { bg: '#eddca8', fg: '#241a0c', c: ['#241a0c','#9a3522','#4f5a1c','#7a4f06','#34506a','#763a48','#2f6048','#7d6c4c','#6a5737','#82291a','#414a14','#664105','#2c4358','#61303c','#26503c','#241a0c'] },
+  'generic-dark':  { bg: '#000000', fg: '#e5e5e5', c: ['#000000','#c23621','#25bc24','#adad27','#492ee1','#d338d3','#33bbc8','#cbcccd','#818383','#fc391f','#31e722','#eaec23','#5833ff','#f935f8','#14f0f0','#e9ebeb'] },
+  'generic-light': { bg: '#ffffff', fg: '#000000', c: ['#000000','#990000','#00a600','#999900','#0000b2','#b200b2','#00a6b2','#bfbfbf','#666666','#e50000','#00d900','#e5e500','#0000ff','#e500e5','#00e5e5','#e5e5e5'] },
+};
+// Color roles from the proposal, by terminal color name.
+const ROLE = { fg: 'fg', ghost: 8, frame: 8, dim: 8, accent: 3, date: 4, secondary: 2, rain: 4, snow: 15, cloud: 7, weekend: 2 };
+// A role written '~N' means terminal color N in faint style.
+const color = (pal, role) => { if (typeof role === 'string' && role[0] === '~') role = +role.slice(1); const r = ROLE[role] ?? role; return r === 'fg' ? pal.fg : pal.c[r]; };
+const isFaint = r => r === 'ghost' || (typeof r === 'string' && r[0] === '~');
+
+// ---------- strings ----------
+const STR = {
+  en: {
+    days: ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'],
+    short: ['sun','mon','tue','wed','thu','fri','sat'],
+    months: ['january','february','march','april','may','june','july','august','september','october','november','december'],
+    cal: ['mo','tu','we','th','fr','sa','su'],
+    cond: 'rain', wk: 'wk', next12: 'rain · next 12h', sunsetIn: 'sunset in',
+    phases: ['new moon', 'waxing crescent', 'first quarter', 'waxing gibbous', 'full moon', 'waning gibbous', 'last quarter', 'waning crescent'], sunriseIn: 'sunrise in',
+    conds: { clear: 'clear', partly: 'partly cloudy', rain: 'rain', snow: 'snow', storm: 'thunderstorm' },
+    greet: h => h < 5 ? 'sleep soon ✦' : h < 12 ? 'good morning ♥' : h < 18 ? 'good afternoon ★' : h < 23 ? 'good evening ★' : 'sleep soon ✦',
+  },
+  es: {
+    days: ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],
+    short: ['dom','lun','mar','mié','jue','vie','sáb'],
+    months: ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'],
+    cal: ['lu','ma','mi','ju','vi','sá','do'],
+    cond: 'lluvia', wk: 'sem', next12: 'lluvia · 12 h', sunsetIn: 'atardece en',
+    phases: ['luna nueva', 'luna creciente', 'cuarto creciente', 'gibosa creciente', 'luna llena', 'gibosa menguante', 'cuarto menguante', 'luna menguante'], sunriseIn: 'amanece en',
+    conds: { clear: 'despejado', partly: 'algo nublado', rain: 'lluvia', snow: 'nieve', storm: 'tormenta' },
+    greet: h => h < 5 ? 'a dormir pronto ✦' : h < 12 ? 'buenos días ♥' : h < 20 ? 'buenas tardes ★' : h < 23 ? 'buenas noches ★' : 'a dormir pronto ✦',
+  },
+};
+const len = s => [...s].length;
+
+// ---------- blocks: a grid of cells, each {ch, role, bold} or null ----------
+const blank = (w, h) => ({ w, h, cells: Array.from({ length: h }, () => Array(w).fill(null)) });
+function line(...segs) {
+  const cells = [];
+  for (const [t, role = 'fg', bold = false] of segs) for (const ch of t) cells.push(ch === ' ' ? null : { ch, role, bold });
+  return { w: cells.length, h: 1, cells: [cells] };
+}
+function art(rows, roleOf) {
+  const h = rows.length, w = Math.max(...rows.map(len)), b = blank(w, h);
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch !== ' ') b.cells[y][x] = { ch, role: typeof roleOf === 'function' ? roleOf(ch) : roleOf, bold: false }; }));
+  return b;
+}
+function place(dst, src, x, y) {
+  for (let j = 0; j < src.h; j++) for (let i = 0; i < src.w; i++) {
+    const c = src.cells[j][i];
+    if (c && y + j >= 0 && y + j < dst.h && x + i >= 0 && x + i < dst.w) dst.cells[y + j][x + i] = c;
+  }
+}
+const sp = (h = 1) => blank(0, h);
+function vstack(bs, { align = 'center' } = {}) {
+  bs = bs.filter(Boolean);
+  const w = Math.max(0, ...bs.map(b => b.w)), h = bs.reduce((s, b) => s + b.h, 0), o = blank(w, h);
+  let y = 0;
+  for (const b of bs) { place(o, b, align === 'center' ? Math.floor((w - b.w) / 2) : 0, y); y += b.h; }
+  return o;
+}
+function hstack(bs, { gap = 1, valign = 'top' } = {}) {
+  bs = bs.filter(Boolean);
+  const h = Math.max(0, ...bs.map(b => b.h)), w = bs.reduce((s, b) => s + b.w, 0) + gap * Math.max(0, bs.length - 1), o = blank(w, h);
+  let x = 0;
+  for (const b of bs) { place(o, b, x, valign === 'center' ? Math.floor((h - b.h) / 2) : 0); x += b.w + gap; }
+  return o;
+}
+
+// ---------- context (time, date, strings) ----------
+function makeCtx(real) {
+  const S = STR[state.lang];
+  // The "time" control overrides the clock so the sun arc and day/night icons can be previewed.
+  const now = new Date(real);
+  if (state.time !== 'now') { const [H, M] = state.time.split(':').map(Number); now.setHours(H, M); }
+  // "longest" = the widest header in either language: wednesday / miércoles 30 september / septiembre.
+  const date = state.date === 'longest' ? new Date(2026, 8, 30, now.getHours(), now.getMinutes(), now.getSeconds()) : now;
+  const hh = String(now.getHours()).padStart(2, '0'), mm = String(now.getMinutes()).padStart(2, '0');
+  const mins = now.getHours() * 60 + now.getMinutes(), rise = 6 * 60 + 14, set = 19 * 60 + 6;
+  const day = mins >= rise && mins < set;
+  const RAIN = { rain: [20, 35, 60, 85, 70, 45, 30, 20, 15, 10, 5, 5], storm: [40, 70, 90, 80, 50, 30, 20, 10, 5, 5, 5, 0], snow: [30, 40, 50, 50, 40, 30, 20, 10, 10, 5, 0, 0], partly: [0, 0, 5, 10, 20, 15, 5, 0, 0, 0, 0, 0], clear: Array(12).fill(0) };
+  return {
+    S, date, hh, mm, hour: now.getHours(),
+    colonOn: real.getMilliseconds() < 500,          // blink once per second
+    frame2: Math.floor(real.getTime() / 500) % 2,     // two-frame idle animation at 2 fps
+    flash: real.getTime() % 7000 < 180,               // rare thunderstorm flash
+    temp: '14°', hi: '18°', lo: '9°', sunrise: '06:14', sunset: '19:06',
+    cond: state.cond, day, night: !day,
+    dayProgress: day ? (mins - rise) / (set - rise) : null,
+    toSunrise: day ? null : ((rise - mins + 1440) % 1440),
+    toSunset: day ? set - mins : null,
+    nightProgress: day ? null : ((mins - set + 1440) % 1440) / (1440 - (set - rise)),
+    phase: state.phase === 'auto' ? moonPhase(now) : +state.phase,
+    rain12: RAIN[state.cond],
+  };
+}
+
+// ---------- components ----------
+// PLACEHOLDER digits, 3×3 from █ ▀ ▄. The real set belongs to "Clock digits, small clock, and colon".
+const DIGITS = {
+  0: ['█▀█','█ █','▀▀▀'], 1: ['▀█ ',' █ ','▀▀▀'], 2: ['▀▀█','█▀▀','▀▀▀'], 3: ['▀▀█',' ▀█','▀▀▀'], 4: ['█ █','▀▀█','  ▀'],
+  5: ['█▀▀','▀▀█','▀▀▀'], 6: ['█▀▀','█▀█','▀▀▀'], 7: ['▀▀█','  █','  ▀'], 8: ['█▀█','█▀█','▀▀▀'], 9: ['█▀█','▀▀█','▀▀▀'],
+};
+const bigClock = c => {
+  const d = s => art(DIGITS[s], 'accent');
+  const colon = art(c.colonOn ? ['▄', ' ', '▀'] : [' ', ' ', ' '], 'accent'); colon.w = 1;
+  return hstack([d(c.hh[0]), d(c.hh[1]), colon, d(c.mm[0]), d(c.mm[1])], { gap: 1 });
+};
+const smallClock = c => line([c.hh + (c.colonOn ? ':' : ' ') + c.mm, 'accent', true]);
+// PLACEHOLDER icons (rain). The real set belongs to "Weather icons: the full set with two animation frames".
+const iconFull = c => art(['  ▄▄▄▄  ', '▄██████▄', ...(c.frame2 ? ['   ‚  ‚ ', ' ‚  ‚  ‚'] : [' ‚  ‚  ‚', '   ‚  ‚ '])], ch => ch === '‚' ? 'rain' : 'cloud');
+const iconMini = c => art(['▄██▄', c.frame2 ? ' ‚ ‚' : '‚ ‚ '], ch => ch === '‚' ? 'rain' : 'cloud');
+const tempLine = c => line([c.temp, 'fg', true], [' ' + c.S.cond, 'secondary']);
+const sunLine = c => line(['↑', 'accent'], [c.sunrise, 'dim'], ['  ↓', 'accent'], [c.sunset, 'dim']);
+const credit = () => line(['open-meteo.com', 'dim']);
+const details4 = c => vstack([line([c.temp, 'fg', true]), line([c.S.cond, 'secondary']), line(['↑', 'accent'], [c.sunrise, 'dim']), line(['↓', 'accent'], [c.sunset, 'dim'])], { align: 'left' });
+
+// Month calendar, Monday first. Always 6 week rows, so the layout never jumps between months.
+function monthCal(c) {
+  const d = c.date, y = d.getFullYear(), m = d.getMonth(), today = d.getDate();
+  const days = new Date(y, m + 1, 0).getDate(), off = (new Date(y, m, 1).getDay() + 6) % 7;
+  const b = blank(20, 8), title = `${c.S.months[m]} ${y}`;
+  place(b, line([title, 'date']), Math.floor((20 - len(title)) / 2), 0);
+  c.S.cal.forEach((w, i) => place(b, line([w, i >= 5 ? 'weekend' : 'dim']), i * 3, 1));
+  for (let day = 1; day <= days; day++) {
+    const idx = off + day - 1, col = idx % 7, row = Math.floor(idx / 7);
+    const role = day === today ? 'accent' : day < today ? 'dim' : col >= 5 ? 'weekend' : 'fg';
+    place(b, line([String(day).padStart(2, ' '), role, day === today]), col * 3, 2 + row);
+  }
+  return b;
+}
+// One-week strip: the current week only.
+function weekStrip(c) {
+  const d = c.date, dow = (d.getDay() + 6) % 7, b = blank(20, 2);
+  c.S.cal.forEach((w, i) => {
+    const day = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow + i);
+    const isToday = i === dow;
+    place(b, line([w, i >= 5 ? 'weekend' : 'dim']), i * 3, 0);
+    place(b, line([String(day.getDate()).padStart(2, ' '), isToday ? 'accent' : i < dow ? 'dim' : i >= 5 ? 'weekend' : 'fg', isToday]), i * 3, 1);
+  });
+  return b;
+}
+const headerText = c => [[c.S.days[c.date.getDay()], 'date'], [state.bezel === 'none' ? ' · ' : ' ─ ', 'frame'], [`${c.date.getDate()} ${c.S.months[c.date.getMonth()]}`, 'date']];
+const footerText = c => [[c.S.greet(c.hour), 'secondary']];
+
+// ---------- bezel ----------
+// none:   plain header and footer lines, no box characters.
+// open:   the proposal's Starship look, ╭─ header and ╰─» footer, no sides.
+// closed: a box that hugs the content; header and footer sit in the top and bottom border.
+// fill:   a box that fills the whole pane, like a gadget's screen edge.
+function applyBezel(inner, c, withText, W, H) {
+  const hdr = withText ? headerText(c) : null, ftr = withText ? footerText(c) : null;
+  const segLen = segs => segs.reduce((s, [t]) => s + len(t), 0);
+  const mode = state.bezel;
+  if (mode === 'none' || mode === 'open') {
+    if (!withText) return inner;
+    const h = mode === 'open' ? line(['╭─ ', 'frame'], ...hdr) : line(...hdr);
+    const f = mode === 'open' ? line(['╰─» ', 'frame'], ...ftr) : line(...ftr);
+    const w = Math.max(inner.w, h.w, f.w), o = blank(w, inner.h + 2);
+    place(o, h, 0, 0); place(o, inner, Math.floor((w - inner.w) / 2), 1); place(o, f, 0, inner.h + 1);
+    return o;
+  }
+  // closed / fill: sides plus one space of padding on each side.
+  const minW = Math.max(inner.w + 4, withText ? Math.max(segLen(hdr) + 6, segLen(ftr) + 7) : 0), minH = inner.h + 2;
+  const w = mode === 'fill' ? W : minW, h = mode === 'fill' ? H : minH;
+  if (w < minW || h < minH) return { w: Infinity, h: Infinity, minW, minH };
+  const o = blank(w, h);
+  const top = withText ? line(['╭─ ', 'frame'], ...hdr, [' ', 'frame']) : line(['╭', 'frame']);
+  const bot = withText ? line(['╰─» ', 'frame'], ...ftr, [' ', 'frame']) : line(['╰', 'frame']);
+  for (let x = 1; x < w - 1; x++) { o.cells[0][x] = { ch: '─', role: 'frame' }; o.cells[h - 1][x] = { ch: '─', role: 'frame' }; }
+  for (let y = 1; y < h - 1; y++) { o.cells[y][0] = { ch: '│', role: 'frame' }; o.cells[y][w - 1] = { ch: '│', role: 'frame' }; }
+  // Copy the text rows cell by cell, spaces included, so the border line doesn't show through the gaps.
+  top.cells[0].forEach((cell, x) => { o.cells[0][x] = cell; });
+  bot.cells[0].forEach((cell, x) => { o.cells[h - 1][x] = cell; });
+  o.cells[0][w - 1] = { ch: '╮', role: 'frame' }; o.cells[h - 1][w - 1] = { ch: '╯', role: 'frame' };
+  place(o, inner, Math.floor((w - inner.w) / 2), 1 + Math.floor((h - 2 - inner.h) / 2));
+  o.minW = minW; o.minH = minH;
+  return o;
+}
+
+// ---------- tiers shared by every variant ----------
+const miniTier = {
+  name: 'mini', credit: false, framed: false,
+  build: c => hstack([smallClock(c), iconMini(c), line([c.temp, 'fg', true])], { gap: 2, valign: 'center' }),
+};
+const stripTier = {
+  name: 'strip', credit: false, framed: false, strip: true,
+  options: c => [
+    line([c.hh + ':' + c.mm, 'accent', true], [' · ', 'dim'], [`${c.S.short[c.date.getDay()]} ${c.date.getDate()}`, 'date'], [' · ', 'dim'], [c.temp + ' ', 'fg'], ['‚‚', 'rain']),
+    line([c.hh + ':' + c.mm, 'accent', true], [' · ', 'dim'], [c.temp + ' ', 'fg'], ['‚‚', 'rain']),
+    line([c.hh + ':' + c.mm, 'accent', true]),
+  ],
+};
+
+// ---------- variants ----------
+const VARIANTS = {
+  A: {
+    name: 'stack (the proposal)',
+    tiers: [
+      { name: 'full', credit: true, framed: true, text: true,
+        build: c => vstack([bigClock(c), sp(), hstack([iconFull(c), vstack([tempLine(c), sunLine(c), credit()], { align: 'left' })], { gap: 2 }), sp(), monthCal(c)]) },
+      { name: 'compact', credit: true, framed: true, text: false,
+        build: c => vstack([bigClock(c), sp(), hstack([iconFull(c), vstack([tempLine(c), sp(), credit()], { align: 'left' })], { gap: 2 })]) },
+      miniTier, stripTier,
+    ],
+  },
+  B: {
+    name: 'split (clock and weather left, calendar right)',
+    tiers: [
+      { name: 'full', credit: true, framed: true, text: true,
+        build: c => hstack([vstack([bigClock(c), sp(), hstack([iconFull(c), details4(c)], { gap: 1 }), credit()], { align: 'left' }), monthCal(c)], { gap: 2 }) },
+      { name: 'compact', credit: true, framed: true, text: false,
+        build: c => vstack([hstack([bigClock(c), hstack([iconFull(c), details4(c)], { gap: 1 })], { gap: 2, valign: 'center' }), credit()]) },
+      miniTier, stripTier,
+    ],
+  },
+  C: {
+    name: 'gadget (calendar shrinks: month, then week, then gone)',
+    tiers: [
+      { name: 'full', credit: true, framed: true, text: true,
+        build: c => vstack([bigClock(c), sp(), hstack([iconFull(c), vstack([tempLine(c), sunLine(c), credit()], { align: 'left' })], { gap: 2 }), sp(), monthCal(c)]) },
+      { name: 'medium (week strip)', credit: true, framed: true, text: true,
+        build: c => vstack([bigClock(c), sp(), hstack([iconMini(c), vstack([tempLine(c), sunLine(c), credit()], { align: 'left' })], { gap: 2 }), sp(), weekStrip(c)]) },
+      { name: 'compact', credit: true, framed: true, text: false,
+        build: c => vstack([bigClock(c), sp(), hstack([iconMini(c), vstack([tempLine(c), credit()], { align: 'left' })], { gap: 2 })]) },
+      miniTier, stripTier,
+    ],
+  },
+};
+// =====================================================================
+// Variants D and E: the "break free" designs.
+// Pixel engine: each cell holds two square pixels, top and bottom, drawn with ▀ ▄ █ and a
+// foreground plus background color. ratatui can do this with Cell fg/bg.
+// "ghost" pixels are bright black with the terminal's faint (dim) style, like unlit LCD segments.
+// =====================================================================
+function pcell(t, u) {
+  if (!t && !u) return null;
+  if (t === u) return { ch: '█', role: t, dim: isFaint(t) };
+  if (t && !u) return { ch: '▀', role: t, dim: isFaint(t) };
+  if (!t && u) return { ch: '▄', role: u, dim: isFaint(u) };
+  // Both set and different: the faint pixel must be the foreground, because the background can't be faint.
+  if (isFaint(u)) return { ch: '▄', role: u, dim: true, bg: t };
+  return { ch: '▀', role: t, dim: isFaint(t), bg: u };
+}
+// grid: rows of roles (or null), any height; returns a block of ceil(h/2) rows.
+function fromGrid(grid) {
+  const hp = grid.length, w = Math.max(0, ...grid.map(r => r.length)), b = blank(w, Math.ceil(hp / 2));
+  for (let y = 0; y < b.h; y++) for (let x = 0; x < w; x++) b.cells[y][x] = pcell(grid[2 * y]?.[x] ?? null, grid[2 * y + 1]?.[x] ?? null);
+  return b;
+}
+const pix = (rows, legend) => fromGrid(rows.map(r => [...r].map(ch => legend[ch] ?? null)));
+const ghostOn = () => state.ghost === 'on';
+
+// Seven-segment digits, w×h pixels, segment thickness t.
+const SEG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
+function segMask(w, h, t, segs) {
+  const g = Array.from({ length: h }, () => Array(w).fill(false)), m = Math.floor((h - t) / 2);
+  const H = y0 => { for (let y = y0; y < y0 + t; y++) for (let x = t; x < w - t; x++) g[y][x] = true; };
+  const V = (x0, y0, y1) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x0 + t; x++) g[y][x] = true; };
+  if (segs.includes('a')) H(0); if (segs.includes('g')) H(m); if (segs.includes('d')) H(h - t);
+  if (segs.includes('f')) V(0, t, m); if (segs.includes('b')) V(w - t, t, m);
+  if (segs.includes('e')) V(0, m + t, h - t); if (segs.includes('c')) V(w - t, m + t, h - t);
+  return g;
+}
+const CLOCK_SIZES = [{ w: 4, h: 7, t: 1 }, { w: 6, h: 11, t: 1 }, { w: 8, h: 15, t: 2 }, { w: 10, h: 19, t: 2 }, { w: 12, h: 23, t: 3 }];
+const lcdWidth = ({ w, t }) => 4 * w + 2 * 1 + 2 * (t + 1) + t;
+function lcdClock(c, size) {
+  const { w, h, t } = size, cg = t + 1, W = lcdWidth(size), grid = Array.from({ length: h }, () => Array(W).fill(null));
+  const put = (x0, mask, role) => mask.forEach((row, y) => row.forEach((on, x) => { if (on) grid[y][x0 + x] = role; }));
+  const digit = (x0, d) => { if (ghostOn()) put(x0, segMask(w, h, t, SEG[8]), 'ghost'); put(x0, segMask(w, h, t, SEG[d]), 'accent'); };
+  let x = 0;
+  digit(x, c.hh[0]); x += w + 1; digit(x, c.hh[1]); x += w + cg;
+  const colonRole = c.colonOn ? 'accent' : ghostOn() ? 'ghost' : null;
+  if (colonRole) for (const yc of [Math.round(h * 0.3), Math.round(h * 0.7) - t + 1]) for (let y = yc - Math.floor(t / 2); y < yc - Math.floor(t / 2) + t; y++) for (let i = 0; i < t; i++) grid[y][x + i] = colonRole;
+  x += t + cg;
+  digit(x, c.mm[0]); x += w + 1; digit(x, c.mm[1]);
+  return fromGrid(grid);
+}
+
+// Pixel-art icons, 12×8 pixels = 12×4 cells, two frames each. Mini icons: 6×4 pixels = 6×2 cells.
+const LEG = { W: 'cloud', w: 'dim', Y: 'accent', y: 11, M: 11, B: 'rain', S: 'snow', d: 8 };
+const CLOUD = ['.....WWW....', '..WW.WWWW...', '.WWWWWWWWWW.', 'WWWWWWWWWWWW', '.wwwwwwwwww.'];
+const ICONS = {
+  clear: [
+    ['.....yy.....', '.y........y.', '....YYYY....', '...YYYYYY...', 'yy.YYYYYY.yy', '...YYYYYY...', '....YYYY....', '.y...yy...y.'],
+    ['.....yy.....', '............', '....YYYY....', '...YYYYYY...', 'y..YYYYYY..y', '...YYYYYY...', '....YYYY....', '.....yy.....'],
+  ],
+  night: [
+    ['...MMMM.....', '..MMM.......', '.MMM........', '.MMM........', '.MMM........', '..MMM.......', '...MMMM.....', '............'],
+    ['...MMMM.....', '..MMM.......', '.MMM........', '.MMM........', '.MMM........', '..MMM.......', '...MMMM.....', '............'],
+  ],
+  partly: [
+    ['..y.........', '....YYY.....', 'y..YYYYY....', '...YYYWWW...', '..YYWWWWWWW.', '...WWWWWWWWW', '...wwwwwwww.', '............'],
+    ['............', '....YYY.....', '...YYYYY....', '...YYYWWW...', '..YYWWWWWWW.', '...WWWWWWWWW', '...wwwwwwww.', '............'],
+  ],
+  partlyNight: [
+    ['....MMM.....', '...MM.......', '..MM........', '..MM..WWW...', '..MMWWWWWWW.', '...WWWWWWWWW', '...wwwwwwww.', '............'],
+    ['....MMM.....', '...MM.......', '..MM........', '..MM..WWW...', '..MMWWWWWWW.', '...WWWWWWWWW', '...wwwwwwww.', '............'],
+  ],
+  rain: [[...CLOUD, '..B...B...B.', '............', '....B...B...'], [...CLOUD, '....B...B...', '............', '..B...B...B.']],
+  snow: [[...CLOUD, '............', '.S...S...S..', '...S...S...S'], [...CLOUD, '............', '..S...S...S.', '.S...S...S..']],
+  storm: [
+    [...CLOUD.map(r => r.replace(/W/g, 'd')).slice(0, 4), '.dddddYdddd.', '.....YY.....', '......Y.....', '.....Y......'],
+    [...CLOUD.map(r => r.replace(/W/g, 'd')).slice(0, 4), '.dddddYdddd.', '.....YY.....', '......Y.....', '.....Y......'],
+  ],
+};
+const MINI = {
+  clear: [['..YY..', '.YYYY.', '.YYYY.', '..YY..'], ['y.YY.y', '.YYYY.', '.YYYY.', 'y.YY.y']],
+  night: [['..MM..', '.MM...', '.MM...', '..MM..'], ['..MM..', '.MM...', '.MM...', '..MM..']],
+  partly: [['.YY...', 'YYWW..', '.WWWWW', 'WWWWWW'], ['.YY...', 'YYWW..', '.WWWWW', 'WWWWWW']],
+  partlyNight: [['.MM...', 'MMWW..', '.WWWWW', 'WWWWWW'], ['.MM...', 'MMWW..', '.WWWWW', 'WWWWWW']],
+  rain: [['..WW..', '.WWWW.', 'WWWWWW', 'B.B.B.'], ['..WW..', '.WWWW.', 'WWWWWW', '.B.B.B']],
+  snow: [['..WW..', '.WWWW.', 'WWWWWW', 'S..S..'], ['..WW..', '.WWWW.', 'WWWWWW', '.S..S.']],
+  storm: [['..dd..', '.dddd.', 'ddYddd', '..Y...'], ['..dd..', '.dddd.', 'ddYddd', '..Y...']],
+};
+const iconKey = c => c.night && c.cond === 'clear' ? 'night' : c.night && c.cond === 'partly' ? 'partlyNight' : c.cond;
+function pixIcon(c, set, k = 1) {
+  const legend = c.cond === 'storm' && c.flash ? { ...LEG, d: 'snow' } : LEG;
+  // k = 2 doubles every pixel, for big panes.
+  let b;
+  if (iconKey(c) === 'night') {
+    // Clear night: tonight's moon in its real phase, a disc 8 pixels across (4 in the mini icon).
+    const big = set === ICONS, W = (big ? 12 : 6) * k, H = (big ? 8 : 4) * k, D = (big ? 8 : 4) * k;
+    const g = Array.from({ length: H }, () => Array(W).fill(null));
+    moonGrid(D, D, D / 2, c.phase).forEach((row, y) => row.forEach((r, x) => { g[y][x + k] = r; }));
+    b = fromGrid(g);
+  } else {
+    const rows = set[iconKey(c)][c.frame2].flatMap(r => Array(k).fill([...r].map(ch => ch.repeat(k)).join('')));
+    b = pix(rows, legend);
+  }
+  // Night skies get twinkling stars as text glyphs in empty cells.
+  if (set === ICONS && c.night && (c.cond === 'clear' || c.cond === 'partly')) {
+    const stars = c.frame2 ? [[8, 0, '✦'], [10, 2, '·'], [6, 1, '·']] : [[8, 0, '✧'], [10, 2, '✦'], [6, 1, ' ']];
+    for (const [x, y, ch] of stars) if (!b.cells[y * k][x * k]) b.cells[y * k][x * k] = ch === ' ' ? null : { ch, role: 'cloud' };
+  }
+  return b;
+}
+const SPARK = '▁▂▃▄▅▆▇█';
+function rainSpark(c) {
+  const cells = c.rain12.map(v => v < 5 ? { ch: '▁', role: 'ghost', dim: true } : { ch: SPARK[Math.min(7, Math.ceil(v / 100 * 8) - 1)], role: 'rain' });
+  return { w: 12, h: 1, cells: [cells] };
+}
+// The sun arc: sunrise on the left, sunset on the right, the sun where it is now.
+
+const fmtDur = m => `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+// Gradients through palette colors. Day: dawn red → yellow → bright yellow at noon → yellow → evening red.
+// Night: dusk magenta → deep blue → dawn magenta. Each entry is [up to this fraction, terminal color].
+const DAY_GRADIENT = [[0.08, 9], [0.22, 3], [0.78, 11], [0.92, 3], [1, 9]];
+const NIGHT_GRADIENT = [[0.08, 5], [0.92, 4], [1, 5]];
+const toneAt = (g, t) => g.find(([upTo]) => t <= upTo)[1];
+
+// Moon phase from date arithmetic: a known new moon plus the 29.53-day synodic month. No API needed.
+const SYNODIC = 29.530588853, NEW_MOON = Date.UTC(2000, 0, 6, 18, 14);
+const moonPhase = d => (((d - NEW_MOON) / 864e5 / SYNODIC) % 1 + 1) % 1;
+const illum = p => Math.round((1 - Math.cos(2 * Math.PI * p)) / 2 * 100);
+const phaseName = c => c.S.phases[Math.round(c.phase * 8) % 8];
+// A w×h pixel disc lit for phase p (0 new, 0.5 full): waxing lights the right side, waning the left.
+function moonGrid(w, h, r, p, lit = 11) {
+  const cx = (w - 1) / 2, cy = (h - 1) / 2, k = Math.cos(2 * Math.PI * p);
+  return Array.from({ length: h }, (_, y) => Array.from({ length: w }, (_, x) => {
+    const dx = (x - cx) / r, dy = (y - cy) / r;
+    if (dx * dx + dy * dy > 1) return null;
+    const rr = Math.sqrt(1 - dy * dy), on = p <= 0.5 ? dx > rr * k : dx < -rr * k;
+    return on ? lit : '~8';
+  }));
+}
+const SUN4 = [[null, 11, 11, null], [11, 15, 11, 11], [11, 11, 11, 11], [null, 11, 11, null]];
+
+// Timeline: a 2-pixel bar across two rows, the sun (day) or tonight's moon (night) riding on it,
+// then start time · status · end time underneath.
+function timeline(c, W) {
+  const night = c.dayProgress == null, prog = night ? c.nightProgress : c.dayProgress, G = night ? NIGHT_GRADIENT : DAY_GRADIENT;
+  const grid = Array.from({ length: 4 }, () => Array(W).fill(null)), mx = Math.round(prog * (W - 4));
+  for (let x = 0; x < W; x++) {
+    const tone = toneAt(G, x / (W - 1)), role = x < mx + 2 ? tone : '~' + tone;
+    grid[1][x] = role; grid[2][x] = role;
+  }
+  // One pixel of air on each side of the marker, so it stands out from the bar.
+  for (const x of [mx - 1, mx + 4]) if (x >= 0 && x < W) { grid[1][x] = null; grid[2][x] = null; }
+  (night ? moonGrid(4, 4, 2, c.phase) : SUN4).forEach((row, y) => row.forEach((r, x) => { if (r) grid[y][mx + x] = r; }));
+  const L = night ? line(['↓', 'accent'], [c.sunset, 'dim']) : line(['↑', 'accent'], [c.sunrise, 'dim']);
+  const R = night ? line([c.sunrise, 'dim'], ['↑', 'accent']) : line([c.sunset, 'dim'], ['↓', 'accent']);
+  const room = W - L.w - R.w - 2, dur = night ? `${c.S.sunriseIn} ${fmtDur(c.toSunrise)}` : `${c.S.sunsetIn} ${fmtDur(c.toSunset)}`;
+  const options = night ? [`${phaseName(c)} ${illum(c.phase)}% · ${dur}`, dur] : [dur];
+  const st = options.find(o => len(o) <= room) ?? '';
+  const labels = blank(W, 1);
+  place(labels, L, 0, 0); place(labels, R, W - R.w, 0); place(labels, line([st, 'dim']), Math.floor((W - len(st)) / 2), 0);
+  return vstack([fromGrid(grid), labels], { align: 'left' });
+}
+// Calendar with today as an inverted pill (reverse video follows any theme).
+function monthCalPill(c) {
+  const b = monthCal(c), d = c.date, off = (new Date(d.getFullYear(), d.getMonth(), 1).getDay() + 6) % 7, idx = off + d.getDate() - 1;
+  const x = (idx % 7) * 3, y = 2 + Math.floor(idx / 7);
+  for (let i = -1; i < 3; i++) if (x + i >= 0 && x + i < 20) { const cell = b.cells[y][x + i]; b.cells[y][x + i] = { ch: cell?.ch ?? ' ', role: 'accent', inverse: true, bold: true }; }
+  return b;
+}
+function weekPill(c) {
+  const b = weekStrip(c), dow = (c.date.getDay() + 6) % 7, x = dow * 3;
+  for (let i = -1; i < 3; i++) if (x + i >= 0 && x + i < 20) { const cell = b.cells[1][x + i]; b.cells[1][x + i] = { ch: cell?.ch ?? ' ', role: 'accent', inverse: true, bold: true }; }
+  return b;
+}
+const isoWeek = d => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const n = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - n + 3); const f = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return 1 + Math.round(((t - f) / 864e5 - 3 + ((f.getUTCDay() + 6) % 7)) / 7); };
+const shortDate = c => `${c.S.short[c.date.getDay()]} ${c.date.getDate()} ${c.S.months[c.date.getMonth()].slice(0, 3)}`;
+const hiLo = c => line([c.temp, 'fg', true], ['  ↑', 'dim'], [c.hi, 'fg'], [' ↓', 'dim'], [c.lo, 'fg']);
+
+// Gadget bezel: a box that hugs the content, with text on both ends of the top and bottom borders.
+function gadgetBox(inner, tl, tr, bl, br) {
+  const w = Math.max(inner.w + 4, len(tl.map(s => s[0]).join('')) + len(tr.map(s => s[0]).join('')) + 9), h = inner.h + 2, o = blank(w, h);
+  for (let x = 1; x < w - 1; x++) { o.cells[0][x] = { ch: '─', role: 'frame' }; o.cells[h - 1][x] = { ch: '─', role: 'frame' }; }
+  for (let y = 1; y < h - 1; y++) { o.cells[y][0] = { ch: '│', role: 'frame' }; o.cells[y][w - 1] = { ch: '│', role: 'frame' }; }
+  Object.assign(o.cells[0], { 0: { ch: '╭', role: 'frame' }, [w - 1]: { ch: '╮', role: 'frame' } });
+  Object.assign(o.cells[h - 1], { 0: { ch: '╰', role: 'frame' }, [w - 1]: { ch: '╯', role: 'frame' } });
+  const write = (y, x, segs) => line(...segs).cells[0].forEach((cell, i) => { o.cells[y][x + i] = cell; });
+  const L = s => [[' ', 'frame'], ...s, [' ', 'frame']], R = s => len(s.map(p => p[0]).join('')) + 2;
+  write(0, 2, L(tl)); write(0, w - 2 - R(tr), L(tr));
+  write(h - 1, 1, [['» ', 'frame'], ...bl, [' ', 'frame']]); write(h - 1, w - 2 - R(br), L(br));
+  place(o, inner, 2, 1);
+  return o;
+}
+const gadget = (c, inner) => gadgetBox(inner,
+  [[shortDate(c), 'date']], [[`${c.S.wk} ${isoWeek(c.date)}`, 'dim']],
+  [[c.S.greet(c.hour), 'secondary']], [['open-meteo', 'dim']]);
+// Top band shared by D's framed tiers: LCD clock, icon, temperatures, rain sparkline.
+const band = c => {
+  const clock = lcdClock(c, CLOCK_SIZES[0]);
+  return vstack([
+    hstack([clock, pixIcon(c, ICONS)], { gap: 1 }),
+    hstack([vstack([hiLo(c)], { align: 'left' }), rainSpark(c)], { gap: clock.w + 1 - hiLo(c).w }),
+  ], { align: 'left' });
+};
+
+VARIANTS.D = {
+  name: 'gadget LCD (pixel art, sun arc, rain next 12h)',
+  tiers: [
+    { name: 'large', credit: true, build: c => {
+      const details = vstack([line([c.temp, 'fg', true], [' ' + c.S.conds[c.cond], 'secondary']), line(['↑', 'dim'], [c.hi, 'fg'], [' ↓', 'dim'], [c.lo, 'fg']), sp(), line([c.S.next12, 'dim']), rainSpark(c)], { align: 'left' });
+      const mid = hstack([pixIcon(c, ICONS, 2), details, monthCalPill(c)], { gap: 3 });
+      return gadget(c, vstack([lcdClock(c, CLOCK_SIZES[2]), sp(), mid, sp(), timeline(c, mid.w)]));
+    } },
+    { name: 'wide', credit: true, build: c => { const b = band(c); return gadget(c, hstack([vstack([b, sp(), timeline(c, b.w)], { align: 'left' }), monthCalPill(c)], { gap: 3 })); } },
+    { name: 'tall', credit: true, build: c => { const b = band(c); return gadget(c, vstack([b, line([c.S.conds[c.cond], 'secondary']), sp(), timeline(c, b.w), sp(), monthCalPill(c)])); } },
+    { name: 'medium', credit: true, build: c => { const b = band(c); return gadget(c, vstack([b, timeline(c, b.w), weekPill(c)])); } },
+    { name: 'compact', credit: false, build: c => vstack([line([shortDate(c), 'date']), lcdClock(c, CLOCK_SIZES[0]), sp(), hstack([pixIcon(c, MINI), vstack([hiLo(c), rainSpark(c)], { align: 'left' })], { gap: 2 })]) },
+    { name: 'mini', credit: false, build: c => hstack([smallClock(c), pixIcon(c, MINI), line([c.temp, 'fg', true])], { gap: 2, valign: 'center' }) },
+    stripTier,
+  ],
+};
+
+// E: poster. One huge LCD clock scaled to the pane, one info line, the sun arc. Nothing else.
+VARIANTS.E = {
+  name: 'poster (huge clock that scales, one info line)',
+  tiers: [
+    { name: 'poster', credit: true, build: (c, W, H) => {
+      // The info line drops parts until it fits: date · temp condition · hi lo → date · temp condition → date · temp.
+      const d = [shortDate(c), 'date'], dot = [' · ', 'dim'], tc = [[c.temp, 'fg', true], [' ' + c.S.conds[c.cond], 'secondary']];
+      const infos = [line(d, dot, ...tc, dot, ['↑', 'dim'], [c.hi, 'fg'], [' ↓', 'dim'], [c.lo, 'fg']), line(d, dot, ...tc), line(d, dot, tc[0])];
+      const info = infos.find(i => i.w <= W) || infos[infos.length - 1];
+      const fits = s => lcdWidth(s) <= W - 2 && Math.ceil(s.h / 2) + 8 <= H;
+      const size = [...CLOCK_SIZES].reverse().find(fits) || CLOCK_SIZES[0];
+      const clock = lcdClock(c, size), w = Math.max(clock.w, info.w, 26);
+      const cred = line(['open-meteo', 'dim']), credRow = blank(w, 1); place(credRow, cred, w - cred.w, 0);
+      return vstack([clock, sp(), info, sp(), timeline(c, w), credRow]);
+    } },
+    { name: 'mini', credit: false, build: c => hstack([smallClock(c), pixIcon(c, MINI), line([c.temp, 'fg', true])], { gap: 2, valign: 'center' }) },
+    stripTier,
+  ],
+};
+const VKEYS = Object.keys(VARIANTS);
+
+// ---------- compose: pick the largest tier that fits ----------
+function compose(W, H, now) {
+  const c = makeCtx(now), tiers = VARIANTS[state.variant].tiers, table = [];
+  let chosen = null;
+  for (const t of tiers) {
+    let blk, minW, minH;
+    if (t.strip) {
+      const opts = t.options(c);
+      blk = opts.find(o => o.w <= W && H >= 1) || opts[opts.length - 1];
+      minW = opts[opts.length - 1].w; minH = 1;
+      table.push({ name: t.name, size: `${opts.map(o => o.w).join('/')}×1`, credit: false });
+    } else {
+      const inner = t.build(c, W, H);
+      blk = t.framed ? applyBezel(inner, c, t.text, W, H) : inner;
+      minW = blk.minW ?? blk.w; minH = blk.minH ?? blk.h;
+      table.push({ name: t.name, size: `${minW}×${minH}`, credit: t.credit });
+    }
+    if (!chosen && blk.w <= W && blk.h <= H) chosen = { tier: t, blk };
+  }
+  if (!chosen) { const s = tiers[tiers.length - 1].options(c); chosen = { tier: stripTier, blk: s[s.length - 1], clipped: true }; }
+  const pane = blank(W, H);
+  const x = Math.floor((W - chosen.blk.w) / 2), y = Math.floor((H - chosen.blk.h) / 2);
+  place(pane, chosen.blk, Math.max(0, x), Math.max(0, y));
+  return { pane, chosen, table, x, y };
+}
+
+// ---------- draw: terminal-style cells on a canvas ----------
+let metrics = null;
+function measure(zoom) {
+  const cv = document.createElement('canvas').getContext('2d');
+  cv.font = `${11 * zoom}px DM, "Departure Mono", monospace`;
+  const m = cv.measureText('M');
+  return { cw: Math.round(m.width), ch: Math.round(m.fontBoundingBoxAscent + m.fontBoundingBoxDescent), asc: m.fontBoundingBoxAscent, font: cv.font };
+}
+const BLOCK_FRAC = { '▁': 1, '▂': 2, '▃': 3, '▅': 5, '▆': 6, '▇': 7 };
+function drawCell(g, cell, x, y, cw, ch, asc, pal) {
+  // Background first (half-block pixels with two colors), then reverse video, then the faint style.
+  if (cell.bg != null) { g.fillStyle = color(pal, cell.bg); g.fillRect(x, y, cw, ch); }
+  if (cell.inverse) { g.fillStyle = color(pal, cell.role); g.fillRect(x, y, cw, ch); }
+  g.globalAlpha = cell.dim ? 0.5 : 1;   // Ghostty's default faint-opacity
+  drawGlyph(g, { ...cell, col: cell.inverse ? pal.bg : color(pal, cell.role) }, x, y, cw, ch, asc);
+  g.globalAlpha = 1;
+}
+function drawGlyph(g, cell, x, y, cw, ch, asc) {
+  const col = cell.col, lw = Math.max(1, Math.round(cw / 7)), mx = x + Math.floor(cw / 2), my = y + Math.floor(ch / 2);
+  g.fillStyle = col; g.strokeStyle = col;
+  const corner = (x0, y0, x1, y1) => { g.beginPath(); g.lineWidth = lw; g.moveTo(x0, y0); g.arcTo(mx + lw / 2, my + lw / 2, x1, y1, cw / 2); g.lineTo(x1, y1); g.stroke(); };
+  switch (cell.ch) {
+    case '█': return g.fillRect(x, y, cw, ch);
+    case '▀': return g.fillRect(x, y, cw, Math.round(ch / 2));
+    case '▄': return g.fillRect(x, y + Math.round(ch / 2), cw, ch - Math.round(ch / 2));
+    case '▌': return g.fillRect(x, y, Math.round(cw / 2), ch);
+    case '▐': return g.fillRect(x + Math.round(cw / 2), y, cw - Math.round(cw / 2), ch);
+    case '░': case '▒': case '▓': g.globalAlpha *= { '░': .25, '▒': .5, '▓': .75 }[cell.ch]; return g.fillRect(x, y, cw, ch);
+    case '─': return g.fillRect(x, my, cw, lw);
+    case '│': return g.fillRect(mx, y, lw, ch);
+    case '╷': return g.fillRect(mx, my, lw, ch - (my - y));
+    case '╵': return g.fillRect(mx, y, lw, my - y + lw);
+    case '═': g.fillRect(x, my - lw, cw, lw); return g.fillRect(x, my + lw, cw, lw);
+    case '╭': return corner(x + cw, my + lw / 2, mx + lw / 2, y + ch);
+    case '╮': return corner(x, my + lw / 2, mx + lw / 2, y + ch);
+    case '╰': return corner(x + cw, my + lw / 2, mx + lw / 2, y);
+    case '╯': return corner(x, my + lw / 2, mx + lw / 2, y);
+  }
+  if (BLOCK_FRAC[cell.ch]) { const h = Math.round(ch * BLOCK_FRAC[cell.ch] / 8); return g.fillRect(x, y + ch - h, cw, h); }
+  g.font = (cell.bold ? 'bold ' : '') + metrics.font;
+  g.fillText(cell.ch, x, y + asc);
+}
+function render(canvas, grid, zoom) {
+  const m = measure(zoom * devicePixelRatio), pal = PALETTES[state.palette];
+  metrics = m;
+  canvas.width = grid.w * m.cw; canvas.height = grid.h * m.ch;
+  canvas.style.width = canvas.width / devicePixelRatio + 'px'; canvas.style.height = canvas.height / devicePixelRatio + 'px';
+  const g = canvas.getContext('2d');
+  g.fillStyle = pal.bg; g.fillRect(0, 0, canvas.width, canvas.height);
+  g.textBaseline = 'alphabetic';
+  for (let y = 0; y < grid.h; y++) for (let x = 0; x < grid.w; x++) {
+    const cell = grid.cells[y][x];
+    if (cell && cell.ch !== ' ' || cell?.inverse || cell?.bg != null) drawCell(g, cell, x * m.cw, y * m.ch, m.cw, m.ch, m.asc, pal);
+  }
+}
+
+// ---------- controls ----------
+const PRESETS = [[20, 4], [30, 10], [40, 12], [44, 14], [60, 20], [85, 26], [105, 30], [40, 3], [30, 1]];
+function seg(label, key, values) {
+  return `<span><label>${label}</label> <span class="seg">${values.map(v => `<button data-k="${key}" data-v="${v}" class="${String(state[key]) === String(v) ? 'on' : ''}">${v}</button>`).join('')}</span></span>`;
+}
+function drawControls() {
+  document.getElementById('controls').innerHTML = [
+    `<span><label>pane</label> <input type="number" id="cols" min="1" max="200" value="${state.cols}"> × <input type="number" id="rows" min="1" max="80" value="${state.rows}"></span>`,
+    `<span class="seg">${PRESETS.map(([w, h]) => `<button data-preset="${w}x${h}" class="${state.cols === w && state.rows === h ? 'on' : ''}">${w}×${h}</button>`).join('')}</span>`,
+    seg('bezel', 'bezel', ['none', 'open', 'closed', 'fill']),
+    seg('lang', 'lang', ['en', 'es']),
+    seg('date', 'date', ['now', 'longest']),
+    seg('palette', 'palette', Object.keys(PALETTES)),
+    seg('zoom', 'zoom', [1, 2, 3]),
+    seg('weather', 'cond', ['rain', 'clear', 'partly', 'snow', 'storm']),
+    seg('time', 'time', ['now', '08:30', '13:00', '18:45', '23:10']),
+    seg('ghost segments', 'ghost', ['on', 'off']),
+    seg('moon phase', 'phase', ['auto', '0', '0.12', '0.25', '0.38', '0.5', '0.62', '0.75', '0.88']),
+  ].join('');
+  document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k; state[k] = typeof state[k] === 'number' ? +b.dataset.v : b.dataset.v; update(); });
+  document.querySelectorAll('[data-preset]').forEach(b => b.onclick = () => { [state.cols, state.rows] = b.dataset.preset.split('x').map(Number); update(); });
+  document.getElementById('cols').onchange = e => { state.cols = Math.max(1, +e.target.value); update(); };
+  document.getElementById('rows').onchange = e => { state.rows = Math.max(1, +e.target.value); update(); };
+}
+const cycle = (key, list, dir = 1) => { state[key] = list[(list.indexOf(state[key]) + dir + list.length) % list.length]; update(); };
+document.getElementById('prev').onclick = () => cycle('variant', VKEYS, -1);
+document.getElementById('next').onclick = () => cycle('variant', VKEYS, 1);
+addEventListener('keydown', e => {
+  if (e.target.closest('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle('variant', VKEYS, -1);
+  if (e.key === 'ArrowRight') cycle('variant', VKEYS, 1);
+  if (e.key === 'b') cycle('bezel', ['none', 'open', 'closed', 'fill']);
+  if (e.key === 'l') cycle('lang', ['en', 'es']);
+  if (e.key === 'p') cycle('palette', Object.keys(PALETTES));
+  if (e.key === 'd') cycle('date', ['now', 'longest']);
+  if (e.key === 'w') cycle('cond', ['rain', 'clear', 'partly', 'snow', 'storm']);
+  if (e.key === 't') cycle('time', ['now', '08:30', '13:00', '18:45', '23:10']);
+});
+
+// ---------- loop ----------
+function frame() {
+  const now = new Date();
+  const r = compose(state.cols, state.rows, now);
+  render(document.getElementById('pane'), r.pane, state.zoom);
+  const t = r.chosen;
+  document.getElementById('state').textContent = [
+    `variant   ${state.variant} · ${VARIANTS[state.variant].name}`,
+    `pane      ${state.cols}×${state.rows}`,
+    `tier      ${t.tier.name}${r.chosen.clipped ? '   ⚠ CLIPPED: nothing fits' : ''}`,
+    `content   ${t.blk.w}×${t.blk.h}   leftover ${state.cols - t.blk.w} cols, ${state.rows - t.blk.h} rows`,
+    `credit    ${t.tier.credit ? 'shown' : '⚠ omitted (licence wants it near the weather)'}`,
+    `bezel     ${'DE'.includes(state.variant) ? 'own design (control ignored)' : state.bezel}   lang ${state.lang}   date ${state.date}`,
+    `weather   ${state.cond}   time ${state.time}`,
+    `palette   ${state.palette}`,
+    ``,
+    `smallest pane for each tier (= its breakpoint):`,
+    ...r.table.map(x => `  ${x.name.padEnd(22)} ${x.size === 'Infinity×Infinity' ? '—' : x.size}${x.credit ? '' : '  (no credit)'}`),
+  ].join('\n');
+  // gallery: the same variant at every preset size, one zoom step smaller
+  const gal = document.getElementById('gallery');
+  if (gal.children.length !== PRESETS.length) gal.innerHTML = PRESETS.map(() => '<figure><canvas class="pane"></canvas><figcaption></figcaption></figure>').join('');
+  PRESETS.forEach(([w, h], i) => {
+    const fig = gal.children[i], g = compose(w, h, now);
+    render(fig.querySelector('canvas'), g.pane, Math.max(1, state.zoom - 1));
+    fig.querySelector('figcaption').textContent = `${w}×${h} → ${g.chosen.tier.name}${g.chosen.clipped ? ' ⚠' : ''}`;
+  });
+}
+function update() { syncURL(); drawControls(); document.getElementById('vlabel').textContent = `${state.variant} · ${VARIANTS[state.variant].name.split(' (')[0]}`; frame(); }
+
+document.fonts.load('22px DM').finally(() => { update(); setInterval(frame, 250); });
+</script>
+</body>
+</html>
