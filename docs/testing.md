@@ -4,12 +4,21 @@ How this project tests. `tdd` reads this file before it writes a test. `retro` c
 
 ## Commands
 
-None yet.
+CI runs these on Linux and macOS. Run them before each commit:
+
+- `cargo fmt --check`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo test`
+
+Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, then read the `.snap` file before you commit it. This works without `cargo-insta`.
 
 ## Seams
 
-<!-- Where tests enter the code, and which seam owns which kind of risk. Empty until retro has evidence. -->
+- **App core** (`alba::app::App`): drive it with `key(event)` and render it into ratatui's `TestBackend` at a fixed instant in an explicit time zone. It owns everything the pane shows.
+- **Source search** (`tests/no_wrap.rs`): reads `src/` and fails on a banned API. It owns rules the compiler cannot express.
+- **The real binary**: CLI flags, terminal restore, and tick timing. No automated test enters here; the verification skill drives it.
 
 ## Exemplars
 
-<!-- Links to tests that show the house style. Empty until retro has evidence. -->
+- [`text_clock_is_centred_in_the_pane`](../tests/app.rs): a character snapshot of the whole pane.
+- [`pane_narrower_than_the_clock_renders_nothing`](../tests/app.rs): a plain `assert_buffer_lines`, for an exact expected grid.
