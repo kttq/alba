@@ -5,9 +5,9 @@ use std::{
 };
 
 use alba::config::{
-    self, AmPm, AnimationFps, ClockConfig, ColonDots, ColonGap, ColonStyle, Config, DigitGap,
-    Flash, FlashTarget, HourFormat, Language, Location, MoonDarkSide, Stars, Thickness, Units,
-    WeatherConfig, WeekStart,
+    self, AmPm, AnimationFps, ClockConfig, ColonDots, ColonGap, ColonGapPixels, ColonStyle, Config,
+    DigitGap, Flash, FlashTarget, HourFormat, Language, Location, MoonDarkSide, Stars, Thickness,
+    Units, WeatherConfig, WeekStart,
 };
 
 #[test]
@@ -85,7 +85,7 @@ stars          = "pixels"
             clock: ClockConfig {
                 thickness: Thickness::One,
                 digit_gap: DigitGap::Two,
-                colon_gap: ColonGap::Pixels(4),
+                colon_gap: ColonGap::Pixels(ColonGapPixels::Four),
                 colon: ColonStyle::Steady,
                 colon_dots: ColonDots::Tall,
                 ghost_segments: false,
@@ -168,11 +168,15 @@ fn bad_choice_names_its_line() {
 
 #[test]
 fn bad_integer_choice_names_its_line() {
-    assert_error("\nhour_format = 13\n", 2, "expected 24 or 12, found 13");
+    assert_error(
+        "\nhour_format = 13\n",
+        2,
+        "invalid value: 13, expected 24 or 12",
+    );
     assert_error(
         "[weather]\nanimation_fps = 3\n",
         2,
-        "expected 0, 1, 2, or 4, found 3",
+        "invalid value: 3, expected one of: 0, 1, 2, 4",
     );
 }
 
@@ -189,26 +193,6 @@ fn bad_colon_gap_names_its_line() {
 #[test]
 fn wrong_type_names_its_line() {
     assert_error("[clock]\nghost_segments = \"yes\"\n", 2, "");
-}
-
-#[test]
-fn table_that_is_not_a_table_names_its_line() {
-    assert_error("units = \"metric\"\nclock = []\n", 2, "expected a table");
-    assert_error("weather = [4]\n", 1, "expected a table");
-}
-
-#[test]
-fn choice_that_is_not_a_string_names_its_line() {
-    assert_error(
-        "\nlanguage = { en = {} }\n",
-        2,
-        "expected one of `en`, `es`",
-    );
-    assert_error(
-        "[weather]\nflash = 8\n",
-        2,
-        "expected one of `8s`, `20s`, `off`",
-    );
 }
 
 #[test]

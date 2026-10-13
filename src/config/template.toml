@@ -1,0 +1,24 @@
+# alba config. all options: https://github.com/kttq/alba#config
+# language: "en" or "es". units: "metric" or "imperial".
+# hour_format: 24 or 12. week_start: "monday" or "sunday".
+
+language    = "en"
+units       = "metric"
+hour_format = 24
+week_start  = "monday"
+
+# location: your city, optionally narrowed, like "paris, united states".
+# check a name at https://open-meteo.com/en/docs/geocoding-api
+# or set latitude and longitude instead; they win over location.
+
+# location  = "buenos aires"
+# latitude  = -34.6037
+# longitude = -58.3816
+
+# to stop all motion, uncomment:
+
+# [clock]
+# colon = "steady"
+# [weather]
+# animation_fps = 0
+# flash = "off"
