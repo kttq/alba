@@ -13,12 +13,8 @@ One of seven fixed layouts (Large, Wide, Tall, Medium, Compact, Mini, Strip), ch
 _Avoid_: Breakpoint, mode
 
 **Home view**:
-The default view, which composes the clock, weather, and calendar to fit the current size tier.
-_Avoid_: Main screen, dashboard
-
-**Focus view**:
-A view that shows one widget only (clock, weather, or calendar) and fills the pane.
-_Avoid_: Detail screen, page
+alba's only view, which composes the clock, weather, and calendar to fit the current size tier.
+_Avoid_: Main screen, dashboard, focus view
 
 **Condition**:
 One of nine weather categories (clear, partly cloudy, cloudy, fog, drizzle, rain, heavy rain, snow, thunderstorm) that WMO codes map to.
@@ -39,3 +35,11 @@ _Avoid_: Sun arc, progress bar, day bar
 **Ghost segment**:
 An unlit segment of the LCD clock, shown faintly so every digit keeps the shape of an 8.
 _Avoid_: Shadow digit, background segment
+
+**Stale weather**:
+Weather data old enough that refreshes have failed; still shown, but dimmed and labelled with its age.
+_Avoid_: Old data, outdated weather
+
+**Expired weather**:
+Weather data too old to show at all; alba treats it as having no weather.
+_Avoid_: Invalid cache, dead data
