@@ -4,11 +4,12 @@
   Question (wayfinder ticket "LCD clock details, small clock, and colon", kttq/alba#5):
   how does the seven-segment LCD clock look in detail, and what does the small clock look like?
   Built on the harness of kttq/alba#4 (tag prototype/home-layout), with its chosen Home layout (variant D, gadget LCD).
-  Plan: four segment shapes (A gapped corners, B filled corners, C rounded, D italic), switchable via ?variant=,
-  shown in the real Home view at every tier plus a digit sheet. Spacing, colon, ghost segments, the small clock,
-  and the 12-hour marks are separate controls, because they combine freely with any shape.
+  Round 1 compared four segment shapes (gapped, filled, rounded, italic); the user chose gapped corners.
+  Round 2 (this file) keeps only that shape and the options still open: thickness 1 or 2 for the Large clock,
+  spacing, the colon, ghost segments, the 7 hook, and the 12-hour mark (stack or text).
+  Round 3 scrapped the pixel Mini clock (tiny 3×5 gapped digits were illegible and needed 39×3); Mini keeps the text clock.
   Weather icons are still drafts; their design belongs to another ticket.
-  Open by double-clicking. Keys: ← → variant · g ghost · f 12/24h · c colon · s small clock · t time · w weather · p palette.
+  Open by double-clicking. Keys: g ghost · f 12/24h · c colon · t time · w weather · p palette.
 -->
 <html lang="en">
 <head>
@@ -51,23 +52,15 @@
 <canvas class="pane" id="sheet"></canvas>
 <div class="gallery" id="gallery"></div>
 
-<div class="switcher">
-  <button id="prev" title="previous variant (←)">←</button>
-  <span id="vlabel"></span>
-  <button id="next" title="next variant (→)">→</button>
-</div>
-
 <script>
 // ---------- state & url ----------
 const Q = new URLSearchParams(location.search);
 const state = {
-  variant: Q.get('variant') || 'A',
   cond: Q.get('cond') || 'rain',
   time: Q.get('time') || 'now',
   ghost: Q.get('ghost') || 'on',
   fmt: Q.get('fmt') || '24',          // 24 or 12 hour
-  ampm: Q.get('ampm') || 'stack',     // 12h mark on the LCD clock: stack, text, dot
-  small: Q.get('small') || 'text',    // Mini tier clock: text or pixel
+  ampm: Q.get('ampm') || 'stack',     // 12h mark on the LCD clock: stack or text
   lgT: +Q.get('lgT') || 2,            // segment thickness of the Large clock
   dgap: +Q.get('dgap') || 1,          // pixels between digits
   cgap: Q.get('cgap') || 'auto',      // pixels on each side of the colon
@@ -190,13 +183,13 @@ function makeCtx(real) {
 }
 
 // ---------- components ----------
-// Text clock for Mini (text style) and Strip: "06:38", or "6:38pm" in 12-hour. The colon follows the colon control:
+// Text clock for Mini and Strip: "06:38", or "6:38pm" in 12-hour. The colon follows the colon control:
 // blinks to faint (ghost), blinks to blank, or stays on (steady).
 const textClock = c => {
   const colon = c.colonOn ? [':', 'accent', true] : state.colon === 'blank' ? [' ', 'accent'] : [':', 'ghost'];
   return [[c.hh.trim(), 'accent', true], colon, [c.mm, 'accent', true], ...(state.fmt === '12' ? [[c.pm ? 'pm' : 'am', 'dim']] : [])];
 };
-const smallClock = c => state.small === 'pixel' ? lcdClock(c, TINY) : line(...textClock(c));
+const smallClock = c => line(...textClock(c));
 // PLACEHOLDER icons (rain). The real set belongs to "Weather icons: the full set with two animation frames".
 const iconFull = c => art(['  ▄▄▄▄  ', '▄██████▄', ...(c.frame2 ? ['   ‚  ‚ ', ' ‚  ‚  ‚'] : [' ‚  ‚  ‚', '   ‚  ‚ '])], ch => ch === '‚' ? 'rain' : 'cloud');
 const iconMini = c => art(['▄██▄', c.frame2 ? ' ‚ ‚' : '‚ ‚ '], ch => ch === '‚' ? 'rain' : 'cloud');
@@ -278,14 +271,6 @@ const stripTier = {
   ],
 };
 
-// ---------- variants: the segment shape ----------
-// Every variant uses the same Home layout (kttq/alba#4, variant D); only the digit shape changes.
-const VARIANTS = {
-  A: { name: 'gapped corners (the #4 draft)', style: 'gap' },
-  B: { name: 'filled corners (solid pixel blocks)', style: 'fill' },
-  C: { name: 'rounded (filled, outer corners cut)', style: 'round' },
-  D: { name: 'italic (gapped, slanted right)', style: 'italic' },
-};
 // =====================================================================
 // Variants D and E: the "break free" designs.
 // Pixel engine: each cell holds two square pixels, top and bottom, drawn with ▀ ▄ █ and a
@@ -310,13 +295,9 @@ function fromGrid(grid) {
 const pix = (rows, legend) => fromGrid(rows.map(r => [...r].map(ch => legend[ch] ?? null)));
 const ghostOn = () => state.ghost === 'on';
 
-// Seven-segment digits, w×h pixels, segment thickness t, in the shape the variant names.
+// Seven-segment digits, w×h pixels, segment thickness t. Segments stop short of the corners.
 const SEG = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg' };
-const TINY = { w: 3, h: 5, t: 1 }, SMALL = { w: 4, h: 7, t: 1 }, LARGE = () => ({ w: 8, h: 15, t: state.lgT });
-const shape = () => VARIANTS[state.variant].style;
-// Italic: row y shifts right; the top row shifts most (1 pixel at 4×7, 2 at 8×15).
-const slant = ({ h }) => shape() === 'italic' ? Math.max(1, Math.round(h / 7)) : 0;
-const shift = (size, y) => Math.round((size.h - 1 - y) / (size.h - 1) * slant(size));
+const SMALL = { w: 4, h: 7, t: 1 }, LARGE = () => ({ w: 8, h: 15, t: state.lgT });
 function segsOf(d) {
   let s = SEG[d];
   if (state.tails === 'off' && d === '6') s = s.replace('a', '');
@@ -324,33 +305,26 @@ function segsOf(d) {
   if (state.hook === 'on' && d === '7') s += 'f';
   return s;
 }
-// gap: segments stop short of the corners. fill: segments run into the corners.
-// round: as fill, with the four outer corner pixels cut.
 function segMask({ w, h, t }, segs) {
-  const st = shape(), full = st === 'fill' || st === 'round';
   const g = Array.from({ length: h }, () => Array(w).fill(false)), m = Math.floor((h - t) / 2);
-  const H = y0 => { for (let y = y0; y < y0 + t; y++) for (let x = full ? 0 : t; x < (full ? w : w - t); x++) g[y][x] = true; };
-  const V = (x0, y0, y1) => { for (let y = full ? y0 - t : y0; y < (full ? y1 + t : y1); y++) for (let x = x0; x < x0 + t; x++) g[y][x] = true; };
+  const H = y0 => { for (let y = y0; y < y0 + t; y++) for (let x = t; x < w - t; x++) g[y][x] = true; };
+  const V = (x0, y0, y1) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x0 + t; x++) g[y][x] = true; };
   if (segs.includes('a')) H(0); if (segs.includes('g')) H(m); if (segs.includes('d')) H(h - t);
   if (segs.includes('f')) V(0, t, m); if (segs.includes('b')) V(w - t, t, m);
   if (segs.includes('e')) V(0, m + t, h - t); if (segs.includes('c')) V(w - t, m + t, h - t);
-  if (st === 'round') for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]]) g[y][x] = false;
   return g;
 }
-// tokens: { k: '0'…'9' } a digit, { k: ' ' } a blank digit (ghost 8 only), { k: ':', on } the colon,
-// { k: 'dot', on } a one-dot pm mark at the top left, like a Casio watch.
+// tokens: { k: '0'…'9' } a digit, { k: ' ' } a blank digit (ghost 8 only), { k: ':', on } the colon.
 function lcdGrid(tokens, size) {
-  const { w, h, t } = size, s = slant(size), cg = state.cgap === 'auto' ? t + 1 : +state.cgap;
-  const narrow = tk => tk.k === ':' || tk.k === 'dot', xs = [];
+  const { w, h, t } = size, cg = state.cgap === 'auto' ? t + 1 : +state.cgap;
+  const xs = [];
   let W = 0;
   tokens.forEach((tk, i) => {
-    if (i) W += tk.k === ':' || tokens[i - 1].k === ':' ? cg : narrow(tokens[i - 1]) ? t : state.dgap;
-    xs.push(W); W += narrow(tk) ? t : w;
+    if (i) W += tk.k === ':' || tokens[i - 1].k === ':' ? cg : state.dgap;
+    xs.push(W); W += tk.k === ':' ? t : w;
   });
-  // The slant shifts whole rows, so it widens the clock once, not once per digit.
-  W += s;
   const grid = Array.from({ length: h }, () => Array(W).fill(null));
-  const set = (x, y, role) => { if (y >= 0 && y < h) grid[y][x + shift(size, y)] = role; };
+  const set = (x, y, role) => { if (y >= 0 && y < h) grid[y][x] = role; };
   const putMask = (x0, mask, role) => mask.forEach((row, y) => row.forEach((on, x) => { if (on) set(x0 + x, y, role); }));
   const square = (x0, y0, y1, role) => { for (let y = y0; y < y1; y++) for (let i = 0; i < t; i++) set(x0 + i, y, role); };
   tokens.forEach((tk, i) => {
@@ -361,9 +335,6 @@ function lcdGrid(tokens, size) {
       const tall = state.cshape === 'tall' ? t : 0;
       const top = Math.round(h * 0.3) - Math.floor(t / 2), bot = Math.round(h * 0.7) - t + 1 - Math.floor(t / 2);
       square(x0, top - tall, top + t, role); square(x0, bot, bot + t + tall, role);
-    } else if (tk.k === 'dot') {
-      const role = tk.on ? 'accent' : ghostOn() ? 'ghost' : null;
-      if (role) square(x0, 0, t, role);
     } else {
       if (ghostOn()) putMask(x0, segMask(size, SEG[8]), 'ghost');
       if (tk.k !== ' ') putMask(x0, segMask(size, segsOf(tk.k)), 'accent');
@@ -374,14 +345,16 @@ function lcdGrid(tokens, size) {
 const digitTokens = s => [...s].map(k => ({ k }));
 // The clock. In 12-hour mode the am/pm mark is one of:
 // stack: "am" over "pm" beside the clock, the current one lit, the other faint, like a bedside LCD.
-// text:  only the current mark, beside the clock.   dot: one pixel dot at the top left, lit for pm.
+// text:  only the current mark, beside the clock.
+// Both sit at the top: the clock is an odd number of pixels tall, so its bottom row is only half filled
+// and text aligned to the bottom hangs half a row below the digits.
 function lcdClock(c, size) {
   const is12 = state.fmt === '12';
-  const tokens = [...(is12 && state.ampm === 'dot' ? [{ k: 'dot', on: c.pm }] : []), ...digitTokens(c.hh), { k: ':', on: c.colonOn }, ...digitTokens(c.mm)];
+  const tokens = [...digitTokens(c.hh), { k: ':', on: c.colonOn }, ...digitTokens(c.mm)];
   const b = fromGrid(lcdGrid(tokens, size));
-  if (!is12 || state.ampm === 'dot') return b;
+  if (!is12) return b;
   if (state.ampm === 'text') return hstack([b, line([c.pm ? 'pm' : 'am', 'dim'])], { gap: 1 });
-  return hstack([b, vstack([line(['am', c.pm ? 'ghost' : 'accent']), line(['pm', c.pm ? 'accent' : 'ghost'])], { align: 'left' })], { gap: 1, valign: 'bottom' });
+  return hstack([b, vstack([line(['am', c.pm ? 'ghost' : 'accent']), line(['pm', c.pm ? 'accent' : 'ghost'])], { align: 'left' })], { gap: 1 });
 }
 const lcdText = (s, size) => fromGrid(lcdGrid([...s].map(k => k === ':' ? { k, on: true } : { k }), size));
 
@@ -537,7 +510,7 @@ const band = c => {
   ], { align: 'left' });
 };
 
-// The Home layout chosen in kttq/alba#4 (variant D), the same for every clock variant.
+// The Home layout chosen in kttq/alba#4 (variant D).
 const TIERS = [
     { name: 'large', credit: true, build: c => {
       const details = vstack([line([c.temp, 'fg', true], [' ' + c.S.conds[c.cond], 'secondary']), line(['↑', 'dim'], [c.hi, 'fg'], [' ↓', 'dim'], [c.lo, 'fg']), sp(), line([c.S.next12, 'dim']), rainSpark(c)], { align: 'left' });
@@ -551,7 +524,6 @@ const TIERS = [
     { name: 'mini', credit: false, build: c => hstack([smallClock(c), pixIcon(c, MINI), line([c.temp, 'fg', true])], { gap: 2, valign: 'center' }) },
     stripTier,
 ];
-const VKEYS = Object.keys(VARIANTS);
 
 // ---------- compose: pick the largest tier that fits ----------
 function compose(W, H, now) {
@@ -651,12 +623,11 @@ function drawControls() {
     seg('colon dots', 'cshape', ['dot', 'tall']),
     seg('digit gap', 'dgap', [1, 2]),
     seg('colon gap', 'cgap', ['auto', 1, 2, 3]),
-    seg('large thickness', 'lgT', [1, 2, 3]),
+    seg('large thickness', 'lgT', [1, 2]),
     seg('6 and 9 tails', 'tails', ['on', 'off']),
     seg('7 hook', 'hook', ['off', 'on']),
     seg('format', 'fmt', ['24', '12']),
-    seg('12h mark', 'ampm', ['stack', 'text', 'dot']),
-    seg('Mini clock', 'small', ['text', 'pixel']),
+    seg('12h mark', 'ampm', ['stack', 'text']),
     seg('time', 'time', TIMES),
     seg('weather', 'cond', ['rain', 'clear', 'partly', 'snow', 'storm']),
     seg('lang', 'lang', ['en', 'es']),
@@ -669,16 +640,11 @@ function drawControls() {
   document.getElementById('rows').onchange = e => { state.rows = Math.max(1, +e.target.value); update(); };
 }
 const cycle = (key, list, dir = 1) => { state[key] = list[(list.indexOf(state[key]) + dir + list.length) % list.length]; update(); };
-document.getElementById('prev').onclick = () => cycle('variant', VKEYS, -1);
-document.getElementById('next').onclick = () => cycle('variant', VKEYS, 1);
 addEventListener('keydown', e => {
   if (e.target.closest('input, textarea, [contenteditable]')) return;
-  if (e.key === 'ArrowLeft') cycle('variant', VKEYS, -1);
-  if (e.key === 'ArrowRight') cycle('variant', VKEYS, 1);
   if (e.key === 'g') cycle('ghost', ['on', 'off']);
   if (e.key === 'f') cycle('fmt', ['24', '12']);
   if (e.key === 'c') cycle('colon', ['ghost', 'blank', 'steady']);
-  if (e.key === 's') cycle('small', ['text', 'pixel']);
   if (e.key === 't') cycle('time', TIMES);
   if (e.key === 'w') cycle('cond', ['rain', 'clear', 'partly', 'snow', 'storm']);
   if (e.key === 'p') cycle('palette', Object.keys(PALETTES));
@@ -687,7 +653,7 @@ addEventListener('keydown', e => {
 // ---------- digit sheet: every digit at every size, the colon on and off, and hard cases ----------
 function sheet(c) {
   const rows = [];
-  for (const [name, size] of [[`large 8×15, thickness ${state.lgT}`, LARGE()], ['small 4×7', SMALL], ['tiny 3×5 (Mini, pixel style)', TINY]]) {
+  for (const [name, size] of [[`large 8×15, thickness ${state.lgT}`, LARGE()], ['small 4×7', SMALL]]) {
     const colon = on => fromGrid(lcdGrid([...digitTokens('12'), { k: ':', on }, ...digitTokens('34')], size));
     rows.push(line([name, 'dim']), lcdText('0123456789', size), sp(),
       hstack([lcdText('11:11', size), lcdText(' 7:17', size), colon(true), colon(false)], { gap: 4 }), sp());
@@ -706,13 +672,12 @@ function frame() {
   render(document.getElementById('sheet'), sheet(c), state.zoom);
   const t = r.chosen;
   document.getElementById('state').textContent = [
-    `variant   ${state.variant} · ${VARIANTS[state.variant].name}`,
     `pane      ${state.cols}×${state.rows}   tier ${t.tier.name}${r.chosen.clipped ? '   ⚠ CLIPPED: nothing fits' : ''}`,
     `content   ${t.blk.w}×${t.blk.h}   leftover ${state.cols - t.blk.w} cols, ${state.rows - t.blk.h} rows`,
     ``,
     `large clock   ${sizeOf(lcdClock(c, LARGE()))}  (8×15 px, thickness ${state.lgT})`,
     `small clock   ${sizeOf(lcdClock(c, SMALL))}  (4×7 px)`,
-    `Mini clock    ${sizeOf(smallClock(c))}  (${state.small})`,
+    `Mini clock    ${sizeOf(smallClock(c))}  (text)`,
     `ghost ${state.ghost} · colon off = ${state.colon}, ${state.cshape} · gaps digit ${state.dgap}, colon ${state.cgap}`,
     `tails ${state.tails} · 7 hook ${state.hook} · ${state.fmt}h${state.fmt === '12' ? ', mark ' + state.ampm : ''}`,
     `time ${state.time} · weather ${state.cond} · ${state.lang} · ${state.palette}`,
@@ -720,16 +685,18 @@ function frame() {
     `smallest pane for each tier (= its breakpoint):`,
     ...r.table.map(x => `  ${x.name.padEnd(10)} ${x.size}${x.credit ? '' : '  (no credit)'}`),
   ].join('\n');
-  // gallery: the same variant at every preset size, one zoom step smaller
+  // gallery: every preset size, one zoom step smaller
+  // The Mini tier's own size comes first: the 12-hour mark widens it.
+  const mini = r.table.find(x => x.name === 'mini').size.split('×').map(Number), sizes = [mini, ...PRESETS];
   const gal = document.getElementById('gallery');
-  if (gal.children.length !== PRESETS.length) gal.innerHTML = PRESETS.map(() => '<figure><canvas class="pane"></canvas><figcaption></figcaption></figure>').join('');
-  PRESETS.forEach(([w, h], i) => {
+  if (gal.children.length !== sizes.length) gal.innerHTML = sizes.map(() => '<figure><canvas class="pane"></canvas><figcaption></figcaption></figure>').join('');
+  sizes.forEach(([w, h], i) => {
     const fig = gal.children[i], g = compose(w, h, now);
     render(fig.querySelector('canvas'), g.pane, Math.max(1, state.zoom - 1));
     fig.querySelector('figcaption').textContent = `${w}×${h} → ${g.chosen.tier.name}${g.chosen.clipped ? ' ⚠' : ''}`;
   });
 }
-function update() { syncURL(); drawControls(); document.getElementById('vlabel').textContent = `${state.variant} · ${VARIANTS[state.variant].name.split(' (')[0]}`; frame(); }
+function update() { syncURL(); drawControls(); frame(); }
 document.fonts.load('22px DM').finally(() => { update(); setInterval(frame, 250); });
 </script>
 </body>
