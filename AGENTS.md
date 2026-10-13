@@ -11,3 +11,7 @@ Single-context. Before exploring, read `GLOSSARY.md` and the ADRs in `docs/adr/`
 ### Testing
 
 How this project tests: `docs/testing.md`.
+
+### Coding standards
+
+Review judgement calls for comments, names, and code shape: `CODING_STANDARDS.md`.
