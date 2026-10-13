@@ -1,0 +1,2 @@
+# ratico
+tiny terminal companion
