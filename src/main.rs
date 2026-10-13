@@ -1,6 +1,9 @@
-use std::{io, process::ExitCode, time::Duration};
+use std::{io, path::PathBuf, process::ExitCode, time::Duration};
 
-use alba::app::{App, Control};
+use alba::{
+    app::{App, Control},
+    config,
+};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use ratatui::{
     DefaultTerminal,
@@ -32,8 +35,20 @@ fn main() -> ExitCode {
         Command::Help => println!("{HELP}"),
         Command::Version => println!("alba {}", env!("CARGO_PKG_VERSION")),
         Command::Run => {
+            // Both checks print before raw mode, so their messages stay readable.
+            let Some(home) = home() else {
+                eprintln!("error: HOME is not set");
+                return ExitCode::FAILURE;
+            };
+            let config = match config::load(&config::path(&home)) {
+                Ok(config) => config,
+                Err(error) => {
+                    eprintln!("{error}");
+                    return ExitCode::FAILURE;
+                }
+            };
             let mut terminal = ratatui::init();
-            let result = run(&mut terminal, &mut App::new());
+            let result = run(&mut terminal, &mut App::new(&config));
             ratatui::restore();
             if let Err(error) = result {
                 eprintln!("error: {error}");
@@ -58,14 +73,21 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
     }
 }
 
-/// Ticks on every whole wall-clock second. Draws after each tick, and at once on key and resize
+/// An empty `HOME` counts as unset, so paths never resolve against the working directory.
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after each tick, and at once on key and resize
 /// events.
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let mut now = Zoned::now();
     app.tick(&now);
     loop {
         terminal.draw(|frame| app.render(frame.area(), frame.buffer_mut(), &now))?;
-        let next_tick = next_whole_second(now.timestamp());
+        let next_tick = next_tick(now.timestamp(), app.tick_interval());
         if event::poll(until(next_tick))?
             && let Event::Key(key) = event::read()?
             && app.key(key) == Control::Quit
@@ -79,10 +101,11 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     }
 }
 
-fn next_whole_second(now: Timestamp) -> Timestamp {
-    const NANOS_PER_SECOND: i128 = 1_000_000_000;
-    let into_second = now.as_nanosecond().rem_euclid(NANOS_PER_SECOND) as i64;
-    now - SignedDuration::from_nanos(into_second) + SignedDuration::from_secs(1)
+fn next_tick(now: Timestamp, interval: Duration) -> Timestamp {
+    let interval =
+        SignedDuration::try_from(interval).expect("tick interval fits a signed duration");
+    let into_interval = now.as_nanosecond().rem_euclid(interval.as_nanos()) as i64;
+    now - SignedDuration::from_nanos(into_interval) + interval
 }
 
 /// Zero once `deadline` has passed.

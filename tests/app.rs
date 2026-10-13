@@ -1,9 +1,16 @@
-use alba::app::{App, Control};
+use std::time::Duration;
+
+use alba::{
+    app::{App, Control},
+    config::Config,
+};
 use jiff::Zoned;
 use ratatui::{
     Terminal,
     backend::TestBackend,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
+    style::Stylize,
+    text::{Line, Span},
 };
 
 fn default_instant() -> Zoned {
@@ -14,7 +21,7 @@ fn default_instant() -> Zoned {
 
 #[test]
 fn text_clock_is_centred_in_the_pane() {
-    let app = App::new();
+    let app = App::new(&Config::default());
     let now = default_instant();
     let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
 
@@ -34,7 +41,11 @@ fn q_esc_and_ctrl_c_quit() {
     ];
 
     for event in quit_keys {
-        assert_eq!(App::new().key(event), Control::Quit, "{event:?}");
+        assert_eq!(
+            App::new(&Config::default()).key(event),
+            Control::Quit,
+            "{event:?}"
+        );
     }
 }
 
@@ -48,13 +59,17 @@ fn other_keys_do_nothing() {
     ];
 
     for event in other_keys {
-        assert_eq!(App::new().key(event), Control::Continue, "{event:?}");
+        assert_eq!(
+            App::new(&Config::default()).key(event),
+            Control::Continue,
+            "{event:?}"
+        );
     }
 }
 
 #[test]
 fn pane_narrower_than_the_clock_renders_nothing() {
-    let app = App::new();
+    let app = App::new(&Config::default());
     let now = default_instant();
     let mut terminal = Terminal::new(TestBackend::new(4, 3)).unwrap();
 
@@ -63,4 +78,118 @@ fn pane_narrower_than_the_clock_renders_nothing() {
         .unwrap();
 
     terminal.backend().assert_buffer_lines(["    "; 3]);
+}
+
+/// The default instant, at another wall-clock time.
+fn instant(time: &str) -> Zoned {
+    format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
+        .parse()
+        .unwrap()
+}
+
+fn app_with(config_text: &str) -> App {
+    App::new(&Config::parse(config_text).unwrap())
+}
+
+/// Renders into a pane exactly as wide as `width`, one row high.
+fn render_row(app: &App, now: &Zoned, width: u16) -> Terminal<TestBackend> {
+    let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
+    terminal
+        .draw(|frame| app.render(frame.area(), frame.buffer_mut(), now))
+        .unwrap();
+    terminal
+}
+
+#[test]
+fn twelve_hour_clock_has_no_leading_zero_and_a_dim_mark() {
+    let app = app_with("hour_format = 12");
+
+    let terminal = render_row(&app, &instant("18:38"), 6);
+
+    terminal
+        .backend()
+        .assert_buffer_lines([Line::from(vec![Span::raw("6:38"), "pm".dim()])]);
+}
+
+#[test]
+fn twelve_hour_clock_reads_midnight_and_noon_as_twelve() {
+    let app = app_with("hour_format = 12");
+
+    let midnight = render_row(&app, &instant("00:05"), 7);
+    let noon = render_row(&app, &instant("12:05"), 7);
+
+    midnight
+        .backend()
+        .assert_buffer_lines([Line::from(vec![Span::raw("12:05"), "am".dim()])]);
+    noon.backend()
+        .assert_buffer_lines([Line::from(vec![Span::raw("12:05"), "pm".dim()])]);
+}
+
+#[test]
+fn spanish_twelve_hour_clock_uses_the_same_mark() {
+    let app = app_with("language = \"es\"\nhour_format = 12");
+
+    let terminal = render_row(&app, &instant("06:38"), 6);
+
+    terminal
+        .backend()
+        .assert_buffer_lines([Line::from(vec![Span::raw("6:38"), "am".dim()])]);
+}
+
+#[test]
+fn colon_is_lit_for_the_first_half_of_each_second() {
+    for colon in ["ghost", "blank", "steady"] {
+        let app = app_with(&format!("[clock]\ncolon = \"{colon}\""));
+
+        let terminal = render_row(&app, &instant("06:38:07.499"), 5);
+
+        terminal.backend().assert_buffer_lines(["06:38"]);
+    }
+}
+
+#[test]
+fn ghost_colon_is_faint_in_the_second_half() {
+    let app = app_with("[clock]\ncolon = \"ghost\"");
+
+    let terminal = render_row(&app, &instant("06:38:07.500"), 5);
+
+    terminal.backend().assert_buffer_lines([Line::from(vec![
+        Span::raw("06"),
+        ":".dim(),
+        Span::raw("38"),
+    ])]);
+}
+
+#[test]
+fn blank_colon_is_a_space_in_the_second_half() {
+    let app = app_with("[clock]\ncolon = \"blank\"");
+
+    let terminal = render_row(&app, &instant("06:38:07.750"), 5);
+
+    terminal.backend().assert_buffer_lines(["06 38"]);
+}
+
+#[test]
+fn steady_colon_never_blinks() {
+    let app = app_with("[clock]\ncolon = \"steady\"");
+
+    let terminal = render_row(&app, &instant("06:38:07.999"), 5);
+
+    terminal.backend().assert_buffer_lines(["06:38"]);
+}
+
+#[test]
+fn blinking_colon_ticks_every_quarter_second() {
+    assert_eq!(app_with("").tick_interval(), Duration::from_millis(250));
+    assert_eq!(
+        app_with("[clock]\ncolon = \"blank\"").tick_interval(),
+        Duration::from_millis(250)
+    );
+}
+
+#[test]
+fn still_clock_ticks_every_second() {
+    let app = app_with("[clock]\ncolon = \"steady\"");
+
+    assert_eq!(app.tick_interval(), Duration::from_secs(1));
 }
