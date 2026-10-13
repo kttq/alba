@@ -32,6 +32,10 @@ _Avoid_: Border, box
 A bar for the current day or night: sunrise to sunset with the sun on it, or sunset to sunrise with tonight's moon on it.
 _Avoid_: Sun arc, progress bar, day bar
 
+**Greeting**:
+A short, friendly line that changes with the time of day, such as "good morning ♥" or "sleepy time ✦".
+_Avoid_: Footer, tagline, message
+
 **Ghost segment**:
 An unlit segment of the LCD clock, shown faintly so every digit keeps the shape of an 8.
 _Avoid_: Shadow digit, background segment
