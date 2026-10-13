@@ -7,7 +7,12 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      # Add lint, typecheck, and test steps once the project has those commands.
+      - run: cargo fmt --check
+      - run: cargo clippy -- -D warnings
+      - run: cargo test
