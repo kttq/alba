@@ -15,3 +15,7 @@ How this project tests: `docs/testing.md`.
 ### Coding standards
 
 Review judgement calls for comments, names, and code shape: `CODING_STANDARDS.md`.
+
+## Commits
+
+Write each commit subject as one Conventional Commits line of at most 72 characters, as in `feat(scope): summary (#12)`. Add a body only to explain why.

@@ -1,0 +1,25 @@
+[package]
+name = "alba"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "A tiny terminal companion: a clock, a month calendar, and the current weather."
+license = "MIT"
+repository = "https://github.com/kttq/alba"
+
+[dependencies]
+jiff = "0.2"
+ratatui = "0.30"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+ureq = { version = "3", features = ["json"] }
+
+[dev-dependencies]
+insta = "1"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
