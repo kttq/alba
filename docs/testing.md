@@ -19,7 +19,7 @@ Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, 
 - **Pure functions** (`Condition::from_wmo`, `Paths::resolve`): call them directly. `Paths::resolve` takes the environment as a lookup closure, so no test sets a real variable.
 - **Config parsing** (`alba::config::Config::parse`): feed it TOML text. Assert the typed config, or an error's line and a stable fragment of its reason. It owns validation and line numbers.
 - **Config file** (`alba::config::load`): point it at a path under a fresh temporary home. It owns the first-run template and unreadable files.
-- **Source search** (`tests/no_wrap.rs`, `tests/comments.rs`): reads `src/` and fails on a banned API or comment pattern. It owns rules the compiler cannot express.
+- **Source search** (`tests/no_wrap.rs`): reads `src/` and fails on a banned API. It owns rules the compiler cannot express.
 - **The real binary**: CLI flags, terminal restore, and tick timing. No automated test enters here; the verification skill drives it.
 
 ## Exemplars
