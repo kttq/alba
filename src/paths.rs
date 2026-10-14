@@ -6,7 +6,6 @@ use std::{ffi::OsString, fmt, path::PathBuf};
 pub struct Paths {
     pub config_file: PathBuf,
     pub cache_directory: PathBuf,
-    /// Holds the log.
     pub state_directory: PathBuf,
 }
 
@@ -31,8 +30,7 @@ impl Paths {
     }
 }
 
-/// The XDG spec says to ignore a relative path, and treats an empty variable as unset. An
-/// empty `HOME` counts as unset too, so paths never resolve against the working directory.
+/// An empty `HOME` counts as unset, so paths never resolve against the working directory.
 fn base_directory(
     variable: &impl Fn(&str) -> Option<OsString>,
     name: &str,

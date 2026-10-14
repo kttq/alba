@@ -12,7 +12,6 @@ pub enum Condition {
 }
 
 impl Condition {
-    /// Hail codes (96, 99) make no hail claim.
     pub fn from_wmo(code: u16) -> Option<Self> {
         let condition = match code {
             0 | 1 => Self::Clear,
