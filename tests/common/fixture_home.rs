@@ -82,7 +82,8 @@ impl FixtureHome {
 
     fn weather(&self, forecast: &mut Value, now: Timestamp) -> io::Result<Weather> {
         let fetched_at = now - self.age.unwrap_or(self.cached_weather.default_age());
-        self.edit(forecast, now, fetched_at)?;
+        shift_to_today(forecast, now)?;
+        self.set_current(forecast, fetched_at);
         Ok(Weather {
             fetched_at,
             forecast: Forecast::parse(&forecast.to_string()).map_err(failed)?,
@@ -104,8 +105,8 @@ impl FixtureHome {
             .collect()
     }
 
-    fn edit(&self, forecast: &mut Value, now: Timestamp, fetched_at: Timestamp) -> io::Result<()> {
-        shift_to_today(forecast, now)?;
+    /// Stamps `current` with the fetch time, and applies the weather code and night.
+    fn set_current(&self, forecast: &mut Value, fetched_at: Timestamp) {
         let fetched_second = fetched_at.as_second();
         let current = &mut forecast["current"];
         current["time"] = (fetched_second - fetched_second.rem_euclid(CURRENT_INTERVAL)).into();
@@ -115,7 +116,6 @@ impl FixtureHome {
         if self.night {
             current["is_day"] = 0.into();
         }
-        Ok(())
     }
 }
 

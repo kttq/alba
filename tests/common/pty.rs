@@ -453,12 +453,7 @@ impl FromStr for Step {
     fn from_str(text: &str) -> Result<Self, String> {
         let bad_value = |reason: String| format!("bad value in {text:?}: {reason}");
         match text.split_once('=') {
-            None => match text {
-                "screen" => Ok(Self::Screen),
-                "colors" => Ok(Self::Colors),
-                "exited" => Ok(Self::Exited),
-                _ => Err(unknown_step(text)),
-            },
+            None => step_without_value(text),
             Some(("sleep", value)) => seconds(value).map(Self::Sleep).map_err(bad_value),
             Some(("flood", value)) => seconds(value).map(Self::Flood).map_err(bad_value),
             Some(("key", value)) => unescape(value).map(Self::Key).map_err(bad_value),
@@ -466,6 +461,15 @@ impl FromStr for Step {
             Some(("expect", value)) => Ok(Self::Expect(value.to_string())),
             Some(_) => Err(unknown_step(text)),
         }
+    }
+}
+
+fn step_without_value(text: &str) -> Result<Step, String> {
+    match text {
+        "screen" => Ok(Step::Screen),
+        "colors" => Ok(Step::Colors),
+        "exited" => Ok(Step::Exited),
+        _ => Err(unknown_step(text)),
     }
 }
 
@@ -595,40 +599,50 @@ pub struct StyledRun {
 }
 
 pub fn styled_runs(screen: &vt100::Screen) -> Vec<StyledRun> {
-    let (rows, cols) = screen.size();
+    let (rows, _) = screen.size();
+    (0..rows)
+        .flat_map(|row| row_styled_runs(screen, row))
+        .collect()
+}
+
+/// A blank cell ends a run; the second cell of a wide character belongs to the first.
+fn row_styled_runs(screen: &vt100::Screen, row: u16) -> Vec<StyledRun> {
+    let (_, cols) = screen.size();
     let mut runs: Vec<StyledRun> = Vec::new();
-    for row in 0..rows {
-        let mut extends_run = false;
-        for col in 0..cols {
-            let Some(cell) = screen.cell(row, col) else {
-                continue;
-            };
-            if cell.is_wide_continuation() {
-                continue;
-            }
-            if cell.contents().trim().is_empty() {
-                extends_run = false;
-                continue;
-            }
-            let run = StyledRun {
-                row,
-                col,
-                text: cell.contents().to_string(),
-                foreground: cell.fgcolor(),
-                background: cell.bgcolor(),
-                dim: cell.dim(),
-            };
-            match runs.last_mut() {
-                Some(last) if extends_run && last.has_style_of(&run) => last.text += &run.text,
-                _ => runs.push(run),
-            }
-            extends_run = true;
+    let mut extends_run = false;
+    for col in 0..cols {
+        let Some(cell) = screen.cell(row, col) else {
+            continue;
+        };
+        if cell.is_wide_continuation() {
+            continue;
         }
+        let Some(run) = StyledRun::of_cell(cell, row, col) else {
+            extends_run = false;
+            continue;
+        };
+        match runs.last_mut() {
+            Some(last) if extends_run && last.has_style_of(&run) => last.text += &run.text,
+            _ => runs.push(run),
+        }
+        extends_run = true;
     }
     runs
 }
 
 impl StyledRun {
+    /// `None` for a blank cell.
+    fn of_cell(cell: &vt100::Cell, row: u16, col: u16) -> Option<Self> {
+        (!cell.contents().trim().is_empty()).then(|| Self {
+            row,
+            col,
+            text: cell.contents().to_string(),
+            foreground: cell.fgcolor(),
+            background: cell.bgcolor(),
+            dim: cell.dim(),
+        })
+    }
+
     fn has_style_of(&self, other: &Self) -> bool {
         (self.foreground, self.background, self.dim)
             == (other.foreground, other.background, other.dim)

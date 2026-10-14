@@ -44,7 +44,8 @@ fn spawn(binary: PathBuf) -> Alba {
         binary,
         home,
         pane_size: MEDIUM,
-        offline: false,
+        // As in the binary tests: alba must not fetch, and the sandbox makes sure.
+        offline: cfg!(target_os = "macos"),
     })
     .unwrap()
 }

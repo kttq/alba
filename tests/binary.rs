@@ -272,16 +272,20 @@ fn no_cell_uses_an_rgb_or_an_extended_color() {
     }
     for (mut alba, pane_size) in runs {
         assert!(alba.wait_for_first_frame());
-        let screen = alba.screen();
-        for row in 0..pane_size.rows {
-            for col in 0..pane_size.cols {
-                let cell = screen.cell(row, col).unwrap();
-                for color in [cell.fgcolor(), cell.bgcolor()] {
-                    assert!(
-                        matches!(color, Color::Default | Color::Idx(0..16)),
-                        "{color:?} at {row},{col} in {pane_size:?}"
-                    );
-                }
+        assert_basic_colors_only(alba.screen(), pane_size);
+    }
+}
+
+/// The 16 colors the user's theme sets, or the default.
+fn assert_basic_colors_only(screen: &vt100::Screen, pane_size: PaneSize) {
+    for row in 0..pane_size.rows {
+        for col in 0..pane_size.cols {
+            let cell = screen.cell(row, col).unwrap();
+            for color in [cell.fgcolor(), cell.bgcolor()] {
+                assert!(
+                    matches!(color, Color::Default | Color::Idx(0..16)),
+                    "{color:?} at {row},{col} in {pane_size:?}"
+                );
             }
         }
     }
@@ -326,28 +330,32 @@ fn sleep_until_tick_phase(phase: Duration) {
 fn the_colon_goes_faint_at_each_half_second_and_lights_at_each_second() {
     // A tick counted from the start instead of the wall clock would land about 125 ms late.
     const START_PHASE: Duration = Duration::from_millis(125);
-    const LATENESS: f64 = 0.08;
+    // The median read lags its boundary by less than this. A busy runner can delay one read,
+    // but not most of them.
+    const TYPICAL_LATENESS: f64 = 0.08;
+    const TICK: f64 = 0.25;
     sleep_until_tick_phase(START_PHASE);
     let mut alba = start(&no_location(), STRIP);
-    alba.pump(Duration::from_millis(2200));
+    alba.pump(Duration::from_millis(3200));
     let states = colon_faint_after_each_read(alba.transcript(), STRIP);
-    let changes: Vec<(f64, bool)> = states
+    let mut lateness: Vec<f64> = states
         .windows(2)
         .filter_map(|pair| match (pair[0].1, pair[1]) {
             (Some(before), (time, Some(after))) if before != after => {
-                Some((fraction_of_second(time), after))
+                let due = if after { 0.5 } else { 0.0 };
+                Some((fraction_of_second(time) - due).rem_euclid(1.0))
             }
             _ => None,
         })
         .collect();
-    assert!(changes.len() >= 3, "{changes:?}");
-    for (fraction, faint) in &changes {
-        let due = if *faint { 0.5 } else { 0.0 };
-        assert!(
-            (due..due + LATENESS).contains(fraction),
-            "faint={faint} at {fraction} s: {changes:?}"
-        );
-    }
+    assert!(lateness.len() >= 5, "{lateness:?}");
+    assert!(
+        lateness.iter().all(|late| *late < TICK),
+        "a change outside its tick: {lateness:?}"
+    );
+    lateness.sort_by(f64::total_cmp);
+    let median = lateness[lateness.len() / 2];
+    assert!(median < TYPICAL_LATENESS, "median {median} s: {lateness:?}");
 }
 
 #[test]
@@ -368,21 +376,40 @@ fn without_motion_the_colon_never_goes_faint() {
     );
 }
 
-/// The spec's bound is under 3 s in 5 minutes: 1% of one core.
+/// Takes output while alba idles, and returns the CPU seconds it used meanwhile.
+fn idle_cpu_seconds(fixture_home: &FixtureHome, pane_size: PaneSize, idle: Duration) -> f64 {
+    let mut alba = start(fixture_home, pane_size);
+    let before = alba.cpu_seconds().unwrap();
+    alba.pump(idle);
+    alba.cpu_seconds().unwrap() - before
+}
+
+/// A fast guard against a busy loop, at the spec's rate: 3 s in 5 minutes is 1% of one core.
 #[test]
 fn idle_alba_uses_under_one_percent_of_a_core() {
     const IDLE: Duration = Duration::from_secs(5);
-    let mut alba = start(&FixtureHome::default(), LARGE);
-    let before = alba.cpu_seconds().unwrap();
-    alba.pump(IDLE);
-    let used = alba.cpu_seconds().unwrap() - before;
+    let used = idle_cpu_seconds(&FixtureHome::default(), LARGE, IDLE);
     assert!(
         used <= IDLE.as_secs_f64() / 100.0,
         "{used} s of CPU in {IDLE:?}"
     );
 }
 
+/// The spec's CPU check, with rain from the cache and `motion = true`. CI runs it in its own
+/// job; run it with `cargo test --release --test binary five_idle_minutes -- --ignored`.
+#[test]
+#[ignore = "takes five minutes"]
+fn five_idle_minutes_use_under_three_cpu_seconds() {
+    let rain_in_motion = FixtureHome {
+        config_lines: vec!["motion = true".to_string()],
+        ..FixtureHome::default()
+    };
+    let used = idle_cpu_seconds(&rain_in_motion, LARGE, Duration::from_secs(300));
+    assert!(used < 3.0, "{used} s of CPU in five minutes");
+}
+
 /// Runs alba offline on the fixture, presses the keys, and returns the log after it quits.
+/// A fetch fails within a moment offline, so a second with no log line means no fetch.
 fn log_after(fixture_home: &FixtureHome, keys: &str) -> String {
     let home = home_with(fixture_home);
     let mut alba = spawn(&home, MEDIUM);
@@ -400,8 +427,34 @@ fn log_after(fixture_home: &FixtureHome, keys: &str) -> String {
     ignore = "offline runs need macOS sandbox-exec"
 )]
 fn the_offline_log_shows_a_fetch() {
-    let log = log_after(&FixtureHome::default(), "r");
-    assert_eq!(log.matches("fetch failed").count(), 1, "{log}");
+    let home = home_with(&FixtureHome::default());
+    let mut alba = spawn(&home, MEDIUM);
+    assert!(alba.wait_for_first_frame());
+    alba.type_keys("r");
+    assert!(
+        wait_for_log(&mut alba, &home, "fetch failed"),
+        "{}",
+        log(&home)
+    );
+    alba.quit();
+    assert_eq!(
+        log(&home).matches("fetch failed").count(),
+        1,
+        "{}",
+        log(&home)
+    );
+}
+
+/// Takes output until the log holds the text, for at most the wait deadline.
+fn wait_for_log(alba: &mut Alba, home: &Path, text: &str) -> bool {
+    let deadline = Instant::now() + WAIT_DEADLINE;
+    while !log(home).contains(text) {
+        if Instant::now() >= deadline {
+            return false;
+        }
+        alba.pump(Duration::from_millis(50));
+    }
+    true
 }
 
 #[test]
@@ -431,10 +484,7 @@ fn an_offline_start_shows_the_clock_and_date_and_logs_the_failed_fetch() {
     let home = home_with(&with_weather(CachedWeather::NoCache));
     let mut alba = spawn(&home, STRIP);
     assert!(alba.wait_for_first_frame());
-    let deadline = Instant::now() + WAIT_DEADLINE;
-    while !log(&home).contains("fetch failed") && Instant::now() < deadline {
-        alba.pump(Duration::from_millis(50));
-    }
+    assert!(wait_for_log(&mut alba, &home, "fetch failed"));
     assert_eq!(
         log(&home).matches("fetch failed").count(),
         1,

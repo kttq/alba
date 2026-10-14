@@ -22,10 +22,9 @@ die() {
 	exit 1
 }
 
-# Prints "profile|background" for a theme. Basic follows the system appearance, so it
-# cannot pin a theme, and Solid Colors picks a random background. Both built-in profiles
-# here are partly see-through; a background set through AppleScript (RGB from 0 to 65535,
-# no alpha) makes them opaque, so the desktop stays out of a shot.
+# Prints "profile|background" for a theme. Both profiles are partly see-through; a
+# background set through AppleScript (RGB from 0 to 65535, no alpha) makes them opaque,
+# so the desktop stays out of a shot.
 theme_settings() {
 	case $1 in
 	light) echo "Clear Light|{65535, 65535, 65535}" ;;
