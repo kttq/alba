@@ -72,7 +72,7 @@ impl App {
             return;
         }
         let Some(text_line) = self
-            .text_lines(now)
+            .text_lines_widest_first(now)
             .into_iter()
             .find(|line| line.width() <= area.width as usize)
         else {
@@ -85,8 +85,7 @@ impl App {
         );
     }
 
-    /// Widest first.
-    fn text_lines(&self, now: &Zoned) -> Vec<Line<'static>> {
+    fn text_lines_widest_first(&self, now: &Zoned) -> Vec<Line<'static>> {
         let clock = self.clock.text_line(now);
         let date = calendar::short_date(self.strings, now);
         let weather = self
