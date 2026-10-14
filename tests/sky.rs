@@ -137,44 +137,45 @@ fn moon_at(text: &str) -> (MoonPhaseName, u8) {
     (moon_phase.name, moon_phase.illumination_percent())
 }
 
-/// Published phases of October 2025. The mean synodic month puts the quarters off by up to a
-/// day, so only their names are checked.
+/// Published phases of October 2025, in UTC.
+const FULL_MOON: &str = "2025-10-07T03:47Z";
+const LAST_QUARTER: &str = "2025-10-13T18:13Z";
+const NEW_MOON: &str = "2025-10-21T12:25Z";
+const FIRST_QUARTER: &str = "2025-10-29T16:21Z";
+
 #[test]
 fn moon_phase_matches_the_published_phases() {
-    assert_eq!(moon_at("2025-10-07T03:47Z"), (MoonPhaseName::FullMoon, 100));
-    assert_eq!(moon_at("2025-10-21T12:25Z"), (MoonPhaseName::NewMoon, 0));
-    assert_eq!(moon_at("2025-10-13T18:13Z").0, MoonPhaseName::LastQuarter);
-    assert_eq!(moon_at("2025-10-29T16:21Z").0, MoonPhaseName::FirstQuarter);
+    assert_eq!(moon_at(FULL_MOON), (MoonPhaseName::FullMoon, 100));
+    assert_eq!(moon_at(LAST_QUARTER), (MoonPhaseName::LastQuarter, 50));
+    assert_eq!(moon_at(NEW_MOON), (MoonPhaseName::NewMoon, 0));
+    assert_eq!(moon_at(FIRST_QUARTER), (MoonPhaseName::FirstQuarter, 50));
 }
 
+/// Each name covers an eighth of the cycle, about 3.7 days, centred on its point.
 #[test]
-fn each_phase_name_covers_an_eighth_of_the_cycle_centred_on_its_point() {
-    let reference_new_moon = utc("2000-01-06T18:14Z");
-    let sixteenth = jiff::SignedDuration::from_secs_f64(29.530589 * 86400.0 / 16.0);
-    let minute = jiff::SignedDuration::from_mins(1);
-    let names = [
-        MoonPhaseName::NewMoon,
-        MoonPhaseName::WaxingCrescent,
-        MoonPhaseName::FirstQuarter,
-        MoonPhaseName::WaxingGibbous,
-        MoonPhaseName::FullMoon,
-        MoonPhaseName::WaningGibbous,
-        MoonPhaseName::LastQuarter,
-        MoonPhaseName::WaningCrescent,
+fn each_phase_name_covers_the_days_around_its_point() {
+    let a_day_and_a_half = jiff::SignedDuration::from_hours(36);
+    let points = [
+        (FULL_MOON, MoonPhaseName::FullMoon),
+        (LAST_QUARTER, MoonPhaseName::LastQuarter),
+        (NEW_MOON, MoonPhaseName::NewMoon),
+        (FIRST_QUARTER, MoonPhaseName::FirstQuarter),
     ];
-
-    for (index, &name) in names.iter().enumerate() {
-        let point = reference_new_moon + sixteenth * (2 * index as i32);
-        let first = point - sixteenth + minute;
-        let last = point + sixteenth - minute;
-        for now in [first, point, last] {
+    for (point, name) in points {
+        for now in [utc(point) - a_day_and_a_half, utc(point) + a_day_and_a_half] {
             assert_eq!(MoonPhase::at(now).name, name, "{now}");
         }
     }
-    assert_eq!(
-        MoonPhase::at(reference_new_moon - minute).name,
-        MoonPhaseName::NewMoon
-    );
+
+    let between_the_points = [
+        ("2025-10-10T11:00Z", MoonPhaseName::WaningGibbous),
+        ("2025-10-17T15:00Z", MoonPhaseName::WaningCrescent),
+        ("2025-10-25T14:00Z", MoonPhaseName::WaxingCrescent),
+        ("2025-11-02T15:00Z", MoonPhaseName::WaxingGibbous),
+    ];
+    for (now, name) in between_the_points {
+        assert_eq!(moon_at(now).0, name, "{now}");
+    }
 }
 
 #[test]

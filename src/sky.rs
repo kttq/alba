@@ -63,15 +63,14 @@ pub enum MoonPhaseName {
     WaningCrescent,
 }
 
-/// 2000-01-06 18:14 UTC.
-const REFERENCE_NEW_MOON: Timestamp = Timestamp::constant(947_182_440, 0);
-const SYNODIC_MONTH_SECONDS: f64 = 29.530589 * 24.0 * 60.0 * 60.0;
+/// J2000.0, 2000-01-01 12:00. The minute between UTC and Terrestrial Time is too small to matter.
+const J2000: Timestamp = Timestamp::constant(946_728_000, 0);
+const JULIAN_CENTURY_SECONDS: f64 = 36525.0 * 24.0 * 60.0 * 60.0;
 
 impl MoonPhase {
-    /// The mean synodic month, so a phase can be up to about a day off the true one.
     pub fn at(now: Timestamp) -> Self {
-        let age = now.duration_since(REFERENCE_NEW_MOON).as_secs_f64();
-        let fraction = (age / SYNODIC_MONTH_SECONDS).rem_euclid(1.0);
+        let elongation = elongation_degrees(now);
+        let fraction = (elongation / 360.0).rem_euclid(1.0);
         let eighth = (fraction * 8.0).round() as usize % 8;
         Self {
             fraction,
@@ -83,6 +82,21 @@ impl MoonPhase {
         let illumination = (1.0 - (std::f64::consts::TAU * self.fraction).cos()) / 2.0;
         (illumination * 100.0).round() as u8
     }
+}
+
+/// The Moon's angle from the Sun, seen from the Earth: Meeus's low-precision formula, within
+/// about an hour of the true phase.
+fn elongation_degrees(now: Timestamp) -> f64 {
+    let centuries = now.duration_since(J2000).as_secs_f64() / JULIAN_CENTURY_SECONDS;
+    let mean_elongation = 297.8501921 + 445267.1114034 * centuries;
+    let sun_anomaly = 357.5291092 + 35999.0502909 * centuries;
+    let moon_anomaly = 134.9633964 + 477198.8675055 * centuries;
+    let sine = |degrees: f64| degrees.to_radians().sin();
+    mean_elongation + 6.289 * sine(moon_anomaly) - 2.100 * sine(sun_anomaly)
+        + 1.274 * sine(2.0 * mean_elongation - moon_anomaly)
+        + 0.658 * sine(2.0 * mean_elongation)
+        + 0.214 * sine(2.0 * moon_anomaly)
+        + 0.110 * sine(mean_elongation)
 }
 
 impl MoonPhaseName {
