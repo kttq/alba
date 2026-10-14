@@ -97,7 +97,7 @@ fn a_real_sunset_after_the_next_midnight_is_kept() {
 }
 
 #[test]
-fn both_polar_sentinel_forms_have_no_sun_events() {
+fn both_polar_sentinel_forms_are_a_polar_marker() {
     let polar_night = [MIDNIGHT, MIDNIGHT];
     let polar_day = [MIDNIGHT, MIDNIGHT + DAY];
 
@@ -106,7 +106,12 @@ fn both_polar_sentinel_forms_have_no_sun_events() {
             forecast["daily"]["sunrise"] = json!([sunrise]);
             forecast["daily"]["sunset"] = json!([sunset]);
         });
-        assert_eq!(forecast.sun_events(), [], "sunset {}", at(sunset));
+        assert_eq!(
+            forecast.sun_events(),
+            [SunEvent::Polar(at(MIDNIGHT))],
+            "sunset {}",
+            at(sunset)
+        );
     }
 }
 

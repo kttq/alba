@@ -41,12 +41,14 @@ pub enum DayOrNight {
 pub enum SunEvent {
     Sunrise(Timestamp),
     Sunset(Timestamp),
+    /// A day with no sunrise or sunset, at its midnight.
+    Polar(Timestamp),
 }
 
 impl SunEvent {
     pub fn at(self) -> Timestamp {
         match self {
-            Self::Sunrise(at) | Self::Sunset(at) => at,
+            Self::Sunrise(at) | Self::Sunset(at) | Self::Polar(at) => at,
         }
     }
 }
@@ -102,20 +104,24 @@ impl Forecast {
         }
     }
 
-    /// Sorted, without polar sentinel times.
+    /// Sorted. A polar sentinel day gives one `Polar` event instead of its times.
     pub fn sun_events(&self) -> Vec<SunEvent> {
-        let daily = &self.daily;
-        let mut events: Vec<SunEvent> = (0..daily.time.len())
-            .filter(|&day| !self.is_polar(day))
-            .flat_map(|day| {
-                [
-                    SunEvent::Sunrise(timestamp(daily.sunrise[day])),
-                    SunEvent::Sunset(timestamp(daily.sunset[day])),
-                ]
-            })
+        let mut events: Vec<SunEvent> = (0..self.daily.time.len())
+            .flat_map(|day| self.sun_events_of(day))
             .collect();
         events.sort_by_key(|event| event.at());
         events
+    }
+
+    fn sun_events_of(&self, day: usize) -> Vec<SunEvent> {
+        let daily = &self.daily;
+        if self.is_polar(day) {
+            return vec![SunEvent::Polar(timestamp(daily.time[day]))];
+        }
+        vec![
+            SunEvent::Sunrise(timestamp(daily.sunrise[day])),
+            SunEvent::Sunset(timestamp(daily.sunset[day])),
+        ]
     }
 
     /// Open-Meteo marks a day without sunrise or sunset with its midnights: sunrise at the

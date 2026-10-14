@@ -22,14 +22,13 @@ pub struct Timeline {
 impl Sky {
     pub fn at(forecast: &Forecast, now: Timestamp) -> Self {
         let (day_or_night, timeline) = match surrounding(&forecast.sun_events(), now) {
-            Some((last, next)) => {
-                let timeline = Timeline {
-                    start: last.at(),
-                    end: next.at(),
-                };
-                (day_or_night_after(last), Some(timeline))
+            Some((SunEvent::Sunrise(start), SunEvent::Sunset(end))) => {
+                (DayOrNight::Day, Some(Timeline { start, end }))
             }
-            None => (forecast.is_day(), None),
+            Some((SunEvent::Sunset(start), SunEvent::Sunrise(end))) => {
+                (DayOrNight::Night, Some(Timeline { start, end }))
+            }
+            _ => (forecast.is_day(), None),
         };
         Self {
             day_or_night,
@@ -43,13 +42,6 @@ impl Sky {
 fn surrounding(sun_events: &[SunEvent], now: Timestamp) -> Option<(SunEvent, SunEvent)> {
     let next = sun_events.partition_point(|event| event.at() <= now);
     Some((sun_events[next.checked_sub(1)?], *sun_events.get(next)?))
-}
-
-fn day_or_night_after(sun_event: SunEvent) -> DayOrNight {
-    match sun_event {
-        SunEvent::Sunrise(_) => DayOrNight::Day,
-        SunEvent::Sunset(_) => DayOrNight::Night,
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

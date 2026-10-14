@@ -198,3 +198,32 @@ fn moon_phase_names_exist_in_both_languages() {
         "luna menguante"
     );
 }
+
+#[test]
+fn no_timeline_spans_a_polar_sentinel_day() {
+    let forecast = small_forecast(|forecast| {
+        let midnights = [MIDNIGHT - DAY, MIDNIGHT, MIDNIGHT + DAY];
+        forecast["current"]["is_day"] = json!(0);
+        forecast["daily"] = json!({
+            "time": midnights,
+            "sunrise": [MIDNIGHT - DAY + 11 * HOUR, MIDNIGHT, MIDNIGHT + DAY + 11 * HOUR],
+            "sunset": [MIDNIGHT - DAY + 13 * HOUR, MIDNIGHT, MIDNIGHT + DAY + 13 * HOUR],
+            "temperature_2m_max": [0.0, 0.0, 0.0],
+            "temperature_2m_min": [0.0, 0.0, 0.0],
+        });
+    });
+
+    for now in [
+        MIDNIGHT - 2 * HOUR,
+        MIDNIGHT + 12 * HOUR,
+        MIDNIGHT + DAY + 2 * HOUR,
+    ] {
+        let sky = Sky::at(&forecast, at(now));
+        assert_eq!(
+            day_or_night_and_timeline(sky),
+            (DayOrNight::Night, None),
+            "{}",
+            at(now)
+        );
+    }
+}
