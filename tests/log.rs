@@ -2,7 +2,7 @@ mod common;
 
 use std::fs;
 
-use alba::weather::FetchError;
+use alba::{log, weather::FetchError};
 use common::{
     BUENOS_AIRES, Harness, default_instant, forecast_body, make_read_only, temporary_directory,
 };
@@ -82,4 +82,22 @@ fn control_characters_are_escaped_as_logfmt_decoders_expect() {
         "{}",
         harness.log()
     );
+}
+
+#[test]
+fn read_returns_the_current_runs_log() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    harness.fetch(&default_instant(), Err(FetchError::Status(503)));
+
+    let text = log::read(&harness.state_directory).unwrap();
+
+    assert_eq!(
+        text,
+        "time=2026-10-13T06:38:00-03:00 level=warn msg=\"fetch failed\" error=\"http status 503\"\n"
+    );
+}
+
+#[test]
+fn read_before_any_run_returns_nothing() {
+    assert_eq!(log::read(&temporary_directory()).unwrap(), "");
 }

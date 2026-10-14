@@ -3,7 +3,7 @@
 use std::{
     fmt::Display,
     fs::{self, File},
-    io::Write,
+    io::{self, Write},
     path::Path,
 };
 
@@ -35,6 +35,14 @@ impl Log {
             quoted(&error.to_string()),
         );
         let _ = file.write_all(line.as_bytes());
+    }
+}
+
+/// The log of the running alba, or of the last run. Empty before alba's first run.
+pub fn read(directory: &Path) -> io::Result<String> {
+    match fs::read_to_string(directory.join(FILE_NAME)) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(String::new()),
+        result => result,
     }
 }
 
