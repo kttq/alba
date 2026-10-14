@@ -33,7 +33,7 @@ Run `$S/terminal.sh doctor` first, and again whenever a drive looks wrong. It pr
 
 - **Headless:** pass steps in order, such as `sleep=2 screen key=r resize=60x20 expect=°`. `screen` prints the grid inside a `+---+` frame, one row per line, so a row and column are countable. `colors` prints each run of styled text with its row, column, foreground, background, and dim flag: `Idx(12)` is bright blue, `Idx(8)` is bright black (dark gray).
 - **Terminal:** a Terminal drive is launch, wait, and capture. Drive keys and resizes headless.
-- **CPU:** the `idle-cpu` CI job runs the spec's check on Linux and macOS for every pull request: five idle minutes at 85×26 with rain and `motion = true`, under 3 s of CPU. Report its result from the pull request's checks. It never blocks a merge, so read it. To run it here: `cargo test --release --test binary five_idle_minutes -- --ignored`.
+- **CPU:** the `idle-cpu` CI job runs the spec's check on Linux and macOS for every pull request: five idle minutes at 85×26 with rain and `motion = true`, under 3 s of CPU. Report its result from the pull request's checks, with the CPU seconds the job log prints (`N.NN s of CPU in five minutes`). It never blocks a merge, so read it. To run it here: `cargo test --release --test binary five_idle_minutes -- --ignored --nocapture`.
 
 ## Evidence
 

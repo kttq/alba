@@ -400,6 +400,7 @@ fn five_idle_minutes_use_under_three_cpu_seconds() {
         ..FixtureHome::default()
     };
     let used = idle_cpu_seconds(&rain_in_motion, LARGE, Duration::from_secs(300));
+    println!("{used:.2} s of CPU in five minutes");
     assert!(used < 3.0, "{used} s of CPU in five minutes");
 }
 

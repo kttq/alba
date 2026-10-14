@@ -24,4 +24,4 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - run: cargo test --release --test binary five_idle_minutes -- --ignored
+      - run: cargo test --release --test binary five_idle_minutes -- --ignored --nocapture
