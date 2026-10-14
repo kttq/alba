@@ -7,6 +7,7 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Keep a comment only when it carries a why, a unit, or a gotcha the code cannot say.
 - Write a doc comment that adds to the name. Let the name and signature carry the rest.
 - Leave examples, ADR numbers, and design labels out of comments. The code and the ADRs carry them.
+- State what the code does now. A bug's history, a rejected option, or a spec's wording goes in the commit body.
 
 ## Names
 

@@ -144,3 +144,34 @@ pub fn temporary_directory() -> PathBuf {
 pub fn make_read_only(directory: &Path) {
     fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
 }
+
+/// Every Rust file under `src/`, as a path and its text.
+pub fn source_files() -> Vec<(PathBuf, String)> {
+    let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let files: Vec<_> = rust_files(&source)
+        .into_iter()
+        .map(|path| {
+            let text = fs::read_to_string(&path).unwrap();
+            (path, text)
+        })
+        .collect();
+    assert!(
+        !files.is_empty(),
+        "no Rust files under {}",
+        source.display()
+    );
+    files
+}
+
+fn rust_files(directory: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(directory).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            files.extend(rust_files(&path));
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            files.push(path);
+        }
+    }
+    files
+}
