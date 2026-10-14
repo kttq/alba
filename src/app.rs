@@ -11,7 +11,7 @@ use ratatui::{
 };
 
 use crate::{
-    config::{ColonStyle, Config, HourFormat},
+    config::{Config, HourFormat},
     strings::Strings,
 };
 
@@ -39,12 +39,12 @@ impl App {
     /// The event loop calls this on every wake, before it draws.
     pub fn tick(&mut self, _now: &Zoned) {}
 
-    /// How often the event loop wakes: a quarter second while something moves, else a second.
+    /// How often the event loop wakes. The blinking colon needs a quarter second.
     pub fn tick_interval(&self) -> Duration {
-        if self.config.clock.colon == ColonStyle::Steady {
-            Duration::from_secs(1)
-        } else {
+        if self.config.motion {
             Duration::from_millis(250)
+        } else {
+            Duration::from_secs(1)
         }
     }
 
@@ -98,14 +98,13 @@ impl App {
         }
     }
 
-    /// Lit for the first half of each wall-clock second; the `colon` style shows in the second.
+    /// Lit for the first half of each wall-clock second, faint in the second half.
     fn colon(&self, now: &Zoned) -> Span<'static> {
-        let lit = now.subsec_nanosecond() < 500_000_000;
-        match self.config.clock.colon {
-            _ if lit => Span::raw(":"),
-            ColonStyle::Steady => Span::raw(":"),
-            ColonStyle::Ghost => ":".dim(),
-            ColonStyle::Blank => Span::raw(" "),
+        let first_half = now.subsec_nanosecond() < 500_000_000;
+        if first_half || !self.config.motion {
+            Span::raw(":")
+        } else {
+            ":".dim()
         }
     }
 }

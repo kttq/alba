@@ -15,10 +15,9 @@ week_start  = "monday"
 # latitude  = -34.6037
 # longitude = -58.3816
 
-# to stop all motion, uncomment:
+# ghost_segments: show unlit clock segments faintly.
+# turn it off if your terminal has no faint style.
+# motion: false stops the blinking colon and all animation.
 
-# [clock]
-# colon = "steady"
-# [weather]
-# animation_fps = 0
-# flash = "off"
+# ghost_segments = true
+# motion         = true

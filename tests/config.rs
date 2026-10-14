@@ -4,11 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use alba::config::{
-    self, AmPm, AnimationFps, ClockConfig, ColonDots, ColonGap, ColonGapPixels, ColonStyle, Config,
-    DigitGap, Flash, FlashTarget, HourFormat, Language, Location, MoonDarkSide, Stars, Thickness,
-    Units, WeatherConfig, WeekStart,
-};
+use alba::config::{self, Config, HourFormat, Language, Location, Units, WeekStart};
 
 #[test]
 fn empty_config_has_every_default() {
@@ -22,24 +18,8 @@ fn empty_config_has_every_default() {
             hour_format: HourFormat::TwentyFour,
             week_start: WeekStart::Monday,
             location: None,
-            clock: ClockConfig {
-                thickness: Thickness::Two,
-                digit_gap: DigitGap::One,
-                colon_gap: ColonGap::Auto,
-                colon: ColonStyle::Ghost,
-                colon_dots: ColonDots::Square,
-                ghost_segments: true,
-                tails: true,
-                hooked_seven: false,
-                am_pm: AmPm::Stack,
-            },
-            weather: WeatherConfig {
-                animation_fps: AnimationFps::Two,
-                flash: Flash::EightSeconds,
-                flash_target: FlashTarget::Cloud,
-                moon_dark_side: MoonDarkSide::Faint,
-                stars: Stars::Glyphs,
-            },
+            ghost_segments: true,
+            motion: true,
         }
     );
 }
@@ -47,29 +27,13 @@ fn empty_config_has_every_default() {
 #[test]
 fn full_schema_parses_every_option() {
     let text = r#"
-language    = "es"
-units       = "imperial"
-hour_format = 12
-week_start  = "sunday"
-location    = "buenos aires"
-
-[clock]
-thickness      = 1
-digit_gap      = 2
-colon_gap      = 4
-colon          = "steady"
-colon_dots     = "tall"
+language       = "es"
+units          = "imperial"
+hour_format    = 12
+week_start     = "sunday"
+location       = "buenos aires"
 ghost_segments = false
-tails          = false
-hooked_seven   = true
-am_pm          = "text"
-
-[weather]
-animation_fps  = 4
-flash          = "off"
-flash_target   = "both"
-moon_dark_side = "none"
-stars          = "pixels"
+motion         = false
 "#;
 
     let config = Config::parse(text).unwrap();
@@ -82,24 +46,8 @@ stars          = "pixels"
             hour_format: HourFormat::Twelve,
             week_start: WeekStart::Sunday,
             location: Some(Location::Name("buenos aires".to_string())),
-            clock: ClockConfig {
-                thickness: Thickness::One,
-                digit_gap: DigitGap::Two,
-                colon_gap: ColonGap::Pixels(ColonGapPixels::Four),
-                colon: ColonStyle::Steady,
-                colon_dots: ColonDots::Tall,
-                ghost_segments: false,
-                tails: false,
-                hooked_seven: true,
-                am_pm: AmPm::Text,
-            },
-            weather: WeatherConfig {
-                animation_fps: AnimationFps::Four,
-                flash: Flash::Off,
-                flash_target: FlashTarget::Both,
-                moon_dark_side: MoonDarkSide::None,
-                stars: Stars::Pixels,
-            },
+            ghost_segments: false,
+            motion: false,
         }
     );
 }
@@ -144,20 +92,11 @@ fn unknown_key_names_its_line() {
 }
 
 #[test]
-fn unknown_key_in_a_table_names_its_line() {
+fn dropped_table_names_its_line() {
     assert_error(
-        "[clock]\ncolon = \"ghost\"\ncolour = 1\n",
+        "motion = true\n\n[clock]\ncolon = \"steady\"\n",
         3,
-        "unknown field `colour`",
-    );
-}
-
-#[test]
-fn unknown_table_names_its_line() {
-    assert_error(
-        "language = \"en\"\n\n[theme]\nx = 1\n",
-        3,
-        "unknown field `theme`",
+        "unknown field `clock`",
     );
 }
 
@@ -167,32 +106,21 @@ fn bad_choice_names_its_line() {
 }
 
 #[test]
-fn bad_integer_choice_names_its_line() {
+fn bad_hour_format_names_its_line() {
     assert_error(
         "\nhour_format = 13\n",
         2,
         "invalid value: 13, expected 24 or 12",
     );
-    assert_error(
-        "[weather]\nanimation_fps = 3\n",
-        2,
-        "invalid value: 3, expected one of: 0, 1, 2, 4",
-    );
-}
-
-#[test]
-fn bad_colon_gap_names_its_line() {
-    assert_error("[clock]\ncolon_gap = 5\n", 2, "expected \"auto\" or 1 to 4");
-    assert_error(
-        "[clock]\ncolon_gap = \"wide\"\n",
-        2,
-        "expected \"auto\" or 1 to 4",
-    );
 }
 
 #[test]
 fn wrong_type_names_its_line() {
-    assert_error("[clock]\nghost_segments = \"yes\"\n", 2, "");
+    assert_error(
+        "units = \"metric\"\nmotion = \"no\"\n",
+        2,
+        "expected a boolean",
+    );
 }
 
 #[test]
@@ -253,13 +181,12 @@ week_start  = "monday"
 # latitude  = -34.6037
 # longitude = -58.3816
 
-# to stop all motion, uncomment:
+# ghost_segments: show unlit clock segments faintly.
+# turn it off if your terminal has no faint style.
+# motion: false stops the blinking colon and all animation.
 
-# [clock]
-# colon = "steady"
-# [weather]
-# animation_fps = 0
-# flash = "off"
+# ghost_segments = true
+# motion         = true
 "#;
 
 /// A fresh, empty directory standing in for `HOME`.

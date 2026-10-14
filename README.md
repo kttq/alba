@@ -45,33 +45,17 @@ Without a location, the clock and calendar still work, and alba shows the line t
 Every option is shown with its default.
 
 ```toml
-language    = "en"        # "en" | "es"
-units       = "metric"    # "metric" | "imperial"
-hour_format = 24          # 24 | 12
-week_start  = "monday"    # "monday" | "sunday"
-location    = "buenos aires"   # no default; or latitude + longitude
-# latitude  = -34.6037    # -90..90
-# longitude = -58.3816    # -180..180
-
-[clock]
-thickness      = 2        # Large tier only: 1 | 2
-digit_gap      = 1        # 1 | 2
-colon_gap      = "auto"   # "auto" (thickness + 1) | 1..4
-colon          = "ghost"  # off-beat style: "ghost" | "blank" | "steady"
-colon_dots     = "square" # "square" | "tall"
-ghost_segments = true
-tails          = true     # top bar on 6, bottom bar on 9
-hooked_seven   = false
-am_pm          = "stack"  # "stack" | "text"
-
-[weather]
-animation_fps  = 2        # 0 | 1 | 2 | 4
-flash          = "8s"     # "8s" | "20s" | "off"
-flash_target   = "cloud"  # "cloud" | "bolt" | "both"
-moon_dark_side = "faint"  # "faint" | "solid" | "none"
-stars          = "glyphs" # "glyphs" | "pixels" | "none"
+language       = "en"      # "en" | "es"
+units          = "metric"  # "metric" | "imperial"
+hour_format    = 24        # 24 | 12
+week_start     = "monday"  # "monday" | "sunday"
+location       = "buenos aires"   # no default; or latitude + longitude
+# latitude     = -34.6037  # -90..90
+# longitude    = -58.3816  # -180..180
+ghost_segments = true      # unlit clock segments shown faintly
+motion         = true      # false: steady colon, still icons, no flash
 ```
 
-To stop all motion, set `colon = "steady"`, `animation_fps = 0`, and `flash = "off"`.
+Turn `ghost_segments` off if your terminal has no faint style. Set `motion = false` to stop all motion.
 
 ## motivation

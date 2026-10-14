@@ -138,20 +138,14 @@ fn spanish_twelve_hour_clock_uses_the_same_mark() {
 
 #[test]
 fn colon_is_lit_for_the_first_half_of_each_second() {
-    for colon in ["ghost", "blank", "steady"] {
-        let app = app_with(&format!("[clock]\ncolon = \"{colon}\""));
+    let terminal = render_row(&app_with(""), &instant("06:38:07.499"), 5);
 
-        let terminal = render_row(&app, &instant("06:38:07.499"), 5);
-
-        terminal.backend().assert_buffer_lines(["06:38"]);
-    }
+    terminal.backend().assert_buffer_lines(["06:38"]);
 }
 
 #[test]
-fn ghost_colon_is_faint_in_the_second_half() {
-    let app = app_with("[clock]\ncolon = \"ghost\"");
-
-    let terminal = render_row(&app, &instant("06:38:07.500"), 5);
+fn colon_is_faint_in_the_second_half() {
+    let terminal = render_row(&app_with(""), &instant("06:38:07.500"), 5);
 
     terminal.backend().assert_buffer_lines([Line::from(vec![
         Span::raw("06"),
@@ -161,35 +155,21 @@ fn ghost_colon_is_faint_in_the_second_half() {
 }
 
 #[test]
-fn blank_colon_is_a_space_in_the_second_half() {
-    let app = app_with("[clock]\ncolon = \"blank\"");
-
-    let terminal = render_row(&app, &instant("06:38:07.750"), 5);
-
-    terminal.backend().assert_buffer_lines(["06 38"]);
-}
-
-#[test]
-fn steady_colon_never_blinks() {
-    let app = app_with("[clock]\ncolon = \"steady\"");
-
-    let terminal = render_row(&app, &instant("06:38:07.999"), 5);
+fn colon_never_blinks_without_motion() {
+    let terminal = render_row(&app_with("motion = false"), &instant("06:38:07.999"), 5);
 
     terminal.backend().assert_buffer_lines(["06:38"]);
 }
 
 #[test]
-fn blinking_colon_ticks_every_quarter_second() {
+fn motion_ticks_every_quarter_second() {
     assert_eq!(app_with("").tick_interval(), Duration::from_millis(250));
-    assert_eq!(
-        app_with("[clock]\ncolon = \"blank\"").tick_interval(),
-        Duration::from_millis(250)
-    );
 }
 
 #[test]
 fn still_clock_ticks_every_second() {
-    let app = app_with("[clock]\ncolon = \"steady\"");
-
-    assert_eq!(app.tick_interval(), Duration::from_secs(1));
+    assert_eq!(
+        app_with("motion = false").tick_interval(),
+        Duration::from_secs(1)
+    );
 }
