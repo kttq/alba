@@ -28,7 +28,8 @@ const FORECAST_QUERY: [(&str, &str); 8] = [
     ("forecast_days", "2"),
 ];
 
-/// Blocks until the response body arrives or the request fails.
+/// Blocks until the response body arrives or the request fails. Decodes the body strictly:
+/// `ureq`'s `read_to_string` would replace invalid UTF-8 and let a corrupted body through.
 pub fn fetch(coordinates: Coordinates) -> Result<String, FetchError> {
     let agent: Agent = Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
@@ -41,10 +42,11 @@ pub fn fetch(coordinates: Coordinates) -> Result<String, FetchError> {
         .query_pairs(FORECAST_QUERY)
         .call()
         .map_err(FetchError::from)?;
-    response
+    let body = response
         .body_mut()
-        .read_to_string()
-        .map_err(FetchError::from)
+        .read_to_vec()
+        .map_err(FetchError::from)?;
+    String::from_utf8(body).map_err(|error| FetchError::Invalid(error.to_string()))
 }
 
 impl From<ureq::Error> for FetchError {

@@ -12,13 +12,13 @@ alba follows the XDG Base Directory spec on macOS and Linux. An unset, empty, or
 | Weather cache | `$XDG_CACHE_HOME/alba/weather.json` | `~/.cache/alba/weather.json` |
 | Log | `$XDG_STATE_HOME/alba/alba.log` | `~/.local/state/alba/alba.log` |
 
-The log is empty at each start. It holds one [logfmt](https://brandur.org/logfmt) line per failed fetch or failed cache write:
+The log is empty at each start. It holds one line of `key=value` pairs per failed fetch or failed cache write:
 
 ```text
 time=2026-10-13T06:38:00-03:00 level=warn msg="fetch failed" error="http status 503"
 ```
 
-`alba --log` prints the log of the running alba, or of the last run, as plain text. Pipe it to a pager or a logfmt viewer such as [lnav](https://lnav.org/): `alba --log | lnav`.
+`alba --log` prints the log of the running alba, or of the last run.
 
 ## All options
 
