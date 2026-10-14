@@ -1,5 +1,7 @@
 //! Picks the size tier that fits the pane, centres it, and places each piece of the Home view.
 
+use crate::pixels::Canvas;
+
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Position, Rect, Size},
@@ -11,18 +13,21 @@ use ratatui::{
 pub struct HomeContent {
     pub text_clock: Line<'static>,
     pub short_date: Line<'static>,
-    /// None when no weather data is shown.
+    /// The weather pieces are None when no weather data is shown.
     pub weather_line: Option<Line<'static>>,
+    pub temperature: Option<Line<'static>>,
+    pub mini_icon: Option<Canvas>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {
+    Mini,
     Strip,
 }
 
 impl SizeTier {
     /// The first that fits wins.
-    pub const IN_ORDER: [Self; 1] = [Self::Strip];
+    pub const IN_ORDER: [Self; 2] = [Self::Mini, Self::Strip];
 }
 
 #[derive(Debug)]
@@ -42,6 +47,7 @@ pub struct PlacedItem<'a> {
 #[derive(Debug, Clone, Copy)]
 pub enum Piece<'a> {
     Text(&'a Line<'static>),
+    Picture(&'a Canvas),
     /// The ` · ` between the parts of the Strip line.
     Separator,
 }
@@ -52,6 +58,7 @@ impl Piece<'_> {
     pub fn required_size(self) -> Size {
         match self {
             Self::Text(line) => Size::new(line.width() as u16, 1),
+            Self::Picture(canvas) => Size::new(canvas.width(), canvas.height().div_ceil(2)),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
         }
     }
@@ -59,6 +66,7 @@ impl Piece<'_> {
     pub fn render(self, area: Rect, buffer: &mut Buffer) {
         match self {
             Self::Text(line) => line.render(area, buffer),
+            Self::Picture(canvas) => canvas.render(area, buffer),
             Self::Separator => Span::raw(SEPARATOR).render(area, buffer),
         }
     }
@@ -102,8 +110,19 @@ pub fn minimum_size(size_tier: SizeTier, content: &HomeContent) -> Option<Size> 
 /// Widest first.
 fn arrangements(size_tier: SizeTier, content: &HomeContent) -> Vec<Arrangement<'_>> {
     match size_tier {
+        SizeTier::Mini => mini_arrangement(content).into_iter().collect(),
         SizeTier::Strip => strip_arrangements(content),
     }
+}
+
+/// Without weather, Mini would show less than Strip in one more row.
+fn mini_arrangement(content: &HomeContent) -> Option<Arrangement<'_>> {
+    let pieces = vec![
+        Piece::Text(&content.text_clock),
+        Piece::Picture(content.mini_icon.as_ref()?),
+        Piece::Text(content.temperature.as_ref()?),
+    ];
+    Some(row(pieces, 2))
 }
 
 /// The full line, then without the date, then the clock alone.

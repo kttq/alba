@@ -28,6 +28,16 @@ pub enum WeatherState<'a> {
     },
 }
 
+impl<'a> WeatherState<'a> {
+    /// The weather to show, fresh or stale.
+    pub fn weather(self) -> Option<&'a Weather> {
+        match self {
+            Self::Fresh(weather) | Self::Stale { weather, .. } => Some(weather),
+            _ => None,
+        }
+    }
+}
+
 /// Keeps the current weather: from the cache at start, then from fetches on the fetch
 /// schedule or on request.
 pub struct WeatherStation {

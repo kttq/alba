@@ -1,0 +1,8 @@
+---
+source: tests/layout.rs
+expression: "rendered(&harness, &default_instant(), 22, 4).backend()"
+---
+"                      "
+"  06:38   ▄██▄   14°  "
+"         ▀▀▀▀▀▀       "
+"                      "

@@ -11,6 +11,7 @@ use crate::{
     calendar,
     clock::Clock,
     config::{Config, Coordinates, Location, Units},
+    icon::{Animation, Icon, IconSize},
     layout::{self, HomeContent},
     log::Log,
     strings::Strings,
@@ -20,6 +21,7 @@ use crate::{
 /// Time and time zone come only from `now`, never the system clock.
 pub struct App {
     units: Units,
+    motion: bool,
     strings: &'static Strings,
     clock: Clock,
     weather_station: WeatherStation,
@@ -42,6 +44,7 @@ impl App {
     ) -> Self {
         Self {
             units: config.units,
+            motion: config.motion,
             strings: Strings::of(config.language),
             clock: Clock::new(config),
             weather_station: WeatherStation::new(
@@ -82,14 +85,21 @@ impl App {
     }
 
     pub fn home_content(&self, now: &Zoned) -> HomeContent {
+        let weather_state = self.weather_station.weather_state(now);
+        let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
         HomeContent {
             text_clock: self.clock.text_line(now),
             short_date: calendar::short_date(self.strings, now),
-            weather_line: weather::text_line(
-                self.weather_station.weather_state(now),
-                self.weather_station.shows_fetch_indicator(now),
+            weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),
+            temperature: weather::temperature_line(
+                weather_state,
+                shows_fetch_indicator,
                 self.units,
             ),
+            mini_icon: weather_state
+                .weather()
+                .and_then(|weather| Icon::of(weather, now))
+                .map(|icon| icon.canvas(IconSize::Mini, Animation::at(now, self.motion))),
         }
     }
 }
