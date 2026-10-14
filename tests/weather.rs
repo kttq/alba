@@ -1,9 +1,13 @@
 mod common;
 
-use std::{fs, os::unix::fs::PermissionsExt};
+use std::{fs, os::unix::fs::PermissionsExt, path::Path};
 
 use alba::{config::Coordinates, weather::FetchError};
 use common::{BUENOS_AIRES, Harness, default_instant, forecast_body, temporary_directory};
+use ratatui::{
+    style::Stylize,
+    text::{Line, Span},
+};
 
 #[test]
 fn fetched_weather_shows_on_the_text_line() {
@@ -15,7 +19,11 @@ fn fetched_weather_shows_on_the_text_line() {
     harness
         .render_row(&now, 23)
         .backend()
-        .assert_buffer_lines(["06:38 · tue 13 · 14° ‚‚"]);
+        .assert_buffer_lines([Line::from(vec![
+            Span::raw("06:38 · "),
+            "tue 13".light_blue(),
+            Span::raw(" · 14° ‚‚"),
+        ])]);
 }
 
 #[test]
@@ -211,7 +219,7 @@ fn unusable_cache_counts_as_no_cache() {
 fn failed_cache_write_keeps_the_weather_in_memory() {
     let cache_directory = temporary_directory();
     fs::create_dir_all(&cache_directory).unwrap();
-    fs::set_permissions(&cache_directory, fs::Permissions::from_mode(0o555)).unwrap();
+    make_read_only(&cache_directory);
     let mut harness = Harness::with_cache(BUENOS_AIRES, cache_directory.clone());
     let now = default_instant();
 
@@ -219,4 +227,8 @@ fn failed_cache_write_keeps_the_weather_in_memory() {
 
     assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
     assert!(!cache_directory.join("weather.json").exists());
+}
+
+fn make_read_only(directory: &Path) {
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
 }

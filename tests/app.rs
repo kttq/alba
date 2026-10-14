@@ -152,15 +152,21 @@ fn still_clock_ticks_every_second() {
 }
 
 #[test]
-fn text_line_shows_the_short_date_when_it_fits() {
+fn text_line_shows_the_short_date_in_bright_blue_when_it_fits() {
     let terminal = render_row(&app_with(""), &default_instant(), 14);
 
-    terminal.backend().assert_buffer_lines(["06:38 · tue 13"]);
+    terminal.backend().assert_buffer_lines([Line::from(vec![
+        Span::raw("06:38 · "),
+        "tue 13".light_blue(),
+    ])]);
 }
 
 #[test]
 fn spanish_text_line_shows_the_spanish_weekday() {
     let terminal = render_row(&app_with("language = \"es\""), &default_instant(), 14);
 
-    terminal.backend().assert_buffer_lines(["06:38 · mar 13"]);
+    terminal.backend().assert_buffer_lines([Line::from(vec![
+        Span::raw("06:38 · "),
+        "mar 13".light_blue(),
+    ])]);
 }

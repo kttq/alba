@@ -121,7 +121,7 @@ impl App {
     /// The Strip line, widest first: the full line, then without the date, then the clock alone.
     fn text_lines(&self, now: &Zoned) -> Vec<Line<'static>> {
         let clock = self.text_clock(now);
-        let date = Line::raw(self.short_date(now));
+        let date = Line::from(self.short_date(now).light_blue());
         match self.text_weather() {
             Some(weather) => vec![
                 joined(vec![clock.clone(), date, weather.clone()]),
@@ -132,7 +132,7 @@ impl App {
         }
     }
 
-    /// The temperature and the condition mark, like `14° ‚‚`.
+    /// The temperature, then the condition mark when the code has a condition.
     fn text_weather(&self) -> Option<Line<'static>> {
         let current = &self.weather.as_ref()?.forecast.current;
         let degrees = weather::whole_degrees(current.temperature_2m, self.config.units);
@@ -190,14 +190,8 @@ impl App {
 
 /// Joins the parts of the text line with ` · `.
 fn joined(parts: Vec<Line<'static>>) -> Line<'static> {
-    let mut spans = Vec::new();
-    for (index, part) in parts.into_iter().enumerate() {
-        if index > 0 {
-            spans.push(Span::raw(" · "));
-        }
-        spans.extend(part.spans);
-    }
-    Line::from(spans)
+    let parts: Vec<_> = parts.into_iter().map(|part| part.spans).collect();
+    Line::from(parts.join(&Span::raw(" · ")))
 }
 
 fn coordinates(config: &Config) -> Option<Coordinates> {

@@ -38,11 +38,15 @@ impl From<Coordinates> for CachedLocation {
     }
 }
 
-/// The cached weather for `coordinates`. A missing, unreadable, or malformed file, another
-/// format version, or another location all count as no cache.
+/// The cached weather for `coordinates`. A missing or unreadable file counts as no cache.
 pub fn read(directory: &Path, coordinates: Coordinates) -> Option<Weather> {
     let text = fs::read_to_string(directory.join(FILE_NAME)).ok()?;
-    let file: CacheFile = serde_json::from_str(&text).ok()?;
+    usable(&text, coordinates)
+}
+
+/// A malformed file, another format version, or another location all count as no cache.
+fn usable(text: &str, coordinates: Coordinates) -> Option<Weather> {
+    let file: CacheFile = serde_json::from_str(text).ok()?;
     if file.version != FORMAT_VERSION || file.location != CachedLocation::from(coordinates) {
         return None;
     }
