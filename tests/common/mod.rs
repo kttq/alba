@@ -13,6 +13,7 @@ use alba::{
     app::App,
     config::{Config, Coordinates},
     log::Log,
+    pixels::Canvas,
     weather::{FetchError, Forecast, WeatherSource, WeatherStation},
 };
 use jiff::{Timestamp, Zoned};
@@ -22,6 +23,7 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Color, Modifier},
+    widgets::Widget,
 };
 use serde_json::{Value, json};
 
@@ -280,6 +282,30 @@ pub fn pixel_snapshot(buffer: &Buffer, area: Rect) -> String {
     snapshot
 }
 
+/// Renders the canvas alone and decodes it as `pixel_snapshot` does.
+pub fn canvas_snapshot(canvas: &Canvas) -> String {
+    let area = Rect::new(0, 0, canvas.width(), canvas.height().div_ceil(2));
+    let mut buffer = Buffer::empty(area);
+    canvas.render(area, &mut buffer);
+    pixel_snapshot(&buffer, area)
+}
+
+/// The canvas in the pixel snapshot alphabet, read straight from its pixels.
+pub fn canvas_text(canvas: &Canvas) -> String {
+    let height = canvas.height().div_ceil(2) * 2;
+    (0..height)
+        .map(|y| {
+            let row: String = (0..canvas.width())
+                .map(|x| match canvas.pixel(x, y) {
+                    None => pixel_text(None, false),
+                    Some(pixel) => pixel_text(Some(pixel.color.into()), pixel.faint),
+                })
+                .collect();
+            row + "\n"
+        })
+        .collect()
+}
+
 fn background_color(color: Color) -> Option<Color> {
     (color != Color::Reset).then_some(color)
 }
@@ -292,7 +318,7 @@ fn pixel_text(color: Option<Color>, faint: bool) -> String {
     }
 }
 
-pub fn color_letter(color: Color) -> char {
+fn color_letter(color: Color) -> char {
     match color {
         Color::Reset => 'f',
         Color::Black => 'k',

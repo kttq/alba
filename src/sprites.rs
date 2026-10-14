@@ -19,8 +19,6 @@ const BOLT: Pixel = Pixel::new(PixelColor::Yellow);
 const FLASH: Pixel = Pixel::new(PixelColor::BrightWhite);
 const GHOST: Pixel = Pixel::faint(PixelColor::BrightBlack);
 
-/// W cloud · w cloud underside · d storm cloud · Y sun · y sun rays · M moon · B rain · S snow ·
-/// F fog · f back fog · L bolt
 pub const ICON_LEGEND: &Legend = &[
     ('W', CLOUD),
     ('w', CLOUD_UNDERSIDE),

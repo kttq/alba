@@ -2,13 +2,12 @@ mod common;
 
 use alba::{
     icon::{Animation, Icon, IconSize},
-    pixels::Canvas,
     sky::MoonPhase,
     weather::Condition,
 };
-use common::{HOUR, at, pixel_snapshot};
+use common::{HOUR, at, canvas_snapshot, canvas_text, pixel_snapshot};
 use jiff::Zoned;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{buffer::Buffer, layout::Rect, style::Style};
 
 const SIZES: [(&str, IconSize); 3] = [
     ("mini", IconSize::Mini),
@@ -69,13 +68,6 @@ fn rendered(icon: Icon, size: IconSize, animation: Animation) -> String {
     let area = Rect::new(0, 0, width, height);
     let mut buffer = Buffer::empty(area);
     icon.render(size, animation, area, &mut buffer);
-    pixel_snapshot(&buffer, area)
-}
-
-fn rendered_canvas(canvas: &Canvas) -> String {
-    let area = Rect::new(0, 0, canvas.width(), canvas.height().div_ceil(2));
-    let mut buffer = Buffer::empty(area);
-    canvas.render(area, &mut buffer);
     pixel_snapshot(&buffer, area)
 }
 
@@ -186,8 +178,8 @@ fn every_painted_pixel_survives_the_cell_packing() {
             for animation in [frame_one(), frame_two(), flash()] {
                 let canvas = icon.canvas(size, animation);
                 assert_eq!(
-                    rendered_canvas(&canvas),
-                    painted(&canvas),
+                    canvas_snapshot(&canvas),
+                    canvas_text(&canvas),
                     "{name} {size:?}"
                 );
             }
@@ -195,25 +187,20 @@ fn every_painted_pixel_survives_the_cell_packing() {
     }
 }
 
-/// The canvas in the pixel snapshot alphabet, read straight from its pixels.
-fn painted(canvas: &Canvas) -> String {
-    let height = canvas.height().div_ceil(2) * 2;
-    (0..height)
-        .map(|y| {
-            let row: String = (0..canvas.width())
-                .map(|x| match canvas.pixel(x, y) {
-                    None => "..".to_string(),
-                    Some(pixel) => {
-                        let letter = common::color_letter(pixel.color.into());
-                        if pixel.faint {
-                            format!("{letter}~")
-                        } else {
-                            format!("{letter}{letter}")
-                        }
-                    }
-                })
-                .collect();
-            row + "\n"
-        })
-        .collect()
+#[test]
+fn stars_draw_in_the_default_foreground_over_any_style() {
+    let icon = Icon::Night(Condition::Clear, tonight());
+    let (width, height) = IconSize::Full.cells();
+    let area = Rect::new(0, 0, width, height);
+    let mut buffer = Buffer::empty(area);
+    buffer.set_style(area, Style::new().red().on_blue().dim());
+
+    icon.render(IconSize::Full, frame_one(), area, &mut buffer);
+
+    let top_row = pixel_snapshot(&buffer, area)
+        .lines()
+        .next()
+        .unwrap()
+        .to_string();
+    assert_eq!(top_row, "......K~K~K~yy..✧f......");
 }

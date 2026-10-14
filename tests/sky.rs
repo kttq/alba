@@ -7,11 +7,10 @@ use alba::{
     weather::{DayOrNight, Forecast},
 };
 use common::{
-    DAY, HOUR, MIDNIGHT, at, edited_fixture_forecast, fixture_forecast, pixel_snapshot,
+    DAY, HOUR, MIDNIGHT, at, canvas_snapshot, edited_fixture_forecast, fixture_forecast,
     small_forecast, three_day_forecast,
 };
 use jiff::Timestamp;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 use serde_json::json;
 
 fn utc(text: &str) -> Timestamp {
@@ -310,11 +309,7 @@ fn moon_discs_through_the_cycle() {
             } else {
                 moon_phase_near(*fraction)
             };
-            let disc = moon_phase.disc(8);
-            let area = Rect::new(0, 0, disc.width(), disc.height().div_ceil(2));
-            let mut buffer = Buffer::empty(area);
-            disc.render(area, &mut buffer);
-            format!("{fraction}\n{}", pixel_snapshot(&buffer, area))
+            format!("{fraction}\n{}", canvas_snapshot(&moon_phase.disc(8)))
         })
         .collect();
 

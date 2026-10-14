@@ -1,7 +1,7 @@
 //! The icon for a condition, in three sizes and two animation frames, with its night stars.
 
 use jiff::Zoned;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::Widget};
 
 use crate::{
     pixels::{Canvas, Legend},
@@ -28,7 +28,6 @@ pub enum IconSize {
     Large,
 }
 
-/// The frame and flash at a wall-clock instant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Animation {
     frame: usize,
@@ -66,16 +65,14 @@ impl IconSize {
 
 impl Icon {
     pub fn canvas(self, size: IconSize, animation: Animation) -> Canvas {
-        match size {
-            IconSize::Large => self.canvas(IconSize::Full, animation).scaled(2),
-            _ => match self {
-                Self::Night(Condition::Clear, moon_phase) => moon(size, moon_phase),
-                _ => {
-                    let (frames, legend) = self.sprite(size, animation);
-                    Canvas::from_rows(frames[animation_frame(self, animation)], legend)
-                }
-            },
+        if size == IconSize::Large {
+            return self.canvas(IconSize::Full, animation).scaled(2);
         }
+        if let Self::Night(Condition::Clear, moon_phase) = self {
+            return moon(size, moon_phase);
+        }
+        let (frames, legend) = self.sprite(size, animation);
+        Canvas::from_rows(frames[animation_frame(self, animation)], legend)
     }
 
     /// Paints the canvas, then the stars into empty cells.
@@ -95,7 +92,9 @@ impl Icon {
             let empty = canvas.pixel(column, row * 2).is_none()
                 && canvas.pixel(column, row * 2 + 1).is_none();
             if empty && glyph != " " && column < area.width && row < area.height {
-                buffer[(area.x + column, area.y + row)].set_symbol(glyph);
+                buffer[(area.x + column, area.y + row)]
+                    .set_symbol(glyph)
+                    .set_style(Style::reset());
             }
         }
     }
@@ -111,11 +110,7 @@ impl Icon {
         let condition = match self {
             Self::Ghost => return (frames(Condition::Cloudy, size), sprites::GHOST_LEGEND),
             Self::Night(Condition::PartlyCloudy, _) => {
-                let frames = match size {
-                    IconSize::Mini => sprites::MINI_PARTLY_CLOUDY_NIGHT,
-                    _ => sprites::FULL_PARTLY_CLOUDY_NIGHT,
-                };
-                return (frames, sprites::ICON_LEGEND);
+                return (partly_cloudy_night_frames(size), sprites::ICON_LEGEND);
             }
             Self::Day(condition) | Self::Night(condition, _) => condition,
         };
@@ -142,6 +137,13 @@ fn moon(size: IconSize, moon_phase: MoonPhase) -> Canvas {
     let mut canvas = Canvas::new(width, height * 2);
     canvas.paint(1, 0, &moon_phase.disc(height * 2));
     canvas
+}
+
+fn partly_cloudy_night_frames(size: IconSize) -> Frames {
+    match size {
+        IconSize::Mini => sprites::MINI_PARTLY_CLOUDY_NIGHT,
+        _ => sprites::FULL_PARTLY_CLOUDY_NIGHT,
+    }
 }
 
 fn frames(condition: Condition, size: IconSize) -> Frames {

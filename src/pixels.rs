@@ -106,14 +106,14 @@ impl Canvas {
         }
     }
 
-    /// Paints `sprite` with its top left pixel at (x, y). Its empty pixels leave this canvas as it was.
-    pub fn paint(&mut self, x: u16, y: u16, sprite: &Canvas) {
-        for sprite_y in 0..sprite.height {
-            for sprite_x in 0..sprite.width {
-                if let Some(pixel) = sprite.pixel(sprite_x, sprite_y) {
+    /// Paints `source` with its top left pixel at (x, y). Its empty pixels leave this canvas as it was.
+    pub fn paint(&mut self, x: u16, y: u16, source: &Canvas) {
+        for source_y in 0..source.height {
+            for source_x in 0..source.width {
+                if let Some(pixel) = source.pixel(source_x, source_y) {
                     self.set(
-                        x.saturating_add(sprite_x),
-                        y.saturating_add(sprite_y),
+                        x.saturating_add(source_x),
+                        y.saturating_add(source_y),
                         pixel,
                     );
                 }
@@ -164,7 +164,6 @@ impl Widget for &Canvas {
     }
 }
 
-/// A half block, its foreground pixel, and the color of its other half.
 struct PackedCell {
     symbol: &'static str,
     foreground: Pixel,
