@@ -1,20 +1,45 @@
 use std::path::PathBuf;
 
-use jiff::Zoned;
+use jiff::{SignedDuration, Timestamp, Zoned};
 
-use super::{FetchError, Forecast, Weather, WeatherSource, cache};
+use super::{
+    FetchError, Forecast, Freshness, LastResult, Weather, WeatherSource, cache, next_fetch,
+};
 use crate::{
     config::Coordinates,
     log::{Level, Log},
 };
 
-/// Keeps the current weather: from the cache at start, then from one fetch.
+/// A quick fetch finishes before the indicator shows, so it never flickers.
+const FETCH_INDICATOR_DELAY: SignedDuration = SignedDuration::from_millis(300);
+
+/// What the weather station has to show now.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WeatherState<'a> {
+    NoLocation,
+    /// No usable weather, and no fetch has failed yet.
+    Fetching,
+    /// No usable weather, and the last fetch failed.
+    Offline,
+    Fresh(&'a Weather),
+    Stale {
+        weather: &'a Weather,
+        age: SignedDuration,
+    },
+}
+
+/// Keeps the current weather: from the cache at start, then from fetches on the fetch
+/// schedule or on request.
 pub struct WeatherStation {
     coordinates: Option<Coordinates>,
     weather_source: Box<dyn WeatherSource>,
     cache_directory: PathBuf,
     weather: Option<Weather>,
-    fetch_requested: bool,
+    /// Failures in a row since the last success.
+    failures: u32,
+    next_fetch: Timestamp,
+    fetch_started_at: Option<Timestamp>,
+    refresh_requested: bool,
 }
 
 impl WeatherStation {
@@ -25,17 +50,49 @@ impl WeatherStation {
     ) -> Self {
         let weather =
             coordinates.and_then(|coordinates| cache::read(&cache_directory, coordinates));
+        let next_fetch = match &weather {
+            Some(weather) => next_fetch(LastResult::Success, weather.fetched_at),
+            None => Timestamp::MIN,
+        };
         Self {
             coordinates,
             weather_source,
             cache_directory,
             weather,
-            fetch_requested: false,
+            failures: 0,
+            next_fetch,
+            fetch_started_at: None,
+            refresh_requested: false,
         }
     }
 
-    pub fn weather(&self) -> Option<&Weather> {
-        self.weather.as_ref()
+    pub fn weather_state(&self, now: &Zoned) -> WeatherState<'_> {
+        if self.coordinates.is_none() {
+            return WeatherState::NoLocation;
+        }
+        let usable = self
+            .weather
+            .as_ref()
+            .map(|weather| (weather, weather.freshness(now.timestamp())));
+        match usable {
+            Some((weather, Freshness::Fresh)) => WeatherState::Fresh(weather),
+            Some((weather, Freshness::Stale(age))) => WeatherState::Stale { weather, age },
+            _ if self.failures > 0 => WeatherState::Offline,
+            _ => WeatherState::Fetching,
+        }
+    }
+
+    pub fn shows_fetch_indicator(&self, now: &Zoned) -> bool {
+        self.fetch_started_at.is_some_and(|started_at| {
+            now.timestamp().duration_since(started_at) >= FETCH_INDICATOR_DELAY
+        })
+    }
+
+    /// The next tick starts a fetch, unless one is running.
+    pub fn request_refresh(&mut self) {
+        if self.fetch_started_at.is_none() {
+            self.refresh_requested = true;
+        }
     }
 
     pub fn tick(&mut self, now: &Zoned, log: &mut Log) {
@@ -43,11 +100,14 @@ impl WeatherStation {
             return;
         };
         if let Some(result) = self.weather_source.finished() {
+            self.fetch_started_at = None;
             self.finish_fetch(coordinates, result, now, log);
         }
-        if !self.fetch_requested {
+        let due = self.refresh_requested || now.timestamp() >= self.next_fetch;
+        if due && self.fetch_started_at.is_none() {
             self.weather_source.request(coordinates);
-            self.fetch_requested = true;
+            self.fetch_started_at = Some(now.timestamp());
+            self.refresh_requested = false;
         }
     }
 
@@ -58,10 +118,22 @@ impl WeatherStation {
         now: &Zoned,
         log: &mut Log,
     ) {
-        match result.and_then(|body| Forecast::parse(&body)) {
-            Ok(forecast) => self.receive(coordinates, forecast, now, log),
-            Err(error) => log.write(Level::Warn, now, "fetch failed", &[("error", &error)]),
-        }
+        let last_result = match result.and_then(|body| Forecast::parse(&body)) {
+            Ok(forecast) => {
+                self.receive(coordinates, forecast, now, log);
+                self.failures = 0;
+                LastResult::Success
+            }
+            Err(error) => {
+                log.write(Level::Warn, now, "fetch failed", &[("error", &error)]);
+                self.failures += 1;
+                LastResult::Failure {
+                    failures: self.failures,
+                    retry_after: error.retry_after(),
+                }
+            }
+        };
+        self.next_fetch = next_fetch(last_result, now.timestamp());
     }
 
     fn receive(

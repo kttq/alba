@@ -11,7 +11,13 @@ use common::{
 fn failed_fetch_is_logged_as_one_logfmt_line() {
     let mut harness = Harness::new(BUENOS_AIRES);
 
-    harness.fetch(&default_instant(), Err(FetchError::Status(503)));
+    harness.fetch(
+        &default_instant(),
+        Err(FetchError::Status {
+            status: 503,
+            retry_after: None,
+        }),
+    );
 
     assert_eq!(
         harness.log(),
@@ -87,7 +93,13 @@ fn control_characters_are_escaped_as_logfmt_decoders_expect() {
 #[test]
 fn read_returns_the_current_runs_log() {
     let mut harness = Harness::new(BUENOS_AIRES);
-    harness.fetch(&default_instant(), Err(FetchError::Status(503)));
+    harness.fetch(
+        &default_instant(),
+        Err(FetchError::Status {
+            status: 503,
+            retry_after: None,
+        }),
+    );
 
     let text = log::read(&harness.state_directory).unwrap();
 

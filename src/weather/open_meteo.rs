@@ -2,7 +2,8 @@
 
 use std::time::Duration;
 
-use ureq::Agent;
+use jiff::SignedDuration;
+use ureq::{Agent, Body, http::Response};
 
 use super::FetchError;
 use crate::config::Coordinates;
@@ -33,6 +34,7 @@ const FORECAST_QUERY: [(&str, &str); 8] = [
 pub fn fetch(coordinates: Coordinates) -> Result<String, FetchError> {
     let agent: Agent = Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
+        .http_status_as_error(false)
         .build()
         .into();
     let mut response = agent
@@ -42,6 +44,9 @@ pub fn fetch(coordinates: Coordinates) -> Result<String, FetchError> {
         .query_pairs(FORECAST_QUERY)
         .call()
         .map_err(FetchError::from)?;
+    if !response.status().is_success() {
+        return Err(status_error(&response));
+    }
     let body = response
         .body_mut()
         .read_to_vec()
@@ -49,11 +54,22 @@ pub fn fetch(coordinates: Coordinates) -> Result<String, FetchError> {
     String::from_utf8(body).map_err(|error| FetchError::Invalid(error.to_string()))
 }
 
+/// Reads `Retry-After` in seconds only; an HTTP date counts as no hint.
+fn status_error(response: &Response<Body>) -> FetchError {
+    let retry_after = response
+        .headers()
+        .get("retry-after")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        .map(|seconds| SignedDuration::from_secs(seconds.into()));
+    FetchError::Status {
+        status: response.status().as_u16(),
+        retry_after,
+    }
+}
+
 impl From<ureq::Error> for FetchError {
     fn from(error: ureq::Error) -> Self {
-        match error {
-            ureq::Error::StatusCode(status) => Self::Status(status),
-            other => Self::Network(other.to_string()),
-        }
+        Self::Network(error.to_string())
     }
 }
