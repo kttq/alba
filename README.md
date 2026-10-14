@@ -17,19 +17,15 @@ _letting the days go by..._
 
 ## config
 
-alba reads `~/.config/alba/config.toml` at startup, and writes a commented template there on first run. Every option, with its default:
+alba reads `~/.config/alba/config.toml` at startup, and writes a commented template there on first run. A few highlights:
 
 ```toml
-location       = "buenos aires"   # your city; narrow it with a full country name: "paris, united states"
-# coordinates  = [-34.6037, -58.3816]   # instead of location: [latitude, longitude]
-language       = "en"      # "en" | "es"
-units          = "metric"  # "metric" | "imperial"
-hour_format    = 24        # 24 | 12
-week_start     = "monday"  # "monday" | "sunday"
-ghost_segments = true      # unlit clock segments shown faintly
-motion         = true      # false: steady colon, still icons, no flash
+location    = "paris, united states"   # your city, narrowed by country
+language    = "es"                     # english or neutral spanish
+hour_format = 12                       # 6:38pm
+motion      = false                    # a completely still widget
 ```
 
-Errors, location lookup, and each option in detail: [docs/config.md](docs/config.md).
+Every option, with defaults and details: [docs/config.md](docs/config.md).
 
 ## motivation
