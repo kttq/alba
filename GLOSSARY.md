@@ -44,6 +44,10 @@ _Avoid_: Shadow digit, background segment
 The part of alba that holds the latest weather: it reads the cache at start, fetches the forecast, and writes the cache.
 _Avoid_: Weather feed, weather service
 
+**Weather state**:
+What the weather station has to show now: no location, fetching, offline, fresh, stale, or location not found. Expired weather is never a weather state; it counts as no weather.
+_Avoid_: Status, network state
+
 **Stale weather**:
 Weather data old enough that refreshes have failed; still shown, but dimmed and labelled with its age.
 _Avoid_: Old data, outdated weather
