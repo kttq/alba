@@ -58,7 +58,12 @@ fn start() -> Result<(), String> {
     let home = home().ok_or("error: HOME is not set")?;
     let config = config::load(&config::path(&home)).map_err(|error| error.to_string())?;
     let weather_source = Box::new(BackgroundSource::new(open_meteo::fetch));
-    let mut app = App::new(&config, weather_source, cache_directory(&home));
+    let mut app = App::new(
+        &config,
+        weather_source,
+        cache_directory(&home),
+        state_directory(&home),
+    );
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);
     ratatui::restore();
@@ -89,6 +94,10 @@ fn home() -> Option<PathBuf> {
 /// `XDG_CACHE_HOME` is ignored on purpose: the path is the same on macOS and Linux.
 fn cache_directory(home: &Path) -> PathBuf {
     home.join(".cache/alba")
+}
+
+fn state_directory(home: &Path) -> PathBuf {
+    home.join(".local/state/alba")
 }
 
 /// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after

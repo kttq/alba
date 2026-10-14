@@ -12,6 +12,7 @@ use ratatui::{
 
 use crate::{
     config::{Config, Coordinates, HourFormat, Location},
+    log::Log,
     strings::Strings,
     weather::{self, Condition, FetchError, Forecast, Weather, WeatherSource, cache},
 };
@@ -22,6 +23,7 @@ pub struct App {
     strings: &'static Strings,
     weather_source: Box<dyn WeatherSource>,
     cache_directory: PathBuf,
+    log: Log,
     weather: Option<Weather>,
     fetch_requested: bool,
 }
@@ -34,11 +36,13 @@ pub enum Control {
 }
 
 impl App {
-    /// Shows the cached weather for the configured coordinates at once.
+    /// Shows the cached weather for the configured coordinates at once, and starts a fresh log
+    /// in `state_directory`.
     pub fn new(
         config: &Config,
         weather_source: Box<dyn WeatherSource>,
         cache_directory: PathBuf,
+        state_directory: PathBuf,
     ) -> Self {
         let weather =
             coordinates(config).and_then(|coordinates| cache::read(&cache_directory, coordinates));
@@ -47,6 +51,7 @@ impl App {
             strings: Strings::of(config.language),
             weather_source,
             cache_directory,
+            log: Log::start(&state_directory),
             weather,
             fetch_requested: false,
         }
@@ -71,14 +76,17 @@ impl App {
         let Some(coordinates) = coordinates(&self.config) else {
             return;
         };
-        let Ok(forecast) = result.and_then(|body| Forecast::parse(&body)) else {
-            return;
+        let forecast = match result.and_then(|body| Forecast::parse(&body)) {
+            Ok(forecast) => forecast,
+            Err(error) => return self.log.warn(now, "fetch failed", &error),
         };
         let weather = Weather {
             fetched_at: now.timestamp(),
             forecast,
         };
-        let _ = cache::write(&self.cache_directory, coordinates, &weather);
+        if let Err(error) = cache::write(&self.cache_directory, coordinates, &weather) {
+            self.log.warn(now, "cache write failed", &error);
+        }
         self.weather = Some(weather);
     }
 

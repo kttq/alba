@@ -6,6 +6,7 @@
 use std::{
     cell::RefCell,
     fs,
+    os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
     rc::Rc,
     sync::atomic::{AtomicUsize, Ordering},
@@ -67,6 +68,7 @@ pub struct Harness {
     pub app: App,
     pub weather_source: FakeWeatherSource,
     pub cache_directory: PathBuf,
+    pub state_directory: PathBuf,
 }
 
 impl Harness {
@@ -76,17 +78,32 @@ impl Harness {
 
     /// Shares a cache directory with an earlier run.
     pub fn with_cache(config_text: &str, cache_directory: PathBuf) -> Self {
+        Self::with_directories(config_text, cache_directory, temporary_directory())
+    }
+
+    /// Shares a cache and a state directory with an earlier run.
+    pub fn with_directories(
+        config_text: &str,
+        cache_directory: PathBuf,
+        state_directory: PathBuf,
+    ) -> Self {
         let weather_source = FakeWeatherSource::default();
         let app = App::new(
             &Config::parse(config_text).unwrap(),
             Box::new(weather_source.clone()),
             cache_directory.clone(),
+            state_directory.clone(),
         );
         Self {
             app,
             weather_source,
             cache_directory,
+            state_directory,
         }
+    }
+
+    pub fn log(&self) -> String {
+        fs::read_to_string(self.state_directory.join("alba.log")).unwrap()
     }
 
     /// Ticks once to start the fetch, then again to receive `result`.
@@ -131,4 +148,8 @@ pub fn temporary_directory() -> PathBuf {
         std::env::temp_dir().join(format!("alba-cache-{}-{number}", std::process::id()));
     let _ = fs::remove_dir_all(&directory);
     directory
+}
+
+pub fn make_read_only(directory: &Path) {
+    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
 }

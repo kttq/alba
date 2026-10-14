@@ -1,9 +1,11 @@
 mod common;
 
-use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+use std::fs;
 
 use alba::{config::Coordinates, weather::FetchError};
-use common::{BUENOS_AIRES, Harness, default_instant, forecast_body, temporary_directory};
+use common::{
+    BUENOS_AIRES, Harness, default_instant, forecast_body, make_read_only, temporary_directory,
+};
 use ratatui::{
     style::Stylize,
     text::{Line, Span},
@@ -231,8 +233,4 @@ fn failed_cache_write_keeps_the_weather_in_memory() {
 
     assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
     assert!(!cache_directory.join("weather.json").exists());
-}
-
-fn make_read_only(directory: &Path) {
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
 }
