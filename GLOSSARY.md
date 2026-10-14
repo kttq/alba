@@ -20,6 +20,10 @@ _Avoid_: Main screen, dashboard, focus view
 One of nine weather categories (clear, partly cloudy, cloudy, fog, drizzle, rain, heavy rain, snow, thunderstorm) that WMO codes map to.
 _Avoid_: Weather type, WMO code
 
+**Pixel**:
+One square half of a terminal cell. A cell stacks two pixels, top and bottom, each with its own color.
+_Avoid_: Dot, sub-cell, half-block
+
 **Icon**:
 The pixel-art drawing of a condition, in a full and a mini size, with two animation frames.
 _Avoid_: Sprite (reserve for the const data that encodes icons and digits), emoji
