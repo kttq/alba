@@ -7,7 +7,7 @@ pub mod open_meteo;
 mod source;
 
 pub use condition::Condition;
-pub use forecast::Forecast;
+pub use forecast::{Forecast, IsDay};
 pub use source::{BackgroundSource, FetchError, WeatherSource};
 
 use jiff::Timestamp;

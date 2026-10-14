@@ -69,6 +69,10 @@ fn failed_fetches_show_no_weather() {
             "uneven columns",
             Ok(forecast_body().replace("\"sunrise\":[", "\"sunrise\":[1791800000,")),
         ),
+        (
+            "day flag out of range",
+            Ok(forecast_body().replace("\"is_day\":1", "\"is_day\":7")),
+        ),
         ("http error", Err(FetchError::Status(503))),
         (
             "network error",

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::FetchError;
 
@@ -18,8 +19,15 @@ pub struct Current {
     pub temperature_2m: f64,
     /// Kept raw, so a change to the condition table needs no cache migration.
     pub weather_code: u16,
-    /// 1 by day, 0 by night.
-    pub is_day: u8,
+    pub is_day: IsDay,
+}
+
+/// Open-Meteo's day flag, sent as `1` or `0`. Any other number fails to parse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum IsDay {
+    Night = 0,
+    Day = 1,
 }
 
 /// One entry per day, yesterday through tomorrow.
