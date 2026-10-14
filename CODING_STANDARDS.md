@@ -8,6 +8,7 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Write a doc comment that adds to the name. Let the name and signature carry the rest.
 - Leave examples, ADR numbers, and design labels out of comments. The code and the ADRs carry them.
 - State what the code does now. A bug's history, a rejected option, or a spec's wording goes in the commit body.
+- Name a third-party tool or format in a comment only when the code uses it. User docs can recommend tools and give credit.
 
 ## Names
 
@@ -24,7 +25,3 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Keep a function flat: return early, and give a nested branch its own named helper.
 - Make a platform-specific step a named function.
 - Reach for a derive or a maintained crate, such as `serde_repr`, before a hand-written trait impl or macro. Ask before adding the crate.
-
-## Docs
-
-- Name a third-party tool, format, or service in user docs only when alba depends on it or its terms ask for credit.
