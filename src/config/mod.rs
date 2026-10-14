@@ -7,7 +7,6 @@ pub use file::{TEMPLATE, load, path};
 pub use options::*;
 
 use serde::Deserialize;
-use toml::Spanned;
 
 /// The settings from `config.toml`, parsed and validated.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,10 +32,36 @@ impl Default for Config {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Location {
     Name(String),
-    Coordinates { latitude: f64, longitude: f64 },
+    Coordinates(Coordinates),
 }
 
-/// The file's shape. Coordinates keep their spans, so a location error can name its line.
+/// Degrees, written `[latitude, longitude]` and range-checked on parse.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(try_from = "[f64; 2]")]
+pub struct Coordinates {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
+impl TryFrom<[f64; 2]> for Coordinates {
+    type Error = String;
+
+    /// NaN fails the range checks too.
+    fn try_from([latitude, longitude]: [f64; 2]) -> Result<Self, String> {
+        if !(-90.0..=90.0).contains(&latitude) {
+            return Err(format!("latitude must be -90 to 90, found {latitude}"));
+        }
+        if !(-180.0..=180.0).contains(&longitude) {
+            return Err(format!("longitude must be -180 to 180, found {longitude}"));
+        }
+        Ok(Self {
+            latitude,
+            longitude,
+        })
+    }
+}
+
+/// The file's shape, before `location` and `coordinates` combine into one `Location`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConfigFile {
@@ -49,8 +74,7 @@ struct ConfigFile {
     #[serde(default)]
     week_start: WeekStart,
     location: Option<String>,
-    latitude: Option<Spanned<f64>>,
-    longitude: Option<Spanned<f64>>,
+    coordinates: Option<Coordinates>,
     #[serde(default = "enabled")]
     ghost_segments: bool,
     #[serde(default = "enabled")]
@@ -62,51 +86,22 @@ fn enabled() -> bool {
 }
 
 impl Config {
+    /// Coordinates win over `location` when both are set.
     pub fn parse(text: &str) -> Result<Self, ConfigError> {
         let file: ConfigFile = toml::from_str(text).map_err(|error| {
             ConfigError::at(text, error.span().unwrap_or_default(), error.message())
         })?;
-        let location = location(text, file.location, file.latitude, file.longitude)?;
         Ok(Self {
             language: file.language,
             units: file.units,
             hour_format: file.hour_format,
             week_start: file.week_start,
-            location,
+            location: file
+                .coordinates
+                .map(Location::Coordinates)
+                .or(file.location.map(Location::Name)),
             ghost_segments: file.ghost_segments,
             motion: file.motion,
         })
-    }
-}
-
-/// Coordinates win over the name. Only one of them set is an error.
-fn location(
-    text: &str,
-    name: Option<String>,
-    latitude: Option<Spanned<f64>>,
-    longitude: Option<Spanned<f64>>,
-) -> Result<Option<Location>, ConfigError> {
-    let unpaired =
-        |coordinate: Spanned<f64>, reason| ConfigError::at(text, coordinate.span(), reason);
-    match (latitude, longitude) {
-        (Some(latitude), Some(longitude)) => Ok(Some(Location::Coordinates {
-            latitude: in_range(text, "latitude", latitude, 90.0)?,
-            longitude: in_range(text, "longitude", longitude, 180.0)?,
-        })),
-        (Some(latitude), None) => Err(unpaired(latitude, "latitude is set without longitude")),
-        (None, Some(longitude)) => Err(unpaired(longitude, "longitude is set without latitude")),
-        (None, None) => Ok(name.map(Location::Name)),
-    }
-}
-
-/// Checks that a coordinate in degrees lies within `-limit..=limit`. NaN fails too.
-fn in_range(text: &str, name: &str, degrees: Spanned<f64>, limit: f64) -> Result<f64, ConfigError> {
-    let span = degrees.span();
-    let degrees = degrees.into_inner();
-    if (-limit..=limit).contains(&degrees) {
-        Ok(degrees)
-    } else {
-        let reason = format!("{name} must be -{limit} to {limit}, found {degrees}");
-        Err(ConfigError::at(text, span, &reason))
     }
 }

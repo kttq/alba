@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use alba::config::{self, Config, HourFormat, Language, Location, Units, WeekStart};
+use alba::config::{self, Config, Coordinates, HourFormat, Language, Location, Units, WeekStart};
 
 #[test]
 fn empty_config_has_every_default() {
@@ -54,16 +54,16 @@ motion         = false
 
 #[test]
 fn coordinates_win_over_location() {
-    let text = "location = \"paris\"\nlatitude = -34.6037\nlongitude = -58.3816\n";
+    let text = "location = \"paris\"\ncoordinates = [-34.6037, -58.3816]\n";
 
     let config = Config::parse(text).unwrap();
 
     assert_eq!(
         config.location,
-        Some(Location::Coordinates {
+        Some(Location::Coordinates(Coordinates {
             latitude: -34.6037,
             longitude: -58.3816,
-        })
+        }))
     );
 }
 
@@ -126,32 +126,23 @@ fn wrong_type_names_its_line() {
 #[test]
 fn coordinate_out_of_range_names_its_line() {
     assert_error(
-        "latitude = 91\nlongitude = 0\n",
+        "\ncoordinates = [91, 0]\n",
+        2,
+        "latitude must be -90 to 90, found 91",
+    );
+    assert_error(
+        "coordinates = [0, -180.5]\n",
         1,
-        "latitude must be -90 to 90",
-    );
-    assert_error(
-        "latitude = 0\nlongitude = -180.5\n",
-        2,
-        "longitude must be -180 to 180",
+        "longitude must be -180 to 180, found -180.5",
     );
 }
 
 #[test]
-fn latitude_without_longitude_names_its_line() {
+fn coordinates_that_are_not_a_pair_name_their_line() {
     assert_error(
-        "location = \"paris\"\nlatitude = 48.8\n",
+        "units = \"metric\"\ncoordinates = [48.8]\n",
         2,
-        "latitude is set without longitude",
-    );
-}
-
-#[test]
-fn longitude_without_latitude_names_its_line() {
-    assert_error(
-        "\n\nlongitude = 2.3\n",
-        3,
-        "longitude is set without latitude",
+        "invalid length 1",
     );
 }
 
@@ -175,11 +166,10 @@ week_start  = "monday"
 
 # location: your city, optionally narrowed, like "paris, united states".
 # check a name at https://open-meteo.com/en/docs/geocoding-api
-# or set latitude and longitude instead; they win over location.
+# or set coordinates instead, as [latitude, longitude]; they win over location.
 
-# location  = "buenos aires"
-# latitude  = -34.6037
-# longitude = -58.3816
+# location    = "buenos aires"
+# coordinates = [-34.6037, -58.3816]
 
 # ghost_segments: show unlit clock segments faintly.
 # turn it off if your terminal has no faint style.

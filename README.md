@@ -31,11 +31,10 @@ Weather needs only your city. alba looks it up through [Open-Meteo geocoding](ht
 
 Narrow an ambiguous name with a comma and a full country name, as in `"paris, united states"`. Avoid country codes: Open-Meteo prefers region codes, so `"toronto, ca"` finds nothing.
 
-If your city isn't found, set coordinates instead. They win over `location`. Set both or neither.
+If your city isn't found, set coordinates instead, as `[latitude, longitude]`. They win over `location`.
 
 ```toml
-latitude  = -34.6037   # -90 to 90
-longitude = -58.3816   # -180 to 180
+coordinates = [-34.6037, -58.3816]   # latitude -90 to 90, longitude -180 to 180
 ```
 
 Without a location, the clock and calendar still work, and alba shows the line to add.
@@ -49,9 +48,8 @@ language       = "en"      # "en" | "es"
 units          = "metric"  # "metric" | "imperial"
 hour_format    = 24        # 24 | 12
 week_start     = "monday"  # "monday" | "sunday"
-location       = "buenos aires"   # no default; or latitude + longitude
-# latitude     = -34.6037  # -90..90
-# longitude    = -58.3816  # -180..180
+location       = "buenos aires"   # no default; or coordinates
+# coordinates  = [-34.6037, -58.3816]   # [latitude -90..90, longitude -180..180]
 ghost_segments = true      # unlit clock segments shown faintly
 motion         = true      # false: steady colon, still icons, no flash
 ```

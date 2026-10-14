@@ -9,11 +9,10 @@ week_start  = "monday"
 
 # location: your city, optionally narrowed, like "paris, united states".
 # check a name at https://open-meteo.com/en/docs/geocoding-api
-# or set latitude and longitude instead; they win over location.
+# or set coordinates instead, as [latitude, longitude]; they win over location.
 
-# location  = "buenos aires"
-# latitude  = -34.6037
-# longitude = -58.3816
+# location    = "buenos aires"
+# coordinates = [-34.6037, -58.3816]
 
 # ghost_segments: show unlit clock segments faintly.
 # turn it off if your terminal has no faint style.
