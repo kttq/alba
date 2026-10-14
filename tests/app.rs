@@ -91,7 +91,6 @@ fn app_with(config_text: &str) -> App {
     App::new(&Config::parse(config_text).unwrap())
 }
 
-/// Renders into a pane exactly as wide as `width`, one row high.
 fn render_row(app: &App, now: &Zoned, width: u16) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
     terminal

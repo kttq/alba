@@ -37,17 +37,24 @@ pub enum Location {
 
 /// Degrees, written `[latitude, longitude]` and range-checked on parse.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-#[serde(try_from = "[f64; 2]")]
+#[serde(try_from = "Vec<f64>")]
 pub struct Coordinates {
     pub latitude: f64,
     pub longitude: f64,
 }
 
-impl TryFrom<[f64; 2]> for Coordinates {
+/// From a list, not a `[f64; 2]`: toml drops the extra numbers of a fixed-size array silently.
+impl TryFrom<Vec<f64>> for Coordinates {
     type Error = String;
 
     /// NaN fails the range checks too.
-    fn try_from([latitude, longitude]: [f64; 2]) -> Result<Self, String> {
+    fn try_from(degrees: Vec<f64>) -> Result<Self, String> {
+        let &[latitude, longitude] = degrees.as_slice() else {
+            return Err(format!(
+                "coordinates must be [latitude, longitude], found {} numbers",
+                degrees.len()
+            ));
+        };
         if !(-90.0..=90.0).contains(&latitude) {
             return Err(format!("latitude must be -90 to 90, found {latitude}"));
         }

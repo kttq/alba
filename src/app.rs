@@ -82,7 +82,7 @@ impl App {
         Line::from(spans)
     }
 
-    /// `06` on the 24-hour clock; `6` on the 12-hour clock, where midnight and noon are `12`.
+    /// The 12-hour clock reads midnight and noon as 12.
     fn hour(&self, now: &Zoned) -> String {
         match (self.config.hour_format, now.hour() % 12) {
             (HourFormat::TwentyFour, _) => format!("{:02}", now.hour()),

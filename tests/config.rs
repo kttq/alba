@@ -139,11 +139,9 @@ fn coordinate_out_of_range_names_its_line() {
 
 #[test]
 fn coordinates_that_are_not_a_pair_name_their_line() {
-    assert_error(
-        "units = \"metric\"\ncoordinates = [48.8]\n",
-        2,
-        "invalid length 1",
-    );
+    let reason = "coordinates must be [latitude, longitude]";
+    assert_error("units = \"metric\"\ncoordinates = [48.8]\n", 2, reason);
+    assert_error("\n\ncoordinates = [48.8, 2.3, 99]\n", 3, reason);
 }
 
 #[test]
