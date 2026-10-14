@@ -5,33 +5,15 @@ use alba::{
     strings::Strings,
     weather::{DayOrNight, Forecast},
 };
-use common::{MIDNIGHT, edited_fixture_forecast, fixture_forecast, small_forecast};
+use common::{
+    DAY, HOUR, MIDNIGHT, at, edited_fixture_forecast, fixture_forecast, small_forecast,
+    three_day_forecast,
+};
 use jiff::Timestamp;
 use serde_json::json;
 
-const HOUR: i64 = 3600;
-const DAY: i64 = 24 * HOUR;
-
-fn at(second: i64) -> Timestamp {
-    Timestamp::from_second(second).unwrap()
-}
-
 fn utc(text: &str) -> Timestamp {
     text.parse().unwrap()
-}
-
-/// Days 12 to 14 October at UTC, each with sunrise 06:00 and sunset 18:00.
-fn three_days() -> Forecast {
-    small_forecast(|forecast| {
-        let midnights = [MIDNIGHT - DAY, MIDNIGHT, MIDNIGHT + DAY];
-        forecast["daily"] = json!({
-            "time": midnights,
-            "sunrise": midnights.map(|midnight| midnight + 6 * HOUR),
-            "sunset": midnights.map(|midnight| midnight + 18 * HOUR),
-            "temperature_2m_max": [0.0, 0.0, 0.0],
-            "temperature_2m_min": [0.0, 0.0, 0.0],
-        });
-    })
 }
 
 fn day_or_night_and_timeline(sky: Sky) -> (DayOrNight, Option<(Timestamp, Timestamp)>) {
@@ -41,7 +23,7 @@ fn day_or_night_and_timeline(sky: Sky) -> (DayOrNight, Option<(Timestamp, Timest
 
 #[test]
 fn day_runs_from_the_last_sunrise_to_the_next_sunset() {
-    let sky = Sky::at(&three_days(), at(MIDNIGHT + 10 * HOUR));
+    let sky = Sky::at(&three_day_forecast(), at(MIDNIGHT + 10 * HOUR));
 
     assert_eq!(
         day_or_night_and_timeline(sky),
@@ -58,8 +40,8 @@ fn night_runs_from_the_last_sunset_to_the_next_sunrise() {
         DayOrNight::Night,
         Some((at(MIDNIGHT + 18 * HOUR), at(MIDNIGHT + DAY + 6 * HOUR))),
     );
-    let before_midnight = Sky::at(&three_days(), at(MIDNIGHT + 23 * HOUR));
-    let after_midnight = Sky::at(&three_days(), at(MIDNIGHT + DAY + 2 * HOUR));
+    let before_midnight = Sky::at(&three_day_forecast(), at(MIDNIGHT + 23 * HOUR));
+    let after_midnight = Sky::at(&three_day_forecast(), at(MIDNIGHT + DAY + 2 * HOUR));
 
     assert_eq!(day_or_night_and_timeline(before_midnight), tonight);
     assert_eq!(day_or_night_and_timeline(after_midnight), tonight);
@@ -67,7 +49,7 @@ fn night_runs_from_the_last_sunset_to_the_next_sunrise() {
 
 #[test]
 fn an_event_exactly_at_now_has_passed() {
-    let sky = Sky::at(&three_days(), at(MIDNIGHT + 18 * HOUR));
+    let sky = Sky::at(&three_day_forecast(), at(MIDNIGHT + 18 * HOUR));
 
     assert_eq!(
         day_or_night_and_timeline(sky),

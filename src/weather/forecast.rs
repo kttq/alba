@@ -119,8 +119,8 @@ impl Forecast {
     }
 
     /// Open-Meteo marks a day without sunrise or sunset with its midnights: sunrise at the
-    /// day's midnight, and sunset at the same or the next one. A looser rule would catch a real
-    /// sunset after the next midnight, as in an Arctic summer.
+    /// day's midnight, and sunset at the same or the next one. A real sunset can fall after the
+    /// next midnight, so a day of 24 hours or more is not enough.
     fn is_polar(&self, day: usize) -> bool {
         let midnight = self.daily.time[day];
         let sunset = self.daily.sunset[day];
@@ -168,14 +168,19 @@ impl Forecast {
                 "hourly columns differ in length from {hours} hours"
             ));
         }
-        let times = [&self.daily.sunrise, &self.daily.sunset]
-            .into_iter()
-            .flatten();
-        if let Some(time) = times
-            .copied()
-            .find(|&time| Timestamp::from_second(time).is_err())
-        {
+        let daily = &self.daily;
+        let time_columns = [
+            &daily.time,
+            &daily.sunrise,
+            &daily.sunset,
+            &self.hourly.time,
+        ];
+        let mut times = time_columns.into_iter().flatten().copied();
+        if let Some(time) = times.find(|&time| Timestamp::from_second(time).is_err()) {
             return Err(format!("time {time} is out of range"));
+        }
+        if !daily.time.is_sorted() || !self.hourly.time.is_sorted() {
+            return Err("daily or hourly times are out of order".to_string());
         }
         Ok(())
     }
