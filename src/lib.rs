@@ -3,6 +3,7 @@ pub mod calendar;
 pub mod clock;
 pub mod config;
 pub mod icon;
+pub mod layout;
 pub mod log;
 pub mod paths;
 pub mod pixels;

@@ -14,7 +14,7 @@ pub use freshness::Freshness;
 pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, WeatherSource};
 pub use station::{WeatherState, WeatherStation};
-pub use text::text_line;
+pub use text::{temperature_line, text_line};
 
 use jiff::Timestamp;
 

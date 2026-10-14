@@ -5,9 +5,9 @@ use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::Widget};
 
 use crate::{
     pixels::{Canvas, Legend},
-    sky::MoonPhase,
+    sky::{MoonPhase, Sky},
     sprites::{self, Frames},
-    weather::Condition,
+    weather::{Condition, DayOrNight, Weather},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -64,6 +64,16 @@ impl IconSize {
 }
 
 impl Icon {
+    /// None for a weather code with no condition.
+    pub fn of(weather: &Weather, now: &Zoned) -> Option<Self> {
+        let condition = weather.forecast.condition()?;
+        let sky = Sky::at(&weather.forecast, now.timestamp());
+        Some(match sky.day_or_night {
+            DayOrNight::Day => Self::Day(condition),
+            DayOrNight::Night => Self::Night(condition, sky.moon_phase),
+        })
+    }
+
     pub fn canvas(self, size: IconSize, animation: Animation) -> Canvas {
         if size == IconSize::Large {
             return self.canvas(IconSize::Full, animation).scaled(2);

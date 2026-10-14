@@ -4,15 +4,15 @@ use jiff::Zoned;
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
-    layout::{Constraint, Rect},
-    text::{Line, Span},
-    widgets::Widget,
+    layout::Rect,
 };
 
 use crate::{
     calendar,
     clock::Clock,
     config::{Config, Coordinates, Location, Units},
+    icon::{Animation, Icon, IconSize},
+    layout::{self, HomeContent},
     log::Log,
     strings::Strings,
     weather::{self, WeatherSource, WeatherStation},
@@ -21,6 +21,7 @@ use crate::{
 /// Time and time zone come only from `now`, never the system clock.
 pub struct App {
     units: Units,
+    motion: bool,
     strings: &'static Strings,
     clock: Clock,
     weather_station: WeatherStation,
@@ -43,6 +44,7 @@ impl App {
     ) -> Self {
         Self {
             units: config.units,
+            motion: config.motion,
             strings: Strings::of(config.language),
             clock: Clock::new(config),
             weather_station: WeatherStation::new(
@@ -76,45 +78,30 @@ impl App {
     }
 
     pub fn render(&self, area: Rect, buffer: &mut Buffer, now: &Zoned) {
-        if area.height == 0 {
-            return;
-        }
-        let Some(text_line) = self
-            .text_lines_widest_first(now)
-            .into_iter()
-            .find(|line| line.width() <= area.width as usize)
-        else {
-            return;
-        };
-        let width = text_line.width() as u16;
-        text_line.render(
-            area.centered(Constraint::Length(width), Constraint::Length(1)),
-            buffer,
-        );
-    }
-
-    fn text_lines_widest_first(&self, now: &Zoned) -> Vec<Line<'static>> {
-        let clock = self.clock.text_line(now);
-        let date = calendar::short_date(self.strings, now);
-        let weather = weather::text_line(
-            self.weather_station.weather_state(now),
-            self.weather_station.shows_fetch_indicator(now),
-            self.units,
-        );
-        match weather {
-            Some(weather) => vec![
-                joined(vec![clock.clone(), date, weather.clone()]),
-                joined(vec![clock.clone(), weather]),
-                clock,
-            ],
-            None => vec![joined(vec![clock.clone(), date]), clock],
+        let content = self.home_content(now);
+        for item in layout::lay_out(area, &content).items {
+            item.piece.render(item.area, buffer);
         }
     }
-}
 
-fn joined(parts: Vec<Line<'static>>) -> Line<'static> {
-    let parts: Vec<_> = parts.into_iter().map(|part| part.spans).collect();
-    Line::from(parts.join(&Span::raw(" · ")))
+    pub fn home_content(&self, now: &Zoned) -> HomeContent {
+        let weather_state = self.weather_station.weather_state(now);
+        let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
+        HomeContent {
+            text_clock: self.clock.text_line(now),
+            short_date: calendar::short_date(self.strings, now),
+            weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),
+            temperature: weather::temperature_line(
+                weather_state,
+                shows_fetch_indicator,
+                self.units,
+            ),
+            mini_icon: weather_state
+                .weather()
+                .and_then(|weather| Icon::of(weather, now))
+                .map(|icon| icon.canvas(IconSize::Mini, Animation::at(now, self.motion))),
+        }
+    }
 }
 
 fn coordinates(config: &Config) -> Option<Coordinates> {
