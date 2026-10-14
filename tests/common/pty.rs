@@ -31,7 +31,8 @@ const EXIT_DEADLINE: Duration = Duration::from_secs(5);
 const KEY_GAP: Duration = Duration::from_millis(50);
 /// 30 keys a second.
 pub const FLOOD_GAP: Duration = Duration::from_nanos(1_000_000_000 / 30);
-const STARTUP: Duration = Duration::from_secs(1);
+/// Generous for a slow runner: a wait ends as soon as its condition holds.
+pub const WAIT_DEADLINE: Duration = Duration::from_secs(5);
 const DRAIN_DEADLINE: Duration = Duration::from_secs(1);
 const POLL: Duration = Duration::from_millis(50);
 /// Denies every network call; the terminal is not a network, so drawing still works.
@@ -65,6 +66,7 @@ pub struct Alba {
     transcript: Vec<Output>,
     status: Option<ExitStatus>,
     cpu_seconds: Option<f64>,
+    output_ended: bool,
 }
 
 impl Alba {
@@ -88,6 +90,7 @@ impl Alba {
             transcript: Vec::new(),
             status: None,
             cpu_seconds: None,
+            output_ended: false,
         })
     }
 
@@ -110,16 +113,30 @@ impl Alba {
             match self.outputs.recv_timeout(remaining) {
                 Ok(output) => self.take(output),
                 Err(RecvTimeoutError::Timeout) => return,
-                Err(RecvTimeoutError::Disconnected) => return thread::sleep(remaining),
+                Err(RecvTimeoutError::Disconnected) => {
+                    self.output_ended = true;
+                    return thread::sleep(remaining);
+                }
             }
         }
     }
 
-    /// Takes output until the screen shows the text, for at most the startup time.
+    /// Takes output until the screen shows the text, for at most the wait deadline.
     pub fn wait_for(&mut self, text: &str) -> bool {
-        let deadline = Instant::now() + STARTUP;
-        while !self.screen().contents().contains(text) {
-            if Instant::now() >= deadline {
+        self.wait_until(|screen| screen.contents().contains(text))
+    }
+
+    /// Takes output until the screen shows something, or the output ends.
+    pub fn wait_for_first_frame(&mut self) -> bool {
+        self.wait_until(|screen| !screen.contents().trim().is_empty())
+    }
+
+    /// Takes output until the condition holds for the screen, for at most the wait deadline.
+    /// Gives up early when the output has ended, since the screen cannot change any more.
+    pub fn wait_until(&mut self, condition: impl Fn(&vt100::Screen) -> bool) -> bool {
+        let deadline = Instant::now() + WAIT_DEADLINE;
+        while !condition(self.screen()) {
+            if self.output_ended || Instant::now() >= deadline {
                 return false;
             }
             self.pump(POLL);
@@ -180,9 +197,12 @@ impl Alba {
         self.status
     }
 
-    /// The CPU time alba had used when the harness began to wait for its exit.
+    /// The CPU time alba has used, or had used when the harness began to wait for its exit.
     pub fn cpu_seconds(&self) -> Option<f64> {
-        self.cpu_seconds
+        match self.status {
+            None => cpu_seconds(self.child.id()),
+            Some(_) => self.cpu_seconds,
+        }
     }
 
     pub fn exit_code(&self) -> Option<i32> {
@@ -253,9 +273,14 @@ fn parse_cpu_time(text: &str) -> Option<f64> {
     })
 }
 
-/// The last command for each mode wins.
+/// Every mode a program can switch is back at its default; the last command for each wins.
 pub fn screen_restored(screen: &vt100::Screen) -> bool {
-    !screen.alternate_screen() && !screen.hide_cursor()
+    !screen.alternate_screen()
+        && !screen.hide_cursor()
+        && !screen.application_cursor()
+        && !screen.application_keypad()
+        && !screen.bracketed_paste()
+        && screen.mouse_protocol_mode() == vt100::MouseProtocolMode::None
 }
 
 /// An empty read or an error is the end: on macOS, a terminal whose process has exited reads

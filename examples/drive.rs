@@ -84,7 +84,7 @@ fn run(drive: &Drive) -> io::Result<bool> {
         offline: drive.offline,
     })?;
     let mut out = io::stdout().lock();
-    alba.wait_for("°");
+    alba.wait_for_first_frame();
     let failures = run_steps(&mut alba, &drive.steps, &mut out)?;
     let status = alba.quit();
     if let Some(path) = &drive.transcript {

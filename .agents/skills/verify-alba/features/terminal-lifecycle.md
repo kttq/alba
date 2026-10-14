@@ -21,11 +21,11 @@ Preconditions:
 
 - `$D/fixture HOME` wrote a fresh cache.
 
-- **Quit keys.** Run `$D/drive HOME key=q exited`, then the same with `key='\x1b'` and `key='\x03'`. Each prints `exited: ok`, `exit status: 0`, and `terminal restored: yes`: the alternate screen left, the cursor shown, and the terminal back in cooked mode. `exited` matters: without it, the driver presses `q` at the end, and a dead key would pass.
-- **Resize.** Run `$D/drive HOME --cols 40 --rows 12 resize=60x20 sleep=0.15 screen`. The line is on row 10 of 20, centred in 60 columns.
+- **Quit keys.** Run `$D/drive HOME key=q exited`, then the same with `key='\x1b'` and `key='\x03'`. Each prints `exited: ok`, `exit status: 0`, and `terminal restored: yes`: the alternate screen left, the cursor shown, and the terminal back in cooked mode. `exited` matters: without it, the driver presses `q` at the end, and a dead key would pass. `cargo test` runs this check, with the terminal modes, a config error, and keys that must not quit.
+- **Resize.** Run `$D/drive HOME --cols 40 --rows 12 resize=60x20 sleep=0.15 screen`. The line is on row 10 of 20, centred in 60 columns. `cargo test` checks that a resized pane matches a fresh start at its size within 500 ms.
 - **Refresh.** Run `$D/drive HOME key=r screen`. The line shows `…` after the temperature until the fetch ends.
-- **Tick.** Start the driver about 3 seconds before a minute boundary with `--transcript target/verify/<ticket>/tick.jsonl sleep=6`. Each line is one read, `{"time": unix seconds, "output": text}`. The first read that writes the new minute digit at its position comes just after the boundary; its `time` minus the boundary is the rollover delay.
-- **CPU.** Run `$D/drive HOME --cols 85 --rows 26 sleep=300`. The `cpu seconds` line must read under 3. The spec's own check runs in Terminal; see `SKILL.md` → Drive.
+- **Tick.** Start the driver about 3 seconds before a minute boundary with `--transcript target/verify/<ticket>/tick.jsonl sleep=6`. Each line is one read, `{"time": unix seconds, "output": text}`. The first read that writes the new minute digit at its position comes just after the boundary; its `time` minus the boundary is the rollover delay. `cargo test` checks the tick itself: the colon goes faint within 80 ms of each half second and lights within 80 ms of each second, and never goes faint with `motion = false`.
+- **CPU.** Run `$D/drive HOME --cols 85 --rows 26 sleep=300`. The `cpu seconds` line must read under 3. `cargo test` checks the same bound, 1% of a core, over 5 idle seconds at 85×26. On Linux `ps` counts whole seconds, so there it catches only a busy loop.
 
 ## Gotchas
 
