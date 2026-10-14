@@ -4,5 +4,6 @@ pub mod clock;
 pub mod config;
 pub mod log;
 pub mod paths;
+pub mod sky;
 pub mod strings;
 pub mod weather;

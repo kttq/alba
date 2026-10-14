@@ -47,7 +47,6 @@ fn usable(text: &str, coordinates: Coordinates) -> Option<Weather> {
     if file.version != FORMAT_VERSION || file.location != CachedLocation::from(coordinates) {
         return None;
     }
-    file.forecast.validate().ok()?;
     Some(Weather {
         fetched_at: Timestamp::from_second(file.fetched_at).ok()?,
         forecast: file.forecast,

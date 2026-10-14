@@ -13,10 +13,11 @@ use alba::{
     app::App,
     config::{Config, Coordinates},
     log::Log,
-    weather::{FetchError, WeatherSource, WeatherStation},
+    weather::{FetchError, Forecast, WeatherSource, WeatherStation},
 };
-use jiff::Zoned;
+use jiff::{Timestamp, Zoned};
 use ratatui::{Terminal, backend::TestBackend};
+use serde_json::{Value, json};
 
 pub const BUENOS_AIRES: &str = "coordinates = [-34.6037, -58.3816]";
 
@@ -35,6 +36,61 @@ pub fn default_instant() -> Zoned {
 pub fn forecast_body() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/forecast.json"))
         .unwrap()
+}
+
+pub fn fixture_forecast(name: &str) -> Forecast {
+    edited_fixture_forecast(name, |_| {})
+}
+
+pub fn edited_fixture_forecast(name: &str, edit: impl FnOnce(&mut Value)) -> Forecast {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name);
+    let mut forecast: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    edit(&mut forecast);
+    Forecast::parse(&forecast.to_string()).unwrap()
+}
+
+/// 2026-10-13 00:00 UTC.
+pub const MIDNIGHT: i64 = 1_791_849_600;
+pub const HOUR: i64 = 3600;
+pub const DAY: i64 = 24 * HOUR;
+
+pub fn at(second: i64) -> Timestamp {
+    Timestamp::from_second(second).unwrap()
+}
+
+/// Days 12 to 14 October at UTC, each with sunrise 06:00 and sunset 18:00, highs 21, 22, 23,
+/// and lows 11, 12, 13.
+pub fn three_day_forecast() -> Forecast {
+    small_forecast(|forecast| {
+        let midnights = [MIDNIGHT - DAY, MIDNIGHT, MIDNIGHT + DAY];
+        forecast["daily"] = json!({
+            "time": midnights,
+            "sunrise": midnights.map(|midnight| midnight + 6 * HOUR),
+            "sunset": midnights.map(|midnight| midnight + 18 * HOUR),
+            "temperature_2m_max": [21.0, 22.0, 23.0],
+            "temperature_2m_min": [11.0, 12.0, 13.0],
+        });
+    })
+}
+
+/// A one-day forecast at UTC offset 0, changed by `edit`: sunrise 06:00, sunset 18:00, no hours.
+pub fn small_forecast(edit: impl FnOnce(&mut Value)) -> Forecast {
+    let mut forecast = json!({
+        "utc_offset_seconds": 0,
+        "current": { "time": MIDNIGHT, "temperature_2m": 10.0, "weather_code": 0, "is_day": 1 },
+        "daily": {
+            "time": [MIDNIGHT],
+            "sunrise": [MIDNIGHT + 6 * 3600],
+            "sunset": [MIDNIGHT + 18 * 3600],
+            "temperature_2m_max": [15.0],
+            "temperature_2m_min": [5.0],
+        },
+        "hourly": { "time": [], "precipitation_probability": [] },
+    });
+    edit(&mut forecast);
+    Forecast::parse(&forecast.to_string()).unwrap()
 }
 
 #[derive(Clone, Default)]
