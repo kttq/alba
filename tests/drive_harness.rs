@@ -13,8 +13,8 @@ use std::{
 use common::{
     fixture_home::FixtureHome,
     pty::{
-        Alba, Drive, EXITED_WITHIN, Launch, Output, PaneSize, Step, pane_length, screen_restored,
-        transcript_lines,
+        Alba, Drive, EXITED_WITHIN, Launch, Output, PaneSize, Step, pane_length,
+        parse_proc_stat_ticks, screen_restored, transcript_lines,
     },
     temporary_directory,
 };
@@ -133,6 +133,14 @@ fn a_character_split_across_reads_stays_whole_in_the_transcript() {
         .map(|line| serde_json::from_str::<Value>(line).unwrap()["output"].to_string())
         .collect();
     assert_eq!(outputs, [r#""14""#, r#""°""#]);
+}
+
+#[test]
+fn proc_stat_ticks_are_user_plus_system_time_after_the_command_name() {
+    let stat =
+        "4242 (alba (x) y) S 1 4242 4242 34816 4242 4194304 120 0 0 0 37 12 0 0 20 0 1 0 100";
+
+    assert_eq!(parse_proc_stat_ticks(stat), Some(49));
 }
 
 fn drive_arguments(arguments: &str) -> Result<Drive, String> {

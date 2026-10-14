@@ -258,6 +258,32 @@ impl Drop for Alba {
 }
 
 /// A reaped process has no CPU time to read, so this asks `ps` while alba runs.
+/// Linux `ps` gives whole seconds, too coarse for the idle check, so this counts clock ticks.
+#[cfg(target_os = "linux")]
+fn cpu_seconds(pid: u32) -> Option<f64> {
+    let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    Some(parse_proc_stat_ticks(&stat)? as f64 / clock_ticks_per_second()?)
+}
+
+#[cfg(target_os = "linux")]
+fn clock_ticks_per_second() -> Option<f64> {
+    let output = Command::new("getconf").arg("CLK_TCK").output().ok()?;
+    String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+}
+
+/// User plus system time, in clock ticks, from a `/proc/<pid>/stat` line. The command name
+/// can hold spaces and parentheses, so the fields are counted from its last `)`.
+pub fn parse_proc_stat_ticks(stat: &str) -> Option<u64> {
+    let (_, after_name) = stat.rsplit_once(')')?;
+    let fields: Vec<&str> = after_name.split_whitespace().collect();
+    // Fields 14 and 15 of the line; the first after the name is field 3.
+    let user: u64 = fields.get(11)?.parse().ok()?;
+    let system: u64 = fields.get(12)?.parse().ok()?;
+    Some(user + system)
+}
+
+/// macOS `ps` gives hundredths of a second.
+#[cfg(not(target_os = "linux"))]
 fn cpu_seconds(pid: u32) -> Option<f64> {
     let output = Command::new("ps")
         .args(["-o", "time=", "-p", &pid.to_string()])
