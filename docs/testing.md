@@ -22,6 +22,6 @@ Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, 
 
 ## Exemplars
 
-- [`text_clock_is_centred_in_the_pane`](../tests/app.rs): a character snapshot of the whole pane.
+- [`text_line_is_centred_in_the_pane`](../tests/app.rs): a character snapshot of the whole pane.
 - [`pane_narrower_than_the_clock_renders_nothing`](../tests/app.rs): a plain `assert_buffer_lines`, for an exact expected grid.
 - [`missing_config_writes_the_template_and_loads_defaults`](../tests/config.rs): a file test in a fresh `temporary_home`, compared against a copy of the spec's text.

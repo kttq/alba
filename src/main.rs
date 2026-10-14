@@ -1,8 +1,14 @@
-use std::{io, path::PathBuf, process::ExitCode, time::Duration};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::ExitCode,
+    time::Duration,
+};
 
 use alba::{
     app::{App, Control},
     config,
+    weather::{BackgroundSource, open_meteo},
 };
 use jiff::{SignedDuration, Timestamp, Zoned};
 use ratatui::{
@@ -51,8 +57,10 @@ fn main() -> ExitCode {
 fn start() -> Result<(), String> {
     let home = home().ok_or("error: HOME is not set")?;
     let config = config::load(&config::path(&home)).map_err(|error| error.to_string())?;
+    let weather_source = Box::new(BackgroundSource::new(open_meteo::fetch));
+    let mut app = App::new(&config, weather_source, cache_directory(&home));
     let mut terminal = ratatui::init();
-    let result = run(&mut terminal, &mut App::new(&config));
+    let result = run(&mut terminal, &mut app);
     ratatui::restore();
     result.map_err(|error| format!("error: {error}"))
 }
@@ -76,6 +84,11 @@ fn home() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .filter(|home| !home.is_empty())
         .map(PathBuf::from)
+}
+
+/// `XDG_CACHE_HOME` is ignored on purpose: the path is the same on macOS and Linux.
+fn cache_directory(home: &Path) -> PathBuf {
+    home.join(".cache/alba")
 }
 
 /// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after
