@@ -18,6 +18,8 @@ ureq = { version = "3", features = ["json"] }
 
 [dev-dependencies]
 insta = "1"
+rustix = { version = "1", features = ["pty", "process", "termios"] }
+vt100 = "0.16"
 
 [profile.dev]
 panic = "abort"

@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+pub mod fixture_home;
+pub mod pty;
+
 use std::{
     cell::RefCell,
     fs,

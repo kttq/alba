@@ -21,7 +21,7 @@ Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, 
 - **Config parsing** (`alba::config::Config::parse`): feed it TOML text. Assert the typed config, or an error's line and a stable fragment of its reason. It owns validation and line numbers.
 - **Config file** (`alba::config::load`): point it at a path under a fresh temporary home. It owns the first-run template and unreadable files.
 - **Source search** (`tests/no_wrap.rs`): reads `src/` and fails on a banned API. It owns rules the compiler cannot express.
-- **The real binary**: CLI flags, terminal restore, and tick timing. No automated test enters here; the verification skill drives it.
+- **The real binary** (`CARGO_BIN_EXE_alba`): quit keys, terminal restore, resize, colors, and anything only the running process shows. Start it through `Alba` in `tests/common/pty.rs` on a scratch `HOME` written by `FixtureHome` in `tests/common/fixture_home.rs`. Read the screen through `vt100`: its text, and each cell's colors and dim flag. Every run there denies the network on macOS, and the tests that read the log prove that no other test fetches. Wait for a condition with a deadline, not for a fixed time, and compare a resized pane with a fresh start at that size, not with fixed rows, so the tests survive a layout change. Harness self-tests, with fake binaries, live in `tests/drive_harness.rs`. The look in a real terminal stays with the `verify-alba` skill, which drives the same harness through the `drive` example.
 
 ## Exemplars
 
@@ -29,6 +29,7 @@ Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, 
 - [`pane_narrower_than_the_clock_renders_nothing`](../tests/app.rs): a plain `assert_buffer_lines`, for an exact expected grid.
 - [`missing_config_writes_the_template_and_loads_defaults`](../tests/config.rs): a file test in a fresh `temporary_home`, compared against a copy of the spec's text.
 - [`failed_fetches_show_no_weather`](../tests/weather.rs): a table of failure cases through `Harness`, each a fixture changed as JSON.
+- [`each_quit_key_exits_on_its_own_and_restores_the_terminal`](../tests/binary.rs): the real binary on a pseudo-terminal, from a fixture home to a restored terminal.
 
 ## Lessons
 

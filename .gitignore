@@ -2,3 +2,6 @@
 prototypes/
 
 /target
+
+# Verification shots are attached to pull requests, never committed.
+*.png
