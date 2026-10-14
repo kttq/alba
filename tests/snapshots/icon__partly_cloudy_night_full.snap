@@ -1,0 +1,22 @@
+---
+source: tests/icon.rs
+expression: snapshot
+---
+frame 1
+........yyyyyy..✧f......
+......yyyy......✧f......
+....yyyy............✦f..
+....yyyy....ffffff..✦f..
+....yyyyffffffffffffff..
+......ffffffffffffffffff
+......KKKKKKKKKKKKKKKK..
+........................
+frame 2
+........yyyyyy·f✦f......
+......yyyy....·f✦f......
+....yyyy............·f..
+....yyyy....ffffff..·f..
+....yyyyffffffffffffff..
+......ffffffffffffffffff
+......KKKKKKKKKKKKKKKK..
+........................

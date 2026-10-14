@@ -1,0 +1,14 @@
+---
+source: tests/icon.rs
+expression: snapshot
+---
+frame 1
+......K~K~..
+..K~K~K~K~K~
+K~K~K~K~K~K~
+..K~K~K~K~..
+frame 2
+......K~K~..
+..K~K~K~K~K~
+K~K~K~K~K~K~
+..K~K~K~K~..

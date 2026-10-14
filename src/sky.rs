@@ -2,7 +2,10 @@
 
 use jiff::Timestamp;
 
-use crate::weather::{DayOrNight, Forecast, SunEvent};
+use crate::{
+    pixels::{Canvas, Pixel, PixelColor},
+    weather::{DayOrNight, Forecast, SunEvent},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sky {
@@ -90,7 +93,54 @@ impl MoonPhase {
         let illumination = (1.0 - (std::f64::consts::TAU * self.fraction).cos()) / 2.0;
         (illumination * 100.0).round() as u8
     }
+
+    /// Tonight's moon, `diameter` pixels across: lit on the right while waxing, on the left while
+    /// waning, and faint on its dark side.
+    pub fn disc(&self, diameter: u16) -> Canvas {
+        let terminator = self.terminator();
+        let radius = f64::from(diameter) / 2.0;
+        let centre = (f64::from(diameter) - 1.0) / 2.0;
+        let mut disc = Canvas::new(diameter, diameter);
+        for y in 0..diameter {
+            for x in 0..diameter {
+                let across = (f64::from(x) - centre) / radius;
+                let down = (f64::from(y) - centre) / radius;
+                if across * across + down * down > 1.0 {
+                    continue;
+                }
+                let lit = self.is_lit(across, down, terminator);
+                disc.set(x, y, if lit { MOON_LIT } else { MOON_DARK });
+            }
+        }
+        disc
+    }
+
+    /// `across` and `down` are in radii from the disc's centre.
+    fn is_lit(&self, across: f64, down: f64, terminator: f64) -> bool {
+        let half_width = (1.0 - down * down).sqrt();
+        if self.fraction <= 0.5 {
+            across > half_width * terminator
+        } else {
+            across < -half_width * terminator
+        }
+    }
+
+    /// Where the line between the lit and dark sides crosses the middle row, from -1 to 1 of the
+    /// radius. Kept 0.45 of the radius from the edge, so a crescent or a gibbous dark slice is at
+    /// least 2 pixels wide on an 8-pixel moon, except within 1/16 of a cycle of new or full moon.
+    fn terminator(&self) -> f64 {
+        let terminator = (std::f64::consts::TAU * self.fraction).cos();
+        let from_new = self.fraction.min(1.0 - self.fraction);
+        if from_new < 1.0 / 16.0 || (self.fraction - 0.5).abs() < 1.0 / 16.0 {
+            terminator
+        } else {
+            terminator.clamp(-0.45, 0.45)
+        }
+    }
 }
+
+const MOON_LIT: Pixel = Pixel::new(PixelColor::Yellow);
+const MOON_DARK: Pixel = Pixel::faint(PixelColor::BrightBlack);
 
 /// The Moon's angle from the Sun, seen from the Earth: Meeus's low-precision formula, within
 /// about an hour of the true phase.
