@@ -78,7 +78,7 @@ fn paths() -> Result<Paths, String> {
     Paths::resolve(|name| std::env::var_os(name)).map_err(|error| format!("error: {error}"))
 }
 
-/// A reader that stops early, like `head`, closes the pipe; that is not an error.
+/// A reader that stops early closes the pipe; that is not an error.
 fn print_log() -> Result<(), String> {
     let directory = paths()?.state_directory;
     let text = log::read(&directory).map_err(|error| {

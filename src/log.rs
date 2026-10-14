@@ -24,7 +24,6 @@ impl Log {
         Self { file }
     }
 
-    /// One logfmt line: the time, the level, the message, then each field in order.
     pub fn write(
         &mut self,
         level: Level,
@@ -35,17 +34,27 @@ impl Log {
         let Some(file) = &mut self.file else {
             return;
         };
-        let mut line = format!(
-            "time={} level={level} msg={}",
-            now.strftime("%Y-%m-%dT%H:%M:%S%:z"),
-            quoted(message),
-        );
-        for (key, value) in fields {
-            line.push_str(&format!(" {key}={}", quoted(&value.to_string())));
-        }
-        line.push('\n');
+        let line = logfmt_line(level, now, message, fields);
         let _ = file.write_all(line.as_bytes());
     }
+}
+
+fn logfmt_line(
+    level: Level,
+    now: &Zoned,
+    message: &str,
+    fields: &[(&str, &dyn Display)],
+) -> String {
+    let mut line = format!(
+        "time={} level={level} msg={}",
+        now.strftime("%Y-%m-%dT%H:%M:%S%:z"),
+        quoted(message),
+    );
+    for (key, value) in fields {
+        line.push_str(&format!(" {key}={}", quoted(&value.to_string())));
+    }
+    line.push('\n');
+    line
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

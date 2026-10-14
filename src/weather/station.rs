@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use jiff::Zoned;
 
-use super::{Forecast, Weather, WeatherSource, cache};
+use super::{FetchError, Forecast, Weather, WeatherSource, cache};
 use crate::{
     config::Coordinates,
     log::{Level, Log},
@@ -43,14 +43,24 @@ impl WeatherStation {
             return;
         };
         if let Some(result) = self.weather_source.finished() {
-            match result.and_then(|body| Forecast::parse(&body)) {
-                Ok(forecast) => self.receive(coordinates, forecast, now, log),
-                Err(error) => log.write(Level::Warn, now, "fetch failed", &[("error", &error)]),
-            }
+            self.finish_fetch(coordinates, result, now, log);
         }
         if !self.fetch_requested {
             self.weather_source.request(coordinates);
             self.fetch_requested = true;
+        }
+    }
+
+    fn finish_fetch(
+        &mut self,
+        coordinates: Coordinates,
+        result: Result<String, FetchError>,
+        now: &Zoned,
+        log: &mut Log,
+    ) {
+        match result.and_then(|body| Forecast::parse(&body)) {
+            Ok(forecast) => self.receive(coordinates, forecast, now, log),
+            Err(error) => log.write(Level::Warn, now, "fetch failed", &[("error", &error)]),
         }
     }
 

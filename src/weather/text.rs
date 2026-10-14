@@ -3,7 +3,6 @@ use ratatui::text::Line;
 use super::{Condition, Weather, whole_degrees};
 use crate::config::Units;
 
-/// The temperature and the condition mark, as in `14° ‚‚`.
 pub fn text_line(weather: &Weather, units: Units) -> Line<'static> {
     let current = &weather.forecast.current;
     let degrees = whole_degrees(current.temperature_2m, units);
