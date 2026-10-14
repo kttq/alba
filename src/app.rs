@@ -1,27 +1,32 @@
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use jiff::Zoned;
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{KeyCode, KeyEvent, KeyModifiers},
     layout::{Constraint, Rect},
-    style::Stylize,
     text::{Line, Span},
     widgets::Widget,
 };
 
 use crate::{
-    config::{Config, HourFormat},
+    calendar,
+    clock::Clock,
+    config::{Config, Coordinates, Location, Units},
+    log::Log,
     strings::Strings,
+    weather::{self, WeatherSource, WeatherStation},
 };
 
-/// The app core. It never reads the system clock or time zone: time arrives only as `now`.
+/// Time and time zone come only from `now`, never the system clock.
 pub struct App {
-    config: Config,
+    units: Units,
     strings: &'static Strings,
+    clock: Clock,
+    weather_station: WeatherStation,
+    log: Log,
 }
 
-/// What the event loop does after a key.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Control {
     Continue,
@@ -29,23 +34,32 @@ pub enum Control {
 }
 
 impl App {
-    pub fn new(config: &Config) -> Self {
+    /// Reads the cache and empties the log.
+    pub fn new(
+        config: &Config,
+        weather_source: Box<dyn WeatherSource>,
+        cache_directory: PathBuf,
+        state_directory: PathBuf,
+    ) -> Self {
         Self {
-            config: config.clone(),
+            units: config.units,
             strings: Strings::of(config.language),
+            clock: Clock::new(config),
+            weather_station: WeatherStation::new(
+                coordinates(config),
+                weather_source,
+                cache_directory,
+            ),
+            log: Log::start(&state_directory),
         }
     }
 
-    /// The event loop calls this on every wake, before it draws.
-    pub fn tick(&mut self, _now: &Zoned) {}
+    pub fn tick(&mut self, now: &Zoned) {
+        self.weather_station.tick(now, &mut self.log);
+    }
 
-    /// How often the event loop wakes. The blinking colon needs a quarter second.
     pub fn tick_interval(&self) -> Duration {
-        if self.config.motion {
-            Duration::from_millis(250)
-        } else {
-            Duration::from_secs(1)
-        }
+        self.clock.tick_interval()
     }
 
     /// Raw mode swallows the interrupt signal, so `ctrl-c` arrives here as a key.
@@ -58,54 +72,49 @@ impl App {
     }
 
     pub fn render(&self, area: Rect, buffer: &mut Buffer, now: &Zoned) {
-        let text_clock = self.text_clock(now);
-        let width = text_clock.width() as u16;
-        // `centered` shrinks the area to fit the pane, which would clip the clock.
-        if area.width < width || area.height == 0 {
+        if area.height == 0 {
             return;
         }
-        text_clock.render(
+        let Some(text_line) = self
+            .text_lines_widest_first(now)
+            .into_iter()
+            .find(|line| line.width() <= area.width as usize)
+        else {
+            return;
+        };
+        let width = text_line.width() as u16;
+        text_line.render(
             area.centered(Constraint::Length(width), Constraint::Length(1)),
             buffer,
         );
     }
 
-    fn text_clock(&self, now: &Zoned) -> Line<'static> {
-        let mut spans = vec![
-            Span::raw(self.hour(now)),
-            self.colon(now),
-            Span::raw(format!("{:02}", now.minute())),
-        ];
-        if self.config.hour_format == HourFormat::Twelve {
-            spans.push(self.am_pm(now).dim());
-        }
-        Line::from(spans)
-    }
-
-    /// The 12-hour clock reads midnight and noon as 12.
-    fn hour(&self, now: &Zoned) -> String {
-        match (self.config.hour_format, now.hour() % 12) {
-            (HourFormat::TwentyFour, _) => format!("{:02}", now.hour()),
-            (HourFormat::Twelve, 0) => "12".to_string(),
-            (HourFormat::Twelve, hour) => hour.to_string(),
+    fn text_lines_widest_first(&self, now: &Zoned) -> Vec<Line<'static>> {
+        let clock = self.clock.text_line(now);
+        let date = calendar::short_date(self.strings, now);
+        let weather = self
+            .weather_station
+            .weather()
+            .map(|weather| weather::text_line(weather, self.units));
+        match weather {
+            Some(weather) => vec![
+                joined(vec![clock.clone(), date, weather.clone()]),
+                joined(vec![clock.clone(), weather]),
+                clock,
+            ],
+            None => vec![joined(vec![clock.clone(), date]), clock],
         }
     }
+}
 
-    fn am_pm(&self, now: &Zoned) -> &'static str {
-        if now.hour() < 12 {
-            self.strings.am
-        } else {
-            self.strings.pm
-        }
-    }
+fn joined(parts: Vec<Line<'static>>) -> Line<'static> {
+    let parts: Vec<_> = parts.into_iter().map(|part| part.spans).collect();
+    Line::from(parts.join(&Span::raw(" · ")))
+}
 
-    /// Lit for the first half of each wall-clock second, faint in the second half.
-    fn colon(&self, now: &Zoned) -> Span<'static> {
-        let first_half = now.subsec_nanosecond() < 500_000_000;
-        if first_half || !self.config.motion {
-            Span::raw(":")
-        } else {
-            ":".dim()
-        }
+fn coordinates(config: &Config) -> Option<Coordinates> {
+    match config.location {
+        Some(Location::Coordinates(coordinates)) => Some(coordinates),
+        _ => None,
     }
 }

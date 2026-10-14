@@ -1,9 +1,9 @@
+mod common;
+
 use std::time::Duration;
 
-use alba::{
-    app::{App, Control},
-    config::Config,
-};
+use alba::app::{App, Control};
+use common::{Harness, default_instant, render_row};
 use jiff::Zoned;
 use ratatui::{
     Terminal,
@@ -13,15 +13,9 @@ use ratatui::{
     text::{Line, Span},
 };
 
-fn default_instant() -> Zoned {
-    "2026-10-13T06:38[America/Argentina/Buenos_Aires]"
-        .parse()
-        .unwrap()
-}
-
 #[test]
-fn text_clock_is_centred_in_the_pane() {
-    let app = App::new(&Config::default());
+fn text_line_is_centred_in_the_pane() {
+    let app = app_with("");
     let now = default_instant();
     let mut terminal = Terminal::new(TestBackend::new(40, 12)).unwrap();
 
@@ -41,11 +35,7 @@ fn q_esc_and_ctrl_c_quit() {
     ];
 
     for event in quit_keys {
-        assert_eq!(
-            App::new(&Config::default()).key(event),
-            Control::Quit,
-            "{event:?}"
-        );
+        assert_eq!(app_with("").key(event), Control::Quit, "{event:?}");
     }
 }
 
@@ -59,17 +49,13 @@ fn other_keys_do_nothing() {
     ];
 
     for event in other_keys {
-        assert_eq!(
-            App::new(&Config::default()).key(event),
-            Control::Continue,
-            "{event:?}"
-        );
+        assert_eq!(app_with("").key(event), Control::Continue, "{event:?}");
     }
 }
 
 #[test]
 fn pane_narrower_than_the_clock_renders_nothing() {
-    let app = App::new(&Config::default());
+    let app = app_with("");
     let now = default_instant();
     let mut terminal = Terminal::new(TestBackend::new(4, 3)).unwrap();
 
@@ -80,7 +66,6 @@ fn pane_narrower_than_the_clock_renders_nothing() {
     terminal.backend().assert_buffer_lines(["    "; 3]);
 }
 
-/// The default instant, at another wall-clock time.
 fn instant(time: &str) -> Zoned {
     format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
         .parse()
@@ -88,15 +73,7 @@ fn instant(time: &str) -> Zoned {
 }
 
 fn app_with(config_text: &str) -> App {
-    App::new(&Config::parse(config_text).unwrap())
-}
-
-fn render_row(app: &App, now: &Zoned, width: u16) -> Terminal<TestBackend> {
-    let mut terminal = Terminal::new(TestBackend::new(width, 1)).unwrap();
-    terminal
-        .draw(|frame| app.render(frame.area(), frame.buffer_mut(), now))
-        .unwrap();
-    terminal
+    Harness::new(config_text).app
 }
 
 #[test]
@@ -171,4 +148,24 @@ fn still_clock_ticks_every_second() {
         app_with("motion = false").tick_interval(),
         Duration::from_secs(1)
     );
+}
+
+#[test]
+fn text_line_shows_the_short_date_in_bright_blue_when_it_fits() {
+    let terminal = render_row(&app_with(""), &default_instant(), 14);
+
+    terminal.backend().assert_buffer_lines([Line::from(vec![
+        Span::raw("06:38 · "),
+        "tue 13".light_blue(),
+    ])]);
+}
+
+#[test]
+fn spanish_text_line_shows_the_spanish_weekday() {
+    let terminal = render_row(&app_with("language = \"es\""), &default_instant(), 14);
+
+    terminal.backend().assert_buffer_lines([Line::from(vec![
+        Span::raw("06:38 · "),
+        "mar 13".light_blue(),
+    ])]);
 }

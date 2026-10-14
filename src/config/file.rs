@@ -1,20 +1,10 @@
-use std::{
-    fs, io,
-    path::{Path, PathBuf},
-};
+use std::{fs, io, path::Path};
 
 use super::{Config, ConfigError};
 
-/// Written on first run, when no config file exists.
 pub const TEMPLATE: &str = include_str!("template.toml");
 
-/// `XDG_CONFIG_HOME` is ignored on purpose: the path is the same on macOS and Linux.
-pub fn path(home: &Path) -> PathBuf {
-    home.join(".config/alba/config.toml")
-}
-
-/// Reads the config at `path`. With no file there, writes the template and returns the defaults.
-/// A failed template write is ignored, so alba still runs.
+/// A failed template write must not stop alba from starting.
 pub fn load(path: &Path) -> Result<Config, ConfigError> {
     match fs::read_to_string(path) {
         Ok(text) => Config::parse(&text),

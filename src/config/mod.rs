@@ -3,12 +3,11 @@ mod file;
 mod options;
 
 pub use error::ConfigError;
-pub use file::{TEMPLATE, load, path};
+pub use file::{TEMPLATE, load};
 pub use options::*;
 
 use serde::Deserialize;
 
-/// The settings from `config.toml`, parsed and validated.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
     pub language: Language,
@@ -22,7 +21,7 @@ pub struct Config {
     pub motion: bool,
 }
 
-/// The defaults live once, on `ConfigFile`.
+/// Parses the empty config, so the defaults live in one place.
 impl Default for Config {
     fn default() -> Self {
         Self::parse("").expect("the empty config is valid")
@@ -35,7 +34,7 @@ pub enum Location {
     Coordinates(Coordinates),
 }
 
-/// Degrees, written `[latitude, longitude]` and range-checked on parse.
+/// Degrees.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(try_from = "Vec<f64>")]
 pub struct Coordinates {
@@ -93,7 +92,6 @@ fn enabled() -> bool {
 }
 
 impl Config {
-    /// Coordinates win over `location` when both are set.
     pub fn parse(text: &str) -> Result<Self, ConfigError> {
         let file: ConfigFile = toml::from_str(text).map_err(|error| {
             ConfigError::at(text, error.span().unwrap_or_default(), error.message())

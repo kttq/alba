@@ -1,10 +1,9 @@
-use std::{
-    fs,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-};
+mod common;
+
+use std::{fs, path::PathBuf};
 
 use alba::config::{self, Config, Coordinates, HourFormat, Language, Location, Units, WeekStart};
+use common::{make_read_only, temporary_directory};
 
 #[test]
 fn empty_config_has_every_default() {
@@ -67,7 +66,7 @@ fn coordinates_win_over_location() {
     );
 }
 
-/// Asserts the message names `line` and contains `reason`, which comes partly from the TOML parser.
+/// Matches a fragment of the reason, because part of it comes from the TOML parser.
 fn assert_error(text: &str, line: usize, reason: &str) {
     let message = Config::parse(text).unwrap_err().to_string();
     let prefix = format!("config error: line {line}: ");
@@ -177,30 +176,16 @@ week_start  = "monday"
 # motion         = true
 "#;
 
-/// A fresh, empty directory standing in for `HOME`.
-fn temporary_home(test: &str) -> PathBuf {
-    let home = std::env::temp_dir().join(format!("alba-{test}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&home);
+fn temporary_home() -> PathBuf {
+    let home = temporary_directory();
     fs::create_dir_all(&home).unwrap();
     home
 }
 
-fn make_read_only(directory: &Path) {
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
-}
-
-#[test]
-fn config_lives_under_home() {
-    assert_eq!(
-        config::path(&PathBuf::from("/home/ana")),
-        PathBuf::from("/home/ana/.config/alba/config.toml")
-    );
-}
-
 #[test]
 fn missing_config_writes_the_template_and_loads_defaults() {
-    let home = temporary_home("missing");
-    let path = config::path(&home);
+    let home = temporary_home();
+    let path = home.join(".config/alba/config.toml");
 
     let loaded = config::load(&path).unwrap();
 
@@ -210,8 +195,8 @@ fn missing_config_writes_the_template_and_loads_defaults() {
 
 #[test]
 fn existing_config_is_never_overwritten() {
-    let home = temporary_home("existing");
-    let path = config::path(&home);
+    let home = temporary_home();
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, "units = \"imperial\"\n").unwrap();
 
@@ -223,8 +208,8 @@ fn existing_config_is_never_overwritten() {
 
 #[test]
 fn failed_template_write_still_loads_defaults() {
-    let home = temporary_home("unwritable");
-    let path = config::path(&home);
+    let home = temporary_home();
+    let path = home.join(".config/alba/config.toml");
     let directory = path.parent().unwrap();
     fs::create_dir_all(directory).unwrap();
     make_read_only(directory);
@@ -237,8 +222,8 @@ fn failed_template_write_still_loads_defaults() {
 
 #[test]
 fn config_that_is_not_utf8_has_no_line() {
-    let home = temporary_home("not-utf8");
-    let path = config::path(&home);
+    let home = temporary_home();
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, b"language = \"\xff\"\n").unwrap();
 
@@ -252,8 +237,8 @@ fn config_that_is_not_utf8_has_no_line() {
 
 #[test]
 fn config_that_is_a_directory_is_unreadable() {
-    let home = temporary_home("directory");
-    let path = config::path(&home);
+    let home = temporary_home();
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(&path).unwrap();
 
     let message = config::load(&path).unwrap_err().to_string();

@@ -1,0 +1,76 @@
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
+
+use super::FetchError;
+
+/// Fields keep their Open-Meteo names. Times are Unix seconds; temperatures are Celsius.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Forecast {
+    pub utc_offset_seconds: i32,
+    pub current: Current,
+    pub daily: Daily,
+    pub hourly: Hourly,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Current {
+    pub time: i64,
+    pub temperature_2m: f64,
+    /// Kept raw, so a change to the condition table needs no cache migration.
+    pub weather_code: u16,
+    pub is_day: IsDay,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum IsDay {
+    Night = 0,
+    Day = 1,
+}
+
+/// Yesterday through tomorrow.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Daily {
+    pub time: Vec<i64>,
+    pub sunrise: Vec<i64>,
+    pub sunset: Vec<i64>,
+    pub temperature_2m_max: Vec<f64>,
+    pub temperature_2m_min: Vec<f64>,
+}
+
+/// Each value covers the hour before its time.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Hourly {
+    pub time: Vec<i64>,
+    /// Percent.
+    pub precipitation_probability: Vec<u8>,
+}
+
+impl Forecast {
+    pub fn parse(body: &str) -> Result<Self, FetchError> {
+        let forecast: Self =
+            serde_json::from_str(body).map_err(|error| FetchError::Invalid(error.to_string()))?;
+        forecast.validate().map_err(FetchError::Invalid)?;
+        Ok(forecast)
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        let days = self.daily.time.len();
+        let daily_columns = [
+            self.daily.sunrise.len(),
+            self.daily.sunset.len(),
+            self.daily.temperature_2m_max.len(),
+            self.daily.temperature_2m_min.len(),
+        ];
+        if daily_columns.iter().any(|&length| length != days) {
+            return Err(format!("daily columns differ in length from {days} days"));
+        }
+        let hours = self.hourly.time.len();
+        if self.hourly.precipitation_probability.len() != hours {
+            return Err(format!(
+                "hourly columns differ in length from {hours} hours"
+            ));
+        }
+        Ok(())
+    }
+}

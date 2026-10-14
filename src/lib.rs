@@ -1,3 +1,8 @@
 pub mod app;
+pub mod calendar;
+pub mod clock;
 pub mod config;
+pub mod log;
+pub mod paths;
 pub mod strings;
+pub mod weather;
