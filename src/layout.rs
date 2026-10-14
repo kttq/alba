@@ -4,7 +4,7 @@ use crate::pixels::Canvas;
 
 use ratatui::{
     buffer::Buffer,
-    layout::{Constraint, Position, Rect, Size},
+    layout::{Position, Rect, Size},
     text::{Line, Span},
     widgets::Widget,
 };
@@ -168,11 +168,13 @@ fn fits(size: Size, pane: Rect) -> bool {
     size.width <= pane.width && size.height <= pane.height
 }
 
-/// The bounding box is centred as one block.
+/// The bounding box is centred as one block. An odd leftover cell goes before it, as
+/// `Rect::centered` puts it; arithmetic, because the constraint solver is too slow for the size
+/// sweep.
 fn placed<'a>(arrangement: &Arrangement<'a>, pane: Rect) -> Vec<PlacedItem<'a>> {
-    let block = pane.centered(
-        Constraint::Length(arrangement.size.width),
-        Constraint::Length(arrangement.size.height),
+    let block = Position::new(
+        pane.x + (pane.width - arrangement.size.width).div_ceil(2),
+        pane.y + (pane.height - arrangement.size.height).div_ceil(2),
     );
     arrangement
         .pieces
