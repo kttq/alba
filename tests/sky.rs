@@ -180,24 +180,45 @@ fn each_phase_name_covers_the_days_around_its_point() {
 
 #[test]
 fn moon_phase_names_exist_in_both_languages() {
-    let (english, spanish) = (&Strings::EN, &Strings::ES);
+    let table = [
+        (MoonPhaseName::NewMoon, "new moon", "luna nueva"),
+        (
+            MoonPhaseName::WaxingCrescent,
+            "waxing crescent",
+            "luna creciente",
+        ),
+        (
+            MoonPhaseName::FirstQuarter,
+            "first quarter",
+            "cuarto creciente",
+        ),
+        (
+            MoonPhaseName::WaxingGibbous,
+            "waxing gibbous",
+            "gibosa creciente",
+        ),
+        (MoonPhaseName::FullMoon, "full moon", "luna llena"),
+        (
+            MoonPhaseName::WaningGibbous,
+            "waning gibbous",
+            "gibosa menguante",
+        ),
+        (
+            MoonPhaseName::LastQuarter,
+            "last quarter",
+            "cuarto menguante",
+        ),
+        (
+            MoonPhaseName::WaningCrescent,
+            "waning crescent",
+            "luna menguante",
+        ),
+    ];
 
-    assert_eq!(
-        english.moon_phase(MoonPhaseName::WaxingGibbous),
-        "waxing gibbous"
-    );
-    assert_eq!(
-        spanish.moon_phase(MoonPhaseName::WaxingGibbous),
-        "gibosa creciente"
-    );
-    assert_eq!(
-        english.moon_phase(MoonPhaseName::WaningCrescent),
-        "waning crescent"
-    );
-    assert_eq!(
-        spanish.moon_phase(MoonPhaseName::WaningCrescent),
-        "luna menguante"
-    );
+    for (name, english, spanish) in table {
+        assert_eq!(Strings::EN.moon_phase(name), english);
+        assert_eq!(Strings::ES.moon_phase(name), spanish);
+    }
 }
 
 #[test]

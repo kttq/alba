@@ -6,7 +6,7 @@ pub struct Strings {
     pub pm: &'static str,
     /// Sunday first.
     pub short_weekdays: [&'static str; 7],
-    /// In `MoonPhaseName` order.
+    /// In cycle order, from new moon.
     moon_phases: [&'static str; 8],
 }
 
@@ -43,7 +43,17 @@ impl Strings {
     };
 
     pub fn moon_phase(&self, name: MoonPhaseName) -> &'static str {
-        self.moon_phases[name as usize]
+        let index = match name {
+            MoonPhaseName::NewMoon => 0,
+            MoonPhaseName::WaxingCrescent => 1,
+            MoonPhaseName::FirstQuarter => 2,
+            MoonPhaseName::WaxingGibbous => 3,
+            MoonPhaseName::FullMoon => 4,
+            MoonPhaseName::WaningGibbous => 5,
+            MoonPhaseName::LastQuarter => 6,
+            MoonPhaseName::WaningCrescent => 7,
+        };
+        self.moon_phases[index]
     }
 
     pub fn of(language: Language) -> &'static Self {
