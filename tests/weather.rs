@@ -305,3 +305,31 @@ fn r_fetches_the_weather_now() {
     assert_eq!(control, Control::Continue);
     assert_eq!(harness.weather_source.requests().len(), 2);
 }
+
+#[test]
+fn running_fetch_adds_a_dim_ellipsis_after_300_ms() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    let now = default_instant();
+    harness.fetch(&now, Ok(forecast_body()));
+    harness.app.key(KeyEvent::from(KeyCode::Char('r')));
+    harness.app.tick(&now);
+    let later = |milliseconds| {
+        now.checked_add(jiff::SignedDuration::from_millis(milliseconds))
+            .unwrap()
+    };
+
+    assert_eq!(
+        harness.text_line(&later(299), 24),
+        "06:38 · tue 13 · 14° ‚‚"
+    );
+    harness
+        .render_row(&later(300), 24)
+        .backend()
+        .assert_buffer_lines([Line::from(vec![
+            Span::raw("06:38 · "),
+            "tue 13".light_blue(),
+            Span::raw(" · 14°"),
+            "…".dim(),
+            Span::raw(" ‚‚"),
+        ])]);
+}

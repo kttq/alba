@@ -96,7 +96,11 @@ impl App {
     fn text_lines_widest_first(&self, now: &Zoned) -> Vec<Line<'static>> {
         let clock = self.clock.text_line(now);
         let date = calendar::short_date(self.strings, now);
-        let weather = weather::text_line(self.weather_station.weather_state(now), self.units);
+        let weather = weather::text_line(
+            self.weather_station.weather_state(now),
+            self.weather_station.shows_fetch_indicator(now),
+            self.units,
+        );
         match weather {
             Some(weather) => vec![
                 joined(vec![clock.clone(), date, weather.clone()]),

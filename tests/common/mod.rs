@@ -130,13 +130,13 @@ impl Harness {
 }
 
 /// A weather station for Buenos Aires, with its own log.
-pub struct StationHarness {
+pub struct WeatherStationHarness {
     pub weather_station: WeatherStation,
     pub weather_source: FakeWeatherSource,
     pub log: Log,
 }
 
-impl StationHarness {
+impl WeatherStationHarness {
     pub fn with_cache(cache_directory: PathBuf) -> Self {
         let weather_source = FakeWeatherSource::default();
         let weather_station = WeatherStation::new(

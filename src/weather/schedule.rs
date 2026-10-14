@@ -6,7 +6,7 @@ const REFRESH: SignedDuration = SignedDuration::from_mins(30);
 const RETRY_MINUTES: [i64; 4] = [1, 2, 5, 10];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LastResult {
+pub enum LastFetchResult {
     Success,
     Failure {
         /// Failures in a row, this one included.
@@ -16,10 +16,10 @@ pub enum LastResult {
 }
 
 /// When the next automatic fetch starts, given when the last one finished.
-pub fn next_fetch(last_result: LastResult, fetched_at: Timestamp) -> Timestamp {
-    let wait = match last_result {
-        LastResult::Success => REFRESH,
-        LastResult::Failure {
+pub fn next_fetch(last_fetch_result: LastFetchResult, fetched_at: Timestamp) -> Timestamp {
+    let wait = match last_fetch_result {
+        LastFetchResult::Success => REFRESH,
+        LastFetchResult::Failure {
             failures,
             retry_after,
         } => retry_wait(failures).max(retry_after.unwrap_or(SignedDuration::ZERO)),

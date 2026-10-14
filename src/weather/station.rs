@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use jiff::{SignedDuration, Timestamp, Zoned};
 
 use super::{
-    FetchError, Forecast, Freshness, LastResult, Weather, WeatherSource, cache, next_fetch,
+    FetchError, Forecast, Freshness, LastFetchResult, Weather, WeatherSource, cache, next_fetch,
 };
 use crate::{
     config::Coordinates,
@@ -51,7 +51,7 @@ impl WeatherStation {
         let weather =
             coordinates.and_then(|coordinates| cache::read(&cache_directory, coordinates));
         let next_fetch = match &weather {
-            Some(weather) => next_fetch(LastResult::Success, weather.fetched_at),
+            Some(weather) => next_fetch(LastFetchResult::Success, weather.fetched_at),
             None => Timestamp::MIN,
         };
         Self {
@@ -118,22 +118,22 @@ impl WeatherStation {
         now: &Zoned,
         log: &mut Log,
     ) {
-        let last_result = match result.and_then(|body| Forecast::parse(&body)) {
+        let last_fetch_result = match result.and_then(|body| Forecast::parse(&body)) {
             Ok(forecast) => {
                 self.receive(coordinates, forecast, now, log);
                 self.failures = 0;
-                LastResult::Success
+                LastFetchResult::Success
             }
             Err(error) => {
                 log.write(Level::Warn, now, "fetch failed", &[("error", &error)]);
                 self.failures += 1;
-                LastResult::Failure {
+                LastFetchResult::Failure {
                     failures: self.failures,
                     retry_after: error.retry_after(),
                 }
             }
         };
-        self.next_fetch = next_fetch(last_result, now.timestamp());
+        self.next_fetch = next_fetch(last_fetch_result, now.timestamp());
     }
 
     fn receive(

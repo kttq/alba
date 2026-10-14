@@ -1,11 +1,11 @@
 mod common;
 
 use alba::weather::{Forecast, Freshness, Weather};
-use common::forecast_body;
+use common::{default_instant, forecast_body};
 use jiff::{SignedDuration, Timestamp};
 
 fn fetched_at() -> Timestamp {
-    "2026-10-13T09:38:00Z".parse().unwrap()
+    default_instant().timestamp()
 }
 
 fn weather() -> Weather {
