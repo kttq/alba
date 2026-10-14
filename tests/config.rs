@@ -190,17 +190,9 @@ fn make_read_only(directory: &Path) {
 }
 
 #[test]
-fn config_lives_under_home() {
-    assert_eq!(
-        config::path(&PathBuf::from("/home/ana")),
-        PathBuf::from("/home/ana/.config/alba/config.toml")
-    );
-}
-
-#[test]
 fn missing_config_writes_the_template_and_loads_defaults() {
     let home = temporary_home("missing");
-    let path = config::path(&home);
+    let path = home.join(".config/alba/config.toml");
 
     let loaded = config::load(&path).unwrap();
 
@@ -211,7 +203,7 @@ fn missing_config_writes_the_template_and_loads_defaults() {
 #[test]
 fn existing_config_is_never_overwritten() {
     let home = temporary_home("existing");
-    let path = config::path(&home);
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, "units = \"imperial\"\n").unwrap();
 
@@ -224,7 +216,7 @@ fn existing_config_is_never_overwritten() {
 #[test]
 fn failed_template_write_still_loads_defaults() {
     let home = temporary_home("unwritable");
-    let path = config::path(&home);
+    let path = home.join(".config/alba/config.toml");
     let directory = path.parent().unwrap();
     fs::create_dir_all(directory).unwrap();
     make_read_only(directory);
@@ -238,7 +230,7 @@ fn failed_template_write_still_loads_defaults() {
 #[test]
 fn config_that_is_not_utf8_has_no_line() {
     let home = temporary_home("not-utf8");
-    let path = config::path(&home);
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(&path, b"language = \"\xff\"\n").unwrap();
 
@@ -253,7 +245,7 @@ fn config_that_is_not_utf8_has_no_line() {
 #[test]
 fn config_that_is_a_directory_is_unreadable() {
     let home = temporary_home("directory");
-    let path = config::path(&home);
+    let path = home.join(".config/alba/config.toml");
     fs::create_dir_all(&path).unwrap();
 
     let message = config::load(&path).unwrap_err().to_string();

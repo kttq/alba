@@ -3,7 +3,7 @@ mod file;
 mod options;
 
 pub use error::ConfigError;
-pub use file::{TEMPLATE, load, path};
+pub use file::{TEMPLATE, load};
 pub use options::*;
 
 use serde::Deserialize;

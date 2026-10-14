@@ -1,13 +1,9 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-    process::ExitCode,
-    time::Duration,
-};
+use std::{io, process::ExitCode, time::Duration};
 
 use alba::{
     app::{App, Control},
     config,
+    paths::Paths,
     weather::{BackgroundSource, open_meteo},
 };
 use jiff::{SignedDuration, Timestamp, Zoned};
@@ -55,14 +51,15 @@ fn main() -> ExitCode {
 
 /// Loads the config before raw mode, so its errors print to a normal terminal.
 fn start() -> Result<(), String> {
-    let home = home().ok_or("error: HOME is not set")?;
-    let config = config::load(&config::path(&home)).map_err(|error| error.to_string())?;
+    let paths =
+        Paths::resolve(|name| std::env::var_os(name)).map_err(|error| format!("error: {error}"))?;
+    let config = config::load(&paths.config_file).map_err(|error| error.to_string())?;
     let weather_source = Box::new(BackgroundSource::new(open_meteo::fetch));
     let mut app = App::new(
         &config,
         weather_source,
-        cache_directory(&home),
-        state_directory(&home),
+        paths.cache_directory,
+        paths.state_directory,
     );
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);
@@ -82,22 +79,6 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
         None => Ok(command),
         Some(extra) => Err(extra),
     }
-}
-
-/// An empty `HOME` counts as unset, so paths never resolve against the working directory.
-fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME")
-        .filter(|home| !home.is_empty())
-        .map(PathBuf::from)
-}
-
-/// `XDG_CACHE_HOME` is ignored on purpose: the path is the same on macOS and Linux.
-fn cache_directory(home: &Path) -> PathBuf {
-    home.join(".cache/alba")
-}
-
-fn state_directory(home: &Path) -> PathBuf {
-    home.join(".local/state/alba")
 }
 
 /// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after

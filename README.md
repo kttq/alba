@@ -17,7 +17,7 @@ _letting the days go by..._
 
 ## config
 
-alba reads `~/.config/alba/config.toml` at startup, and writes a commented template there on first run. A few highlights:
+alba reads `~/.config/alba/config.toml` (or `$XDG_CONFIG_HOME/alba/config.toml`) at startup, and writes a commented template there on first run. A few highlights:
 
 ```toml
 location    = "paris, united states"   # your city, narrowed by country

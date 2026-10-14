@@ -1,6 +1,22 @@
 # Config
 
-alba reads `~/.config/alba/config.toml` once, at startup. Restart alba to apply a change. On first run, alba writes a commented template there. It never overwrites an existing file.
+alba reads `$XDG_CONFIG_HOME/alba/config.toml` once, at startup. Without `XDG_CONFIG_HOME`, that is `~/.config/alba/config.toml`. Restart alba to apply a change. On first run, alba writes a commented template there. It never overwrites an existing file.
+
+## Files
+
+alba follows the XDG Base Directory spec on macOS and Linux. An unset, empty, or relative variable falls back to its default.
+
+| File | Path | Default |
+|---|---|---|
+| Config | `$XDG_CONFIG_HOME/alba/config.toml` | `~/.config/alba/config.toml` |
+| Weather cache | `$XDG_CACHE_HOME/alba/weather.json` | `~/.cache/alba/weather.json` |
+| Log | `$XDG_STATE_HOME/alba/alba.log` | `~/.local/state/alba/alba.log` |
+
+The log is empty at each start. It holds one [logfmt](https://brandur.org/logfmt) line per failed fetch or failed cache write:
+
+```text
+time=2026-10-13T06:38:00-03:00 level=warn msg="fetch failed" error="http status 503"
+```
 
 ## All options
 
