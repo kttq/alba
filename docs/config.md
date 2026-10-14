@@ -1,6 +1,6 @@
 # Config
 
-alba reads `$XDG_CONFIG_HOME/alba/config.toml` once, at startup. Without `XDG_CONFIG_HOME`, that is `~/.config/alba/config.toml`. Restart alba to apply a change. On first run, alba writes a commented template there. It never overwrites an existing file.
+alba reads its config file once, at startup. [Files](#files) gives its path. Restart alba to apply a change. On first run, alba writes a commented template there. It never overwrites an existing file.
 
 ## Files
 
