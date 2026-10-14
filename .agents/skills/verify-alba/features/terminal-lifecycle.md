@@ -1,0 +1,34 @@
+# Terminal lifecycle
+
+alba takes over the pane in the alternate screen, redraws on a wall-clock tick and after each resize, and gives the terminal back on quit. `r` fetches the weather now. It stays close to idle between ticks.
+
+## Sub-features
+
+- `quit` leaves on `q`, `esc`, or `ctrl-c`, with exit status 0.
+- `restore` leaves the alternate screen and shows the cursor on quit.
+- `resize` redraws the line centred in the new pane.
+- `refresh` fetches the weather now on `r`.
+- `tick` rolls the minute over just after the wall-clock boundary.
+- `cpu` stays under 3 s of CPU in 5 minutes at 85×26 with `motion = true`.
+
+## How to get to it (user POV)
+
+- Press `q`, `esc`, or `ctrl-c` in alba; resize the pane; press `r`; leave it running.
+
+## Driving it with pty_drive.py
+
+Preconditions:
+
+- `$S/fixture.py HOME` wrote a fresh cache.
+
+- **Quit keys.** Run `$S/pty_drive.py HOME key='\x1b'`, then `key='\x03'`. Each prints `exit status: 0` and `terminal restored: yes`. Without a key step, the driver presses `q`.
+- **Resize.** Run `$S/pty_drive.py HOME --cols 40 --rows 12 resize=60x20 sleep=0.15 screen`. The line is on row 10 of 20, centred in 60 columns.
+- **Refresh.** Run `$S/pty_drive.py HOME key=r screen`. The line shows `…` after the temperature until the fetch ends.
+- **Tick.** Start the driver about 3 seconds before a minute boundary with `--transcript target/verify/<ticket>/tick.bin sleep=6`. The transcript holds a positioned write of the new minute digit just after the boundary.
+- **CPU.** Run `$S/pty_drive.py HOME --cols 85 --rows 26 sleep=300`. The `cpu seconds` line must read under 3. The spec's own check runs in Ghostty; see `SKILL.md` → Drive.
+
+## Gotchas
+
+- The driver paces keys with `sleep`. alba writes a cursor sequence on every draw, so the pseudo-terminal always reads as ready.
+- A key flood queues `q` behind it; `flood=SECONDS` paces at 30 keys a second, so `q` still lands.
+- `cpu seconds` covers every child of the driver, which is only alba.
