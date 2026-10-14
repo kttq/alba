@@ -130,6 +130,10 @@ fn times_out_of_range_or_order_fail_the_response() {
     assert!(!parses_with(
         |body| body["daily"]["time"][2] = json!(i64::MAX)
     ));
+    let last_second = jiff::Timestamp::MAX.as_second();
+    assert!(!parses_with(
+        |body| body["daily"]["time"][2] = json!(last_second)
+    ));
     assert!(!parses_with(|body| body["hourly"]["time"][1] = json!(0)));
 }
 
@@ -139,4 +143,29 @@ fn deserializing_a_forecast_validates_it() {
     body["daily"]["sunset"] = json!([]);
 
     assert!(serde_json::from_value::<Forecast>(body).is_err());
+}
+
+#[test]
+fn a_forecast_serializes_to_the_open_meteo_columns() {
+    let body: serde_json::Value = serde_json::from_str(&common::forecast_body()).unwrap();
+    let forecast = Forecast::parse(&body.to_string()).unwrap();
+
+    let serialized = serde_json::to_value(&forecast).unwrap();
+    for column in [
+        &["daily", "time"][..],
+        &["daily", "sunrise"],
+        &["daily", "sunset"],
+        &["daily", "temperature_2m_max"],
+        &["hourly", "time"],
+        &["hourly", "precipitation_probability"],
+        &["current", "time"],
+        &["utc_offset_seconds"],
+    ] {
+        let pointer = format!("/{}", column.join("/"));
+        assert_eq!(
+            serialized.pointer(&pointer),
+            body.pointer(&pointer),
+            "{pointer}"
+        );
+    }
 }
