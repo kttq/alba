@@ -1,0 +1,8 @@
+---
+source: tests/icon.rs
+expression: "rendered(Icon::Day(Condition::Thunderstorm), size, flash())"
+---
+....WWWW....
+..WWWWWWWW..
+WWWWyyWWWWWW
+....yy......

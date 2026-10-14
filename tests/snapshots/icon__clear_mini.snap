@@ -1,0 +1,14 @@
+---
+source: tests/icon.rs
+expression: snapshot
+---
+frame 1
+....yyyy....
+..yyyyyyyy..
+..yyyyyyyy..
+....yyyy....
+frame 2
+YY..yyyy..YY
+..yyyyyyyy..
+..yyyyyyyy..
+YY..yyyy..YY

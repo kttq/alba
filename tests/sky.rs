@@ -1,15 +1,17 @@
 mod common;
 
 use alba::{
+    pixels::{Canvas, Pixel, PixelColor},
     sky::{MoonPhase, MoonPhaseName, Sky, Timeline},
     strings::Strings,
     weather::{DayOrNight, Forecast},
 };
 use common::{
-    DAY, HOUR, MIDNIGHT, at, edited_fixture_forecast, fixture_forecast, small_forecast,
-    three_day_forecast,
+    DAY, HOUR, MIDNIGHT, at, edited_fixture_forecast, fixture_forecast, pixel_snapshot,
+    small_forecast, three_day_forecast,
 };
 use jiff::Timestamp;
+use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
 use serde_json::json;
 
 fn utc(text: &str) -> Timestamp {
@@ -248,4 +250,73 @@ fn no_timeline_spans_a_polar_sentinel_day() {
             at(now)
         );
     }
+}
+
+/// The first hour after the published new moon whose phase reaches `fraction`.
+fn moon_phase_near(fraction: f64) -> MoonPhase {
+    let new_moon = utc(NEW_MOON).as_second();
+    (0..30 * 24)
+        .map(|hour| MoonPhase::at(at(new_moon + hour * HOUR)))
+        .find(|moon_phase| moon_phase.fraction() >= fraction && moon_phase.fraction() < 0.99)
+        .unwrap()
+}
+
+const LIT: Pixel = Pixel::new(PixelColor::Yellow);
+const DARK: Pixel = Pixel::faint(PixelColor::BrightBlack);
+
+fn disc_pixels(disc: &Canvas) -> Vec<Pixel> {
+    (0..disc.height())
+        .flat_map(|y| (0..disc.width()).filter_map(move |x| disc.pixel(x, y)))
+        .collect()
+}
+
+/// Lit and dark pixels across the disc's middle row.
+fn middle_row(disc: &Canvas) -> (usize, usize) {
+    let row: Vec<_> = (0..disc.width()).filter_map(|x| disc.pixel(x, 4)).collect();
+    let lit = row.iter().filter(|pixel| **pixel == LIT).count();
+    (lit, row.len() - lit)
+}
+
+#[test]
+fn new_and_full_moon_discs_are_exact() {
+    let new_moon = MoonPhase::at(utc(NEW_MOON)).disc(8);
+    let full_moon = MoonPhase::at(utc(FULL_MOON)).disc(8);
+
+    assert!(disc_pixels(&new_moon).iter().all(|pixel| *pixel == DARK));
+    assert!(disc_pixels(&full_moon).iter().all(|pixel| *pixel == LIT));
+}
+
+#[test]
+fn thin_crescents_and_gibbous_slices_keep_two_pixels() {
+    let waxing_crescent = moon_phase_near(0.07).disc(8);
+    let waxing_gibbous = moon_phase_near(0.43).disc(8);
+    let waning_gibbous = moon_phase_near(0.57).disc(8);
+    let waning_crescent = moon_phase_near(0.93).disc(8);
+
+    assert_eq!(middle_row(&waxing_crescent), (2, 6));
+    assert_eq!(middle_row(&waxing_gibbous), (6, 2));
+    assert_eq!(middle_row(&waning_gibbous), (6, 2));
+    assert_eq!(middle_row(&waning_crescent), (2, 6));
+}
+
+#[test]
+fn moon_discs_through_the_cycle() {
+    let fractions = [0.0, 0.07, 0.15, 0.25, 0.35, 0.5, 0.65, 0.75, 0.85, 0.93];
+    let snapshot: String = fractions
+        .iter()
+        .map(|fraction| {
+            let moon_phase = if *fraction == 0.0 {
+                MoonPhase::at(utc(NEW_MOON))
+            } else {
+                moon_phase_near(*fraction)
+            };
+            let disc = moon_phase.disc(8);
+            let area = Rect::new(0, 0, disc.width(), disc.height().div_ceil(2));
+            let mut buffer = Buffer::empty(area);
+            disc.render(area, &mut buffer);
+            format!("{fraction}\n{}", pixel_snapshot(&buffer, area))
+        })
+        .collect();
+
+    insta::assert_snapshot!(snapshot);
 }

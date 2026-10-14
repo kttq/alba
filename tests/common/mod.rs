@@ -16,7 +16,13 @@ use alba::{
     weather::{FetchError, Forecast, WeatherSource, WeatherStation},
 };
 use jiff::{Timestamp, Zoned};
-use ratatui::{Terminal, backend::TestBackend};
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::Buffer,
+    layout::Rect,
+    style::{Color, Modifier},
+};
 use serde_json::{Value, json};
 
 pub const BUENOS_AIRES: &str = "coordinates = [-34.6037, -58.3816]";
@@ -242,4 +248,69 @@ pub fn temporary_directory() -> PathBuf {
 
 pub fn make_read_only(directory: &Path) {
     fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
+}
+
+/// Each cell becomes two pixel rows, and each pixel two characters: its color letter twice, its
+/// color letter and `~` when faint, or `..` when empty. Any other symbol is itself and its color
+/// letter, on both rows.
+pub fn pixel_snapshot(buffer: &Buffer, area: Rect) -> String {
+    let mut snapshot = String::new();
+    for y in area.top()..area.bottom() {
+        let (mut top, mut bottom) = (String::new(), String::new());
+        for x in area.left()..area.right() {
+            let cell = &buffer[(x, y)];
+            let faint = cell.modifier.contains(Modifier::DIM);
+            let foreground = pixel_text(Some(cell.fg), faint);
+            let background = pixel_text(background_color(cell.bg), false);
+            let (top_pixel, bottom_pixel) = match cell.symbol() {
+                " " => ("..".to_string(), "..".to_string()),
+                "▀" => (foreground, background),
+                "▄" => (background, foreground),
+                "█" => (foreground.clone(), foreground),
+                symbol => {
+                    let glyph = format!("{symbol}{}", color_letter(cell.fg));
+                    (glyph.clone(), glyph)
+                }
+            };
+            top.push_str(&top_pixel);
+            bottom.push_str(&bottom_pixel);
+        }
+        snapshot.push_str(&format!("{top}\n{bottom}\n"));
+    }
+    snapshot
+}
+
+fn background_color(color: Color) -> Option<Color> {
+    (color != Color::Reset).then_some(color)
+}
+
+fn pixel_text(color: Option<Color>, faint: bool) -> String {
+    match (color, faint) {
+        (None, _) => "..".to_string(),
+        (Some(color), true) => format!("{}~", color_letter(color)),
+        (Some(color), false) => color_letter(color).to_string().repeat(2),
+    }
+}
+
+pub fn color_letter(color: Color) -> char {
+    match color {
+        Color::Reset => 'f',
+        Color::Black => 'k',
+        Color::Red => 'r',
+        Color::Green => 'g',
+        Color::Yellow => 'y',
+        Color::Blue => 'b',
+        Color::Magenta => 'm',
+        Color::Cyan => 'c',
+        Color::Gray => 'w',
+        Color::DarkGray => 'K',
+        Color::LightRed => 'R',
+        Color::LightGreen => 'G',
+        Color::LightYellow => 'Y',
+        Color::LightBlue => 'B',
+        Color::LightMagenta => 'M',
+        Color::LightCyan => 'C',
+        Color::White => 'W',
+        other => panic!("{other:?} is not a named color"),
+    }
 }
