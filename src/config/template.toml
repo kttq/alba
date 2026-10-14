@@ -1,0 +1,22 @@
+# alba config. docs: https://github.com/kttq/alba/blob/main/docs/config.md
+# language: "en" or "es". units: "metric" or "imperial".
+# hour_format: 24 or 12. week_start: "monday" or "sunday".
+
+language    = "en"
+units       = "metric"
+hour_format = 24
+week_start  = "monday"
+
+# location: your city, optionally narrowed, like "paris, united states".
+# check a name at https://open-meteo.com/en/docs/geocoding-api
+# or set coordinates instead, as [latitude, longitude]; they win over location.
+
+# location    = "buenos aires"
+# coordinates = [-34.6037, -58.3816]
+
+# ghost_segments: show unlit clock segments faintly.
+# turn it off if your terminal has no faint style.
+# motion: false stops the blinking colon and all animation.
+
+# ghost_segments = true
+# motion         = true

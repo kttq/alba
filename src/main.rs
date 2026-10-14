@@ -1,6 +1,9 @@
-use std::{io, process::ExitCode, time::Duration};
+use std::{io, path::PathBuf, process::ExitCode, time::Duration};
 
-use alba::app::{App, Control};
+use alba::{
+    app::{App, Control},
+    config,
+};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use ratatui::{
     DefaultTerminal,
@@ -21,27 +24,37 @@ enum Command {
 }
 
 fn main() -> ExitCode {
-    let command = match parse_args(std::env::args().skip(1)) {
-        Ok(command) => command,
-        Err(argument) => {
-            eprintln!("error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage");
-            return ExitCode::FAILURE;
+    let result = match parse_args(std::env::args().skip(1)) {
+        Ok(Command::Run) => start(),
+        Ok(Command::Help) => {
+            println!("{HELP}");
+            Ok(())
         }
+        Ok(Command::Version) => {
+            println!("alba {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Err(argument) => Err(format!(
+            "error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage"
+        )),
     };
-    match command {
-        Command::Help => println!("{HELP}"),
-        Command::Version => println!("alba {}", env!("CARGO_PKG_VERSION")),
-        Command::Run => {
-            let mut terminal = ratatui::init();
-            let result = run(&mut terminal, &mut App::new());
-            ratatui::restore();
-            if let Err(error) = result {
-                eprintln!("error: {error}");
-                return ExitCode::FAILURE;
-            }
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
         }
     }
-    ExitCode::SUCCESS
+}
+
+/// Loads the config before raw mode, so its errors print to a normal terminal.
+fn start() -> Result<(), String> {
+    let home = home().ok_or("error: HOME is not set")?;
+    let config = config::load(&config::path(&home)).map_err(|error| error.to_string())?;
+    let mut terminal = ratatui::init();
+    let result = run(&mut terminal, &mut App::new(&config));
+    ratatui::restore();
+    result.map_err(|error| format!("error: {error}"))
 }
 
 /// Accepts no arguments, or `--help` or `--version` alone. Returns the first argument it rejects.
@@ -58,14 +71,21 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
     }
 }
 
-/// Ticks on every whole wall-clock second. Draws after each tick, and at once on key and resize
-/// events.
+/// An empty `HOME` counts as unset, so paths never resolve against the working directory.
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after
+/// each tick, and at once on key and resize events.
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let mut now = Zoned::now();
     app.tick(&now);
     loop {
         terminal.draw(|frame| app.render(frame.area(), frame.buffer_mut(), &now))?;
-        let next_tick = next_whole_second(now.timestamp());
+        let next_tick = next_tick(now.timestamp(), app.tick_interval());
         if event::poll(until(next_tick))?
             && let Event::Key(key) = event::read()?
             && app.key(key) == Control::Quit
@@ -79,10 +99,11 @@ fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     }
 }
 
-fn next_whole_second(now: Timestamp) -> Timestamp {
-    const NANOS_PER_SECOND: i128 = 1_000_000_000;
-    let into_second = now.as_nanosecond().rem_euclid(NANOS_PER_SECOND) as i64;
-    now - SignedDuration::from_nanos(into_second) + SignedDuration::from_secs(1)
+fn next_tick(now: Timestamp, interval: Duration) -> Timestamp {
+    let interval =
+        SignedDuration::try_from(interval).expect("tick interval fits a signed duration");
+    let into_interval = now.as_nanosecond().rem_euclid(interval.as_nanos()) as i64;
+    now - SignedDuration::from_nanos(into_interval) + interval
 }
 
 /// Zero once `deadline` has passed.
