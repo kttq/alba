@@ -108,16 +108,21 @@ impl MoonPhase {
                 if across * across + down * down > 1.0 {
                     continue;
                 }
-                let half_width = (1.0 - down * down).sqrt();
-                let lit = if self.fraction <= 0.5 {
-                    across > half_width * terminator
-                } else {
-                    across < -half_width * terminator
-                };
+                let lit = self.is_lit(across, down, terminator);
                 disc.set(x, y, if lit { MOON_LIT } else { MOON_DARK });
             }
         }
         disc
+    }
+
+    /// `across` and `down` are in radii from the disc's centre.
+    fn is_lit(&self, across: f64, down: f64, terminator: f64) -> bool {
+        let half_width = (1.0 - down * down).sqrt();
+        if self.fraction <= 0.5 {
+            across > half_width * terminator
+        } else {
+            across < -half_width * terminator
+        }
     }
 
     /// Where the line between the lit and dark sides crosses the middle row, from -1 to 1 of the

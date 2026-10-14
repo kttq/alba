@@ -178,24 +178,24 @@ impl PackedCell {
     fn of(top: Option<Pixel>, bottom: Option<Pixel>) -> Option<Self> {
         let packed = match (top, bottom) {
             (None, None) => return None,
-            (Some(top), None) => Self::half("▀", top, None),
-            (None, Some(bottom)) => Self::half("▄", bottom, None),
-            (Some(top), Some(bottom)) if top == bottom => Self::half("█", top, None),
+            (Some(top), None) => Self::new("▀", top, None),
+            (None, Some(bottom)) => Self::new("▄", bottom, None),
+            (Some(top), Some(bottom)) if top == bottom => Self::new("█", top, None),
             (Some(top), Some(bottom)) if takes_foreground(bottom) && !takes_foreground(top) => {
-                Self::half("▄", bottom, Some(top.color))
+                Self::new("▄", bottom, Some(top.color))
             }
             (Some(top), Some(bottom))
                 if bottom.color == PixelColor::Foreground
                     && top.color != PixelColor::Foreground =>
             {
-                Self::half("▄", bottom, Some(top.color))
+                Self::new("▄", bottom, Some(top.color))
             }
-            (Some(top), Some(bottom)) => Self::half("▀", top, Some(bottom.color)),
+            (Some(top), Some(bottom)) => Self::new("▀", top, Some(bottom.color)),
         };
         Some(packed)
     }
 
-    fn half(symbol: &'static str, foreground: Pixel, background: Option<PixelColor>) -> Self {
+    fn new(symbol: &'static str, foreground: Pixel, background: Option<PixelColor>) -> Self {
         Self {
             symbol,
             foreground,

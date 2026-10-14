@@ -20,7 +20,7 @@ use jiff::{Timestamp, Zoned};
 use ratatui::{
     Terminal,
     backend::TestBackend,
-    buffer::Buffer,
+    buffer::{Buffer, Cell},
     layout::Rect,
     style::{Color, Modifier},
     widgets::Widget,
@@ -260,20 +260,7 @@ pub fn pixel_snapshot(buffer: &Buffer, area: Rect) -> String {
     for y in area.top()..area.bottom() {
         let (mut top, mut bottom) = (String::new(), String::new());
         for x in area.left()..area.right() {
-            let cell = &buffer[(x, y)];
-            let faint = cell.modifier.contains(Modifier::DIM);
-            let foreground = pixel_text(Some(cell.fg), faint);
-            let background = pixel_text(background_color(cell.bg), false);
-            let (top_pixel, bottom_pixel) = match cell.symbol() {
-                " " => ("..".to_string(), "..".to_string()),
-                "▀" => (foreground, background),
-                "▄" => (background, foreground),
-                "█" => (foreground.clone(), foreground),
-                symbol => {
-                    let glyph = format!("{symbol}{}", color_letter(cell.fg));
-                    (glyph.clone(), glyph)
-                }
-            };
+            let (top_pixel, bottom_pixel) = cell_pixels(&buffer[(x, y)]);
             top.push_str(&top_pixel);
             bottom.push_str(&bottom_pixel);
         }
@@ -282,7 +269,23 @@ pub fn pixel_snapshot(buffer: &Buffer, area: Rect) -> String {
     snapshot
 }
 
-/// Renders the canvas alone and decodes it as `pixel_snapshot` does.
+/// The top and bottom pixel of one cell, as text.
+fn cell_pixels(cell: &Cell) -> (String, String) {
+    let faint = cell.modifier.contains(Modifier::DIM);
+    let foreground = pixel_text(Some(cell.fg), faint);
+    let background = pixel_text(background_color(cell.bg), false);
+    match cell.symbol() {
+        " " => ("..".to_string(), "..".to_string()),
+        "▀" => (foreground, background),
+        "▄" => (background, foreground),
+        "█" => (foreground.clone(), foreground),
+        symbol => {
+            let glyph = format!("{symbol}{}", color_letter(cell.fg));
+            (glyph.clone(), glyph)
+        }
+    }
+}
+
 pub fn canvas_snapshot(canvas: &Canvas) -> String {
     let area = Rect::new(0, 0, canvas.width(), canvas.height().div_ceil(2));
     let mut buffer = Buffer::empty(area);
