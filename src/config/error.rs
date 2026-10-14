@@ -1,4 +1,4 @@
-use std::{fmt, ops::Range};
+use std::{fmt, io, ops::Range, path::Path};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
@@ -9,14 +9,23 @@ pub enum ConfigError {
 }
 
 impl ConfigError {
-    /// An `Invalid` error on the line where `span` starts. A span-less error points at line 1.
-    pub(super) fn at(text: &str, span: Option<Range<usize>>, reason: &str) -> Self {
-        let start = span.map_or(0, |span| span.start).min(text.len());
+    /// An `Invalid` error on the line where `span` starts. An empty span points at line 1.
+    pub(super) fn at(text: &str, span: Range<usize>, reason: &str) -> Self {
+        let start = span.start.min(text.len());
         let line = text[..start].matches('\n').count() + 1;
         Self::Invalid {
             line,
             reason: reason.to_string(),
         }
+    }
+
+    /// `read_to_string` reports a file that isn't UTF-8 as `InvalidData`.
+    pub(super) fn unreadable(path: &Path, error: &io::Error) -> Self {
+        let reason = match error.kind() {
+            io::ErrorKind::InvalidData => format!("{} is not valid UTF-8", path.display()),
+            _ => format!("cannot read {}: {error}", path.display()),
+        };
+        Self::Unreadable { reason }
     }
 }
 

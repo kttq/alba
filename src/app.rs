@@ -71,30 +71,31 @@ impl App {
     }
 
     fn text_clock(&self, now: &Zoned) -> Line<'static> {
-        let minutes = format!("{:02}", now.minute());
-        match self.config.hour_format {
-            HourFormat::TwentyFour => Line::from(vec![
-                Span::raw(format!("{:02}", now.hour())),
-                self.colon(now),
-                Span::raw(minutes),
-            ]),
-            HourFormat::Twelve => {
-                let hour = match now.hour() % 12 {
-                    0 => 12,
-                    hour => hour,
-                };
-                let mark = if now.hour() < 12 {
-                    self.strings.am
-                } else {
-                    self.strings.pm
-                };
-                Line::from(vec![
-                    Span::raw(hour.to_string()),
-                    self.colon(now),
-                    Span::raw(minutes),
-                    mark.dim(),
-                ])
-            }
+        let mut spans = vec![
+            Span::raw(self.hour(now)),
+            self.colon(now),
+            Span::raw(format!("{:02}", now.minute())),
+        ];
+        if self.config.hour_format == HourFormat::Twelve {
+            spans.push(self.am_pm(now).dim());
+        }
+        Line::from(spans)
+    }
+
+    /// `06` on the 24-hour clock; `6` on the 12-hour clock, where midnight and noon are `12`.
+    fn hour(&self, now: &Zoned) -> String {
+        match (self.config.hour_format, now.hour() % 12) {
+            (HourFormat::TwentyFour, _) => format!("{:02}", now.hour()),
+            (HourFormat::Twelve, 0) => "12".to_string(),
+            (HourFormat::Twelve, hour) => hour.to_string(),
+        }
+    }
+
+    fn am_pm(&self, now: &Zoned) -> &'static str {
+        if now.hour() < 12 {
+            self.strings.am
+        } else {
+            self.strings.pm
         }
     }
 

@@ -63,29 +63,10 @@ fn enabled() -> bool {
 
 impl Config {
     pub fn parse(text: &str) -> Result<Self, ConfigError> {
-        let file: ConfigFile = toml::from_str(text)
-            .map_err(|error| ConfigError::at(text, error.span(), error.message()))?;
-        let location = match (file.latitude, file.longitude) {
-            (Some(latitude), Some(longitude)) => Some(Location::Coordinates {
-                latitude: in_range(text, "latitude", latitude, 90.0)?,
-                longitude: in_range(text, "longitude", longitude, 180.0)?,
-            }),
-            (Some(latitude), None) => {
-                return Err(ConfigError::at(
-                    text,
-                    Some(latitude.span()),
-                    "latitude is set without longitude",
-                ));
-            }
-            (None, Some(longitude)) => {
-                return Err(ConfigError::at(
-                    text,
-                    Some(longitude.span()),
-                    "longitude is set without latitude",
-                ));
-            }
-            (None, None) => file.location.map(Location::Name),
-        };
+        let file: ConfigFile = toml::from_str(text).map_err(|error| {
+            ConfigError::at(text, error.span().unwrap_or_default(), error.message())
+        })?;
+        let location = location(text, file.location, file.latitude, file.longitude)?;
         Ok(Self {
             language: file.language,
             units: file.units,
@@ -98,6 +79,26 @@ impl Config {
     }
 }
 
+/// Coordinates win over the name. Only one of them set is an error.
+fn location(
+    text: &str,
+    name: Option<String>,
+    latitude: Option<Spanned<f64>>,
+    longitude: Option<Spanned<f64>>,
+) -> Result<Option<Location>, ConfigError> {
+    let unpaired =
+        |coordinate: Spanned<f64>, reason| ConfigError::at(text, coordinate.span(), reason);
+    match (latitude, longitude) {
+        (Some(latitude), Some(longitude)) => Ok(Some(Location::Coordinates {
+            latitude: in_range(text, "latitude", latitude, 90.0)?,
+            longitude: in_range(text, "longitude", longitude, 180.0)?,
+        })),
+        (Some(latitude), None) => Err(unpaired(latitude, "latitude is set without longitude")),
+        (None, Some(longitude)) => Err(unpaired(longitude, "longitude is set without latitude")),
+        (None, None) => Ok(name.map(Location::Name)),
+    }
+}
+
 /// Checks that a coordinate in degrees lies within `-limit..=limit`. NaN fails too.
 fn in_range(text: &str, name: &str, degrees: Spanned<f64>, limit: f64) -> Result<f64, ConfigError> {
     let span = degrees.span();
@@ -106,6 +107,6 @@ fn in_range(text: &str, name: &str, degrees: Spanned<f64>, limit: f64) -> Result
         Ok(degrees)
     } else {
         let reason = format!("{name} must be -{limit} to {limit}, found {degrees}");
-        Err(ConfigError::at(text, Some(span), &reason))
+        Err(ConfigError::at(text, span, &reason))
     }
 }

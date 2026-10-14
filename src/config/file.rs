@@ -16,24 +16,14 @@ pub fn path(home: &Path) -> PathBuf {
 /// Reads the config at `path`. With no file there, writes the template and returns the defaults.
 /// A failed template write is ignored, so alba still runs.
 pub fn load(path: &Path) -> Result<Config, ConfigError> {
-    let text = match fs::read_to_string(path) {
-        Ok(text) => text,
+    match fs::read_to_string(path) {
+        Ok(text) => Config::parse(&text),
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             let _ = write_template(path);
-            return Ok(Config::default());
+            Ok(Config::default())
         }
-        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
-            return Err(ConfigError::Unreadable {
-                reason: format!("{} is not valid UTF-8", path.display()),
-            });
-        }
-        Err(error) => {
-            return Err(ConfigError::Unreadable {
-                reason: format!("cannot read {}: {error}", path.display()),
-            });
-        }
-    };
-    Config::parse(&text)
+        Err(error) => Err(ConfigError::unreadable(path, &error)),
+    }
 }
 
 /// Writes a temporary file, then links it into place, so an interrupted write never leaves a

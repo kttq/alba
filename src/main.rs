@@ -24,39 +24,37 @@ enum Command {
 }
 
 fn main() -> ExitCode {
-    let command = match parse_args(std::env::args().skip(1)) {
-        Ok(command) => command,
-        Err(argument) => {
-            eprintln!("error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage");
-            return ExitCode::FAILURE;
+    let result = match parse_args(std::env::args().skip(1)) {
+        Ok(Command::Run) => start(),
+        Ok(Command::Help) => {
+            println!("{HELP}");
+            Ok(())
         }
+        Ok(Command::Version) => {
+            println!("alba {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Err(argument) => Err(format!(
+            "error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage"
+        )),
     };
-    match command {
-        Command::Help => println!("{HELP}"),
-        Command::Version => println!("alba {}", env!("CARGO_PKG_VERSION")),
-        Command::Run => {
-            // Both checks print before raw mode, so their messages stay readable.
-            let Some(home) = home() else {
-                eprintln!("error: HOME is not set");
-                return ExitCode::FAILURE;
-            };
-            let config = match config::load(&config::path(&home)) {
-                Ok(config) => config,
-                Err(error) => {
-                    eprintln!("{error}");
-                    return ExitCode::FAILURE;
-                }
-            };
-            let mut terminal = ratatui::init();
-            let result = run(&mut terminal, &mut App::new(&config));
-            ratatui::restore();
-            if let Err(error) = result {
-                eprintln!("error: {error}");
-                return ExitCode::FAILURE;
-            }
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::FAILURE
         }
     }
-    ExitCode::SUCCESS
+}
+
+/// Loads the config before raw mode, so its errors print to a normal terminal.
+fn start() -> Result<(), String> {
+    let home = home().ok_or("error: HOME is not set")?;
+    let config = config::load(&config::path(&home)).map_err(|error| error.to_string())?;
+    let mut terminal = ratatui::init();
+    let result = run(&mut terminal, &mut App::new(&config));
+    ratatui::restore();
+    result.map_err(|error| format!("error: {error}"))
 }
 
 /// Accepts no arguments, or `--help` or `--version` alone. Returns the first argument it rejects.
@@ -80,8 +78,8 @@ fn home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after each tick, and at once on key and resize
-/// events.
+/// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after
+/// each tick, and at once on key and resize events.
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let mut now = Zoned::now();
     app.tick(&now);
