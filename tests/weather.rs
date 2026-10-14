@@ -10,6 +10,7 @@ use ratatui::{
     style::Stylize,
     text::{Line, Span},
 };
+use serde_json::{Value, json};
 
 #[test]
 fn fetched_weather_shows_on_the_text_line() {
@@ -49,8 +50,14 @@ fn imperial_units_show_whole_fahrenheit() {
     assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 58° ‚‚");
 }
 
+fn edited_forecast(edit: impl FnOnce(&mut Value)) -> String {
+    let mut forecast: Value = serde_json::from_str(&forecast_body()).unwrap();
+    edit(&mut forecast);
+    forecast.to_string()
+}
+
 fn forecast_with_code(code: u16) -> String {
-    forecast_body().replace("\"weather_code\": 61", &format!("\"weather_code\": {code}"))
+    edited_forecast(|forecast| forecast["current"]["weather_code"] = json!(code))
 }
 
 #[test]
@@ -58,7 +65,9 @@ fn failed_fetches_show_no_weather() {
     let failures = [
         (
             "null",
-            Ok(forecast_body().replace("\"temperature_2m\": 14.4", "\"temperature_2m\": null")),
+            Ok(edited_forecast(|forecast| {
+                forecast["current"]["temperature_2m"] = Value::Null
+            })),
         ),
         ("malformed", Ok(forecast_body()[..200].to_string())),
         (
@@ -68,11 +77,18 @@ fn failed_fetches_show_no_weather() {
         ("empty", Ok(String::new())),
         (
             "uneven columns",
-            Ok(forecast_body().replace("\"sunrise\": [", "\"sunrise\": [1791800000,")),
+            Ok(edited_forecast(|forecast| {
+                forecast["daily"]["sunrise"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!(1791800000))
+            })),
         ),
         (
             "day flag out of range",
-            Ok(forecast_body().replace("\"is_day\": 1", "\"is_day\": 7")),
+            Ok(edited_forecast(|forecast| {
+                forecast["current"]["is_day"] = json!(7)
+            })),
         ),
         ("http error", Err(FetchError::Status(503))),
         (
