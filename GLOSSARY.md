@@ -55,3 +55,7 @@ _Avoid_: Old data, outdated weather
 **Expired weather**:
 Weather data too old to show at all; alba treats it as having no weather.
 _Avoid_: Invalid cache, dead data
+
+**Forecast day**:
+The day at the forecast location, from midnight to midnight, that today's high and low belong to. It can differ from the calendar's today when the location is far away.
+_Avoid_: Location date, local day
