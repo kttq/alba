@@ -60,7 +60,7 @@ fn main() -> ExitCode {
 }
 
 /// The alba that `cargo build` puts beside this example's directory, for the same profile.
-fn release_binary() -> Result<PathBuf, String> {
+fn sibling_binary() -> Result<PathBuf, String> {
     let example = env::current_exe().map_err(|error| error.to_string())?;
     let binary = example
         .parent()
@@ -75,7 +75,7 @@ fn release_binary() -> Result<PathBuf, String> {
 fn run(drive: &Drive) -> io::Result<bool> {
     let binary = match &drive.binary {
         Some(binary) => binary.clone(),
-        None => release_binary().map_err(io::Error::other)?,
+        None => sibling_binary().map_err(io::Error::other)?,
     };
     let mut alba = Alba::spawn(&Launch {
         binary,
