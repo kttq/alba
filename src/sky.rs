@@ -46,9 +46,8 @@ fn surrounding(sun_events: &[SunEvent], now: Timestamp) -> Option<(SunEvent, Sun
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MoonPhase {
-    /// Of the synodic month since new moon, from 0 up to 1.
-    pub fraction: f64,
-    pub name: MoonPhaseName,
+    fraction: f64,
+    name: MoonPhaseName,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +75,15 @@ impl MoonPhase {
             fraction,
             name: MoonPhaseName::IN_CYCLE_ORDER[eighth],
         }
+    }
+
+    /// Of the cycle since new moon, from 0 up to 1.
+    pub fn fraction(&self) -> f64 {
+        self.fraction
+    }
+
+    pub fn name(&self) -> MoonPhaseName {
+        self.name
     }
 
     pub fn illumination_percent(&self) -> u8 {

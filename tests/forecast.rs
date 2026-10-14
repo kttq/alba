@@ -6,7 +6,6 @@ use common::{
 };
 use serde_json::json;
 
-/// Hourly values 0, 1, 2, … at each hour from midnight.
 fn forecast_with_hours(hours: i64) -> Forecast {
     forecast(|forecast| {
         forecast["hourly"] = json!({

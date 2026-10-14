@@ -134,7 +134,7 @@ fn madrid_night_crosses_the_end_of_daylight_saving() {
 
 fn moon_at(text: &str) -> (MoonPhaseName, u8) {
     let moon_phase = MoonPhase::at(utc(text));
-    (moon_phase.name, moon_phase.illumination_percent())
+    (moon_phase.name(), moon_phase.illumination_percent())
 }
 
 /// Published phases of October 2025, in UTC.
@@ -163,7 +163,7 @@ fn each_phase_name_covers_the_days_around_its_point() {
     ];
     for (point, name) in points {
         for now in [utc(point) - a_day_and_a_half, utc(point) + a_day_and_a_half] {
-            assert_eq!(MoonPhase::at(now).name, name, "{now}");
+            assert_eq!(MoonPhase::at(now).name(), name, "{now}");
         }
     }
 
