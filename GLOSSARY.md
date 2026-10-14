@@ -40,6 +40,10 @@ _Avoid_: Footer, tagline, message
 An unlit segment of the LCD clock, shown faintly so every digit keeps the shape of an 8.
 _Avoid_: Shadow digit, background segment
 
+**Weather station**:
+The part of alba that holds the latest weather: it reads the cache at start, fetches the forecast, and writes the cache.
+_Avoid_: Weather feed, weather service
+
 **Stale weather**:
 Weather data old enough that refreshes have failed; still shown, but dimmed and labelled with its age.
 _Avoid_: Old data, outdated weather

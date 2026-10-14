@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Keeps the current weather: from the cache at start, then from one fetch.
-pub struct WeatherFeed {
+pub struct WeatherStation {
     coordinates: Option<Coordinates>,
     weather_source: Box<dyn WeatherSource>,
     cache_directory: PathBuf,
@@ -17,7 +17,7 @@ pub struct WeatherFeed {
     fetch_requested: bool,
 }
 
-impl WeatherFeed {
+impl WeatherStation {
     pub fn new(
         coordinates: Option<Coordinates>,
         weather_source: Box<dyn WeatherSource>,

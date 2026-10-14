@@ -15,7 +15,7 @@ use crate::{
     config::{Config, Coordinates, Location, Units},
     log::Log,
     strings::Strings,
-    weather::{self, WeatherFeed, WeatherSource},
+    weather::{self, WeatherSource, WeatherStation},
 };
 
 /// Time and time zone come only from `now`, never the system clock.
@@ -23,7 +23,7 @@ pub struct App {
     units: Units,
     strings: &'static Strings,
     clock: Clock,
-    weather_feed: WeatherFeed,
+    weather_station: WeatherStation,
     log: Log,
 }
 
@@ -45,13 +45,17 @@ impl App {
             units: config.units,
             strings: Strings::of(config.language),
             clock: Clock::new(config),
-            weather_feed: WeatherFeed::new(coordinates(config), weather_source, cache_directory),
+            weather_station: WeatherStation::new(
+                coordinates(config),
+                weather_source,
+                cache_directory,
+            ),
             log: Log::start(&state_directory),
         }
     }
 
     pub fn tick(&mut self, now: &Zoned) {
-        self.weather_feed.tick(now, &mut self.log);
+        self.weather_station.tick(now, &mut self.log);
     }
 
     pub fn tick_interval(&self) -> Duration {
@@ -89,7 +93,7 @@ impl App {
         let clock = self.clock.text_line(now);
         let date = calendar::short_date(self.strings, now);
         let weather = self
-            .weather_feed
+            .weather_station
             .weather()
             .map(|weather| weather::text_line(weather, self.units));
         match weather {
