@@ -1,4 +1,4 @@
-# alba config. all options: https://github.com/kttq/alba#config
+# alba config. docs: https://github.com/kttq/alba/blob/main/docs/config.md
 # language: "en" or "es". units: "metric" or "imperial".
 # hour_format: 24 or 12. week_start: "monday" or "sunday".
 

@@ -155,7 +155,7 @@ fn config_without_a_location_is_not_an_error() {
 }
 
 /// The spec's first-run template, copied by hand so the test does not read it from the code.
-const SPEC_TEMPLATE: &str = r#"# alba config. all options: https://github.com/kttq/alba#config
+const SPEC_TEMPLATE: &str = r#"# alba config. docs: https://github.com/kttq/alba/blob/main/docs/config.md
 # language: "en" or "es". units: "metric" or "imperial".
 # hour_format: 24 or 12. week_start: "monday" or "sunday".
 
