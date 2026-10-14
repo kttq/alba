@@ -23,15 +23,17 @@ enum Command {
     Version,
 }
 
-#[expect(
-    clippy::unit_arg,
-    reason = "Ok(println!(..)) keeps each command on one line"
-)]
 fn main() -> ExitCode {
     let result = match parse_args(std::env::args().skip(1)) {
         Ok(Command::Run) => start(),
-        Ok(Command::Help) => Ok(println!("{HELP}")),
-        Ok(Command::Version) => Ok(println!("alba {}", env!("CARGO_PKG_VERSION"))),
+        Ok(Command::Help) => {
+            println!("{HELP}");
+            Ok(())
+        }
+        Ok(Command::Version) => {
+            println!("alba {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         Err(argument) => Err(format!(
             "error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage"
         )),
