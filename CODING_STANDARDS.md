@@ -20,3 +20,4 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Keep validation and logic pure, and apart from I/O. Validate first, then write.
 - Give each function one job. An orchestrator calls one-job helpers.
 - Make a platform-specific step a named function.
+- Reach for a derive or a maintained crate, such as `serde_repr`, before a hand-written trait impl or macro. Ask before adding the crate.
