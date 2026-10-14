@@ -24,16 +24,15 @@ die() {
 	exit 1
 }
 
-# Prints "number x,y,width,height" of the on-screen window that a process owns.
-window() {
+# Prints "x,y,width,height" of the on-screen window that a process owns.
+window_bounds() {
 	osascript -l JavaScript -e "
 		ObjC.import('CoreGraphics');
 		const windows = ObjC.deepUnwrap(ObjC.castRefToObject(
 			\$.CGWindowListCopyWindowInfo(\$.kCGWindowListOptionOnScreenOnly, 0)));
 		const own = windows.filter(w => w.kCGWindowOwnerPID === $1 && w.kCGWindowLayer === 0);
 		const bounds = own.length && own[0].kCGWindowBounds;
-		own.length ? own[0].kCGWindowNumber + ' ' +
-			[bounds.X, bounds.Y, bounds.Width, bounds.Height].join(',') : '';"
+		own.length ? [bounds.X, bounds.Y, bounds.Width, bounds.Height].join(',') : '';"
 }
 
 # Walks up from alba to the Ghostty process that runs it.
@@ -48,12 +47,10 @@ ghostty_ancestor() {
 	return 1
 }
 
-# A tiling window manager overrides Ghostty's size; floating restores it.
-float() {
-	if command -v aerospace >/dev/null && aerospace list-workspaces --focused >/dev/null 2>&1; then
-		aerospace layout floating --window-id "$1"
-		sleep 0.3
-	fi
+# Prints alba's pane as "COLSxROWS", read from its terminal.
+pane_size() {
+	tty=$(ps -o tty= -p "$1" | tr -d ' ')
+	stty -f "/dev/$tty" size | awk '{ print $2 "x" $1 }'
 }
 
 # Prints the macOS sandbox-exec prefix that denies every network call.
@@ -114,19 +111,21 @@ launch() {
 	alive "$home/alba.pid" || die "alba did not start; read $home/run.sh"
 	ghostty_ancestor "$(cat "$home/alba.pid")" >"$home/ghostty.pid" || die "no Ghostty above alba"
 	for _ in $(seq 50); do
-		[ -n "$(window "$(cat "$home/ghostty.pid")")" ] && break
+		[ -n "$(window_bounds "$(cat "$home/ghostty.pid")")" ] && break
 		sleep 0.2
 	done
-	float "$(window "$(cat "$home/ghostty.pid")" | cut -d' ' -f1)"
 	# The first draw follows the window; a second lets the fetch indicator settle.
 	sleep 1
+	pane=$(pane_size "$(cat "$home/alba.pid")")
+	[ "$pane" = "${cols}x${rows}" ] ||
+		echo "warning: the pane is $pane, not ${cols}x${rows}; a window manager resized the window" >&2
 	echo "alba $(cat "$home/alba.pid") in Ghostty $(cat "$home/ghostty.pid"): $theme, ${cols}x${rows}${offline:+, offline}"
 }
 
 shot() {
 	home=$1 file=$2
 	alive "$home/ghostty.pid" || die "no Ghostty from $home; launch first"
-	bounds=$(window "$(cat "$home/ghostty.pid")" | cut -d' ' -f2)
+	bounds=$(window_bounds "$(cat "$home/ghostty.pid")")
 	[ -n "$bounds" ] || die "the Ghostty window from $home is not on screen"
 	mkdir -p "$(dirname "$file")"
 	screencapture -x -R "$bounds" "$file"
