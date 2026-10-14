@@ -20,6 +20,7 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Parse input once at the boundary into a type, and trust that type inward.
 - Keep validation and logic pure, and apart from I/O. Validate first, then write.
 - Give each function one job. An orchestrator calls one-job helpers.
+- Give each module its own state, tick, and rendering. `App` composes the modules and holds no module's logic.
 - Keep a function flat: return early, and give a nested branch its own named helper.
 - Make a platform-specific step a named function.
 - Reach for a derive or a maintained crate, such as `serde_repr`, before a hand-written trait impl or macro. Ask before adding the crate.
