@@ -132,3 +132,11 @@ fn times_out_of_range_or_order_fail_the_response() {
     ));
     assert!(!parses_with(|body| body["hourly"]["time"][1] = json!(0)));
 }
+
+#[test]
+fn deserializing_a_forecast_validates_it() {
+    let mut body: serde_json::Value = serde_json::from_str(&common::forecast_body()).unwrap();
+    body["daily"]["sunset"] = json!([]);
+
+    assert!(serde_json::from_value::<Forecast>(body).is_err());
+}

@@ -9,11 +9,36 @@ const DAY_SECONDS: i64 = 24 * 60 * 60;
 
 /// Fields keep their Open-Meteo names. Times are Unix seconds; temperatures are Celsius.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(try_from = "UncheckedForecast")]
 pub struct Forecast {
     utc_offset_seconds: i32,
     current: Current,
     daily: Daily,
     hourly: Hourly,
+}
+
+/// A forecast before `validate`, so no `Forecast` skips it.
+#[derive(Deserialize)]
+struct UncheckedForecast {
+    utc_offset_seconds: i32,
+    current: Current,
+    daily: Daily,
+    hourly: Hourly,
+}
+
+impl TryFrom<UncheckedForecast> for Forecast {
+    type Error = String;
+
+    fn try_from(unchecked: UncheckedForecast) -> Result<Self, String> {
+        let forecast = Self {
+            utc_offset_seconds: unchecked.utc_offset_seconds,
+            current: unchecked.current,
+            daily: unchecked.daily,
+            hourly: unchecked.hourly,
+        };
+        forecast.validate()?;
+        Ok(forecast)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -85,10 +110,7 @@ fn timestamp(second: i64) -> Timestamp {
 
 impl Forecast {
     pub fn parse(body: &str) -> Result<Self, FetchError> {
-        let forecast: Self =
-            serde_json::from_str(body).map_err(|error| FetchError::Invalid(error.to_string()))?;
-        forecast.validate().map_err(FetchError::Invalid)?;
-        Ok(forecast)
+        serde_json::from_str(body).map_err(|error| FetchError::Invalid(error.to_string()))
     }
 
     /// Celsius.
@@ -157,7 +179,7 @@ impl Forecast {
         &probabilities[..probabilities.len().min(PRECIPITATION_HOURS)]
     }
 
-    pub fn validate(&self) -> Result<(), String> {
+    fn validate(&self) -> Result<(), String> {
         let days = self.daily.time.len();
         let daily_columns = [
             self.daily.sunrise.len(),
