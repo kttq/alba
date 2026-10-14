@@ -13,7 +13,7 @@ use std::{
 use common::{
     fixture_home::{CachedWeather, FixtureHome},
     pty::{
-        Alba, EXITED_WITHIN, FLOOD_GAP, Launch, PaneSize, Step, colors, pane_length,
+        Alba, Drive, EXITED_WITHIN, FLOOD_GAP, Launch, Output, PaneSize, Step, colors, pane_length,
         screen_restored, styled_runs, transcript_lines,
     },
     temporary_directory,
@@ -218,6 +218,50 @@ fn no_cell_uses_an_rgb_or_indexed_color() {
             }
         }
     }
+}
+
+fn drive_arguments(arguments: &str) -> Result<Drive, String> {
+    Drive::parse(arguments.split(' ').map(String::from))
+}
+
+#[test]
+fn bad_drive_arguments_fail_to_parse() {
+    for arguments in [
+        "home resize=wide",
+        "home --cols 0",
+        "home --rows",
+        "home --colour 3",
+        "home jump",
+        "--cols 40",
+    ] {
+        assert!(drive_arguments(arguments).is_err(), "{arguments}");
+    }
+}
+
+#[test]
+fn options_and_steps_mix_after_home() {
+    let drive = drive_arguments("home screen --cols 60 key=q --offline exited").unwrap();
+    assert_eq!(drive.home, PathBuf::from("home"));
+    assert_eq!(drive.pane_size, PaneSize { cols: 60, rows: 12 });
+    assert!(drive.offline);
+    assert_eq!(
+        drive.steps,
+        [Step::Screen, Step::Key("q".to_string()), Step::Exited]
+    );
+}
+
+#[test]
+fn a_character_split_across_reads_stays_whole_in_the_transcript() {
+    let degree = "°".as_bytes();
+    let reads = [&[b'1', b'4', degree[0]][..], &degree[1..]].map(|bytes| Output {
+        time: SystemTime::now(),
+        bytes: bytes.to_vec(),
+    });
+    let outputs: Vec<String> = transcript_lines(&reads)
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap()["output"].to_string())
+        .collect();
+    assert_eq!(outputs, [r#""14""#, r#""°""#]);
 }
 
 #[test]

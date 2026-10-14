@@ -11,7 +11,7 @@ use std::{
     process::ExitCode,
 };
 
-use pty::{Alba, Launch, PaneSize, Step, framed, pane_length, run_steps, transcript_lines};
+use pty::{Alba, Drive, Launch, framed, run_steps, transcript_lines};
 
 const USAGE: &str = "\
 usage: drive HOME [--cols 40] [--rows 12] [--offline] [--binary PATH] [--transcript FILE] STEP...
@@ -37,18 +37,12 @@ options:
 The driver exits 0 only when every step passed, alba exited 0, and the terminal was
 restored: the alternate screen left, the cursor shown, and cooked mode back on.";
 
-struct Drive {
-    launch: Launch,
-    transcript: Option<PathBuf>,
-    steps: Vec<Step>,
-}
-
 fn main() -> ExitCode {
     if env::args().any(|argument| argument == "-h" || argument == "--help") {
         println!("{USAGE}");
         return ExitCode::SUCCESS;
     }
-    let drive = match parse(env::args().skip(1)) {
+    let drive = match Drive::parse(env::args().skip(1)) {
         Ok(drive) => drive,
         Err(reason) => {
             eprintln!("drive: {reason}\n\n{USAGE}");
@@ -65,43 +59,6 @@ fn main() -> ExitCode {
     }
 }
 
-/// Options and steps may come in any order after HOME.
-fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Drive, String> {
-    let mut home = None;
-    let mut pane_size = PaneSize { cols: 40, rows: 12 };
-    let mut offline = false;
-    let mut binary = None;
-    let mut transcript = None;
-    let mut steps = Vec::new();
-    while let Some(argument) = arguments.next() {
-        let mut value = || {
-            arguments
-                .next()
-                .ok_or_else(|| format!("{argument} needs a value"))
-        };
-        match argument.as_str() {
-            "--cols" => pane_size.cols = pane_length(&value()?)?,
-            "--rows" => pane_size.rows = pane_length(&value()?)?,
-            "--offline" => offline = true,
-            "--binary" => binary = Some(PathBuf::from(value()?)),
-            "--transcript" => transcript = Some(PathBuf::from(value()?)),
-            option if option.starts_with("--") => return Err(format!("unknown option {option}")),
-            _ if home.is_none() => home = Some(PathBuf::from(argument)),
-            step => steps.push(step.parse()?),
-        }
-    }
-    Ok(Drive {
-        launch: Launch {
-            binary: binary.map_or_else(release_binary, Ok)?,
-            home: home.ok_or("HOME is missing")?,
-            pane_size,
-            offline,
-        },
-        transcript,
-        steps,
-    })
-}
-
 /// The alba that `cargo build` puts beside this example's directory, for the same profile.
 fn release_binary() -> Result<PathBuf, String> {
     let example = env::current_exe().map_err(|error| error.to_string())?;
@@ -116,7 +73,16 @@ fn release_binary() -> Result<PathBuf, String> {
 
 /// Returns whether the drive passed.
 fn run(drive: &Drive) -> io::Result<bool> {
-    let mut alba = Alba::spawn(&drive.launch)?;
+    let binary = match &drive.binary {
+        Some(binary) => binary.clone(),
+        None => release_binary().map_err(io::Error::other)?,
+    };
+    let mut alba = Alba::spawn(&Launch {
+        binary,
+        home: drive.home.clone(),
+        pane_size: drive.pane_size,
+        offline: drive.offline,
+    })?;
     let mut out = io::stdout().lock();
     alba.wait_for("°");
     let failures = run_steps(&mut alba, &drive.steps, &mut out)?;

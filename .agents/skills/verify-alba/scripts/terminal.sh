@@ -65,8 +65,7 @@ write_run_script() {
 # Prints the id of alba's window. The tab's terminal device finds it: the startup window
 # can be in front.
 open_window() {
-	home=$1 theme=$2 cols=$3 rows=$4 title=$5
-	settings=$(theme_settings "$theme")
+	home=$1 settings=$2 cols=$3 rows=$4 title=$5
 	osascript <<-EOF
 		tell application "Terminal"
 			set t to do script "exec '$home/run.sh'"
@@ -109,7 +108,7 @@ launch() {
 		*) die "unknown option: $1" ;;
 		esac
 	done
-	theme_settings "$theme" >/dev/null
+	settings=$(theme_settings "$theme")
 	check_pane_length "$cols"
 	check_pane_length "$rows"
 	[ -f "$home/.config/alba/config.toml" ] || die "$home has no config; run the fixture example first"
@@ -121,7 +120,7 @@ launch() {
 	rm -f "$home/alba.pid" "$home/window.id"
 	title="alba · $theme · ${cols}x${rows}${offline:+ · offline}"
 	# Terminal also opens a startup window; it stays until stop, and shot leaves it out.
-	open_window "$home" "$theme" "$cols" "$rows" "$title" >"$home/window.id"
+	open_window "$home" "$settings" "$cols" "$rows" "$title" >"$home/window.id"
 
 	for _ in $(seq 50); do
 		alive "$home/alba.pid" && break

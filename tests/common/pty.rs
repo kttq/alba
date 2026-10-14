@@ -32,6 +32,7 @@ const KEY_GAP: Duration = Duration::from_millis(50);
 /// 30 keys a second.
 pub const FLOOD_GAP: Duration = Duration::from_nanos(1_000_000_000 / 30);
 const STARTUP: Duration = Duration::from_secs(1);
+const DRAIN_DEADLINE: Duration = Duration::from_secs(1);
 const POLL: Duration = Duration::from_millis(50);
 /// Denies every network call; the terminal is not a network, so drawing still works.
 const OFFLINE_PROFILE: &str = "(version 1)(allow default)(deny network*)";
@@ -214,9 +215,14 @@ impl Alba {
         self.transcript.push(output);
     }
 
-    /// Takes output until the reader reaches the end, for at most one poll after the last read.
+    /// Takes output until the reader reaches the end, a poll passes with no read, or the
+    /// deadline passes: a process that inherited the terminal can keep it open.
     fn pump_to_end(&mut self) {
-        while let Ok(output) = self.outputs.recv_timeout(POLL) {
+        let deadline = Instant::now() + DRAIN_DEADLINE;
+        while Instant::now() < deadline {
+            let Ok(output) = self.outputs.recv_timeout(POLL) else {
+                return;
+            };
             self.take(output);
         }
     }
@@ -240,7 +246,7 @@ fn cpu_seconds(pid: u32) -> Option<f64> {
     parse_cpu_time(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// Reads `ps` time, such as `0:00.01` on macOS or `00:00:00` on Linux.
+/// Reads `ps` time: seconds, optionally with a fraction, after optional hours and minutes.
 fn parse_cpu_time(text: &str) -> Option<f64> {
     text.trim().split(':').try_fold(0.0, |total, field| {
         Some(total * 60.0 + field.parse::<f64>().ok()?)
@@ -344,6 +350,54 @@ fn winsize(pane_size: PaneSize) -> Winsize {
         ws_col: pane_size.cols,
         ws_xpixel: 0,
         ws_ypixel: 0,
+    }
+}
+
+/// The `drive` example's command line, parsed before alba starts.
+#[derive(Debug, PartialEq)]
+pub struct Drive {
+    pub home: PathBuf,
+    pub pane_size: PaneSize,
+    pub offline: bool,
+    /// The alba beside the example when absent.
+    pub binary: Option<PathBuf>,
+    pub transcript: Option<PathBuf>,
+    pub steps: Vec<Step>,
+}
+
+impl Drive {
+    /// Options and steps may come in any order after HOME.
+    pub fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Self, String> {
+        let mut home = None;
+        let mut drive = Self {
+            home: PathBuf::new(),
+            pane_size: PaneSize { cols: 40, rows: 12 },
+            offline: false,
+            binary: None,
+            transcript: None,
+            steps: Vec::new(),
+        };
+        while let Some(argument) = arguments.next() {
+            let mut value = || {
+                arguments
+                    .next()
+                    .ok_or_else(|| format!("{argument} needs a value"))
+            };
+            match argument.as_str() {
+                "--cols" => drive.pane_size.cols = pane_length(&value()?)?,
+                "--rows" => drive.pane_size.rows = pane_length(&value()?)?,
+                "--offline" => drive.offline = true,
+                "--binary" => drive.binary = Some(PathBuf::from(value()?)),
+                "--transcript" => drive.transcript = Some(PathBuf::from(value()?)),
+                option if option.starts_with("--") => {
+                    return Err(format!("unknown option {option}"));
+                }
+                _ if home.is_none() => home = Some(PathBuf::from(argument)),
+                step => drive.steps.push(step.parse()?),
+            }
+        }
+        drive.home = home.ok_or("HOME is missing")?;
+        Ok(drive)
     }
 }
 
@@ -556,7 +610,7 @@ impl StyledRun {
     }
 }
 
-/// One line per run, such as `row 0 col 9 "wed" fg=Idx(4) bg=Default`, with ` dim` for faint.
+/// One line per run: its row, column, text, colors, and `dim` when faint.
 pub fn colors(screen: &vt100::Screen) -> String {
     styled_runs(screen)
         .iter()
@@ -570,18 +624,30 @@ pub fn colors(screen: &vt100::Screen) -> String {
         .collect()
 }
 
-/// One JSON object per read: `{"time": unix seconds, "output": text}`.
+/// One JSON object per read: `{"time": unix seconds, "output": text}`. A character split
+/// across reads belongs to the read that completes it.
 pub fn transcript_lines(outputs: &[Output]) -> String {
-    outputs
-        .iter()
-        .map(|output| {
-            let time = output
-                .time
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs_f64();
-            let text = String::from_utf8_lossy(&output.bytes);
-            format!("{}\n", serde_json::json!({ "time": time, "output": text }))
-        })
-        .collect()
+    let mut pending = Vec::new();
+    let mut lines = String::new();
+    for output in outputs {
+        pending.extend_from_slice(&output.bytes);
+        let complete = complete_utf8_length(&pending);
+        let text = String::from_utf8_lossy(&pending[..complete]).into_owned();
+        pending.drain(..complete);
+        let time = output
+            .time
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64();
+        lines += &format!("{}\n", serde_json::json!({ "time": time, "output": text }));
+    }
+    lines
+}
+
+/// The length of the bytes before a character that the next read may complete.
+fn complete_utf8_length(bytes: &[u8]) -> usize {
+    match std::str::from_utf8(bytes) {
+        Err(error) if error.error_len().is_none() => error.valid_up_to(),
+        _ => bytes.len(),
+    }
 }

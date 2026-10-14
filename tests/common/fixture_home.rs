@@ -69,17 +69,24 @@ impl FixtureHome {
             latitude: number(&forecast["latitude"])?,
             longitude: number(&forecast["longitude"])?,
         };
+        let weather = match self.cached_weather {
+            CachedWeather::NoCache => None,
+            _ => Some(self.weather(&mut forecast, now)?),
+        };
         write_file(&paths.config_file, &self.config(coordinates))?;
-        if self.cached_weather == CachedWeather::NoCache {
-            return Ok(());
+        match weather {
+            None => Ok(()),
+            Some(weather) => cache::write(&paths.cache_directory, coordinates, &weather),
         }
+    }
+
+    fn weather(&self, forecast: &mut Value, now: Timestamp) -> io::Result<Weather> {
         let fetched_at = now - self.age.unwrap_or(self.cached_weather.default_age());
-        self.edit(&mut forecast, now, fetched_at)?;
-        let weather = Weather {
+        self.edit(forecast, now, fetched_at)?;
+        Ok(Weather {
             fetched_at,
             forecast: Forecast::parse(&forecast.to_string()).map_err(failed)?,
-        };
-        cache::write(&paths.cache_directory, coordinates, &weather)
+        })
     }
 
     /// Writes the coordinates exactly as the cache stores them, so alba uses the cache.
