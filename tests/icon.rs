@@ -130,29 +130,30 @@ fn frames_change_every_second_and_stop_without_motion() {
 
 #[test]
 fn frames_differ_except_where_identical_by_design() {
-    let identical_by_design = [
-        "thunderstorm_mini",
-        "thunderstorm_full",
-        "thunderstorm_large",
-        "partly_cloudy_mini",
-        "partly_cloudy_night_mini",
-        "clear_night_mini",
-        "ghost_mini",
-        "ghost_full",
-        "ghost_large",
-    ];
     for (name, icon) in every_icon() {
         for (size_name, size) in SIZES {
-            let label = format!("{name}_{size_name}");
             let frames_differ =
                 rendered(icon, size, frame_one()) != rendered(icon, size, frame_two());
             assert_eq!(
                 frames_differ,
-                !identical_by_design.contains(&label.as_str()),
-                "{label}"
+                !identical_by_design(icon, size),
+                "{name} {size_name}"
             );
         }
     }
+}
+
+/// The storm moves only through its flash, the ghost stands still, and mini icons have no stars.
+fn identical_by_design(icon: Icon, size: IconSize) -> bool {
+    matches!(
+        (icon, size),
+        (Icon::Day(Condition::Thunderstorm) | Icon::Ghost, _)
+            | (
+                Icon::Day(Condition::PartlyCloudy)
+                    | Icon::Night(Condition::Clear | Condition::PartlyCloudy, _),
+                IconSize::Mini,
+            )
+    )
 }
 
 #[test]
