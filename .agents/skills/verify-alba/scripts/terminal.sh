@@ -20,30 +20,30 @@ die() {
 	exit 1
 }
 
-# Built-in profiles, made opaque by background_line. Basic follows the system
-# appearance, so it cannot pin a theme, and Solid Colors picks a random background.
-profile() {
+# Prints "profile|background" for a theme. Basic follows the system appearance, so it
+# cannot pin a theme, and Solid Colors picks a random background. Both built-in profiles
+# here are partly see-through; a background set through AppleScript (RGB from 0 to 65535,
+# no alpha) makes them opaque, so the desktop stays out of a shot.
+theme_settings() {
 	case $1 in
-	light) echo "Clear Light" ;;
-	dark) echo "Pro" ;;
+	light) echo "Clear Light|{65535, 65535, 65535}" ;;
+	dark) echo "Pro|{0, 0, 0}" ;;
 	*) die "unknown theme: $1; use light or dark" ;;
 	esac
 }
 
-# Both profiles are partly see-through, so the desktop would show in a shot.
-# AppleScript colors are RGB from 0 to 65535, with no alpha, so the result is opaque.
-background_line() {
+# A winsize field holds 1 to 65535.
+check_pane_length() {
 	case $1 in
-	light) echo "set background color of t to {65535, 65535, 65535}" ;;
-	dark) echo "set background color of t to {0, 0, 0}" ;;
+	'' | *[!0-9]*) die "not a pane length: $1" ;;
 	esac
+	[ "$1" -ge 1 ] && [ "$1" -le 65535 ] || die "not a pane length from 1 to 65535: $1"
 }
 
 terminal_running() {
 	pgrep -xq Terminal
 }
 
-# Prints the macOS sandbox-exec prefix that denies every network call.
 sandbox_prefix() {
 	echo "/usr/bin/sandbox-exec -p '$OFFLINE_PROFILE'"
 }
@@ -60,16 +60,18 @@ write_run_script() {
 	chmod +x "$1/run.sh"
 }
 
-# Opens alba's window and prints its id, found by the tab's terminal device.
+# Prints the id of alba's window. The tab's terminal device finds it: the startup window
+# can be in front.
 open_window() {
 	home=$1 theme=$2 cols=$3 rows=$4 title=$5
+	settings=$(theme_settings "$theme")
 	osascript <<-EOF
 		tell application "Terminal"
 			set t to do script "exec '$home/run.sh'"
 			set alba_tty to tty of t
 			set alba_window to id of first window whose tty of selected tab is alba_tty
-			set current settings of t to settings set "$(profile "$theme")"
-			$(background_line "$theme")
+			set current settings of t to settings set "${settings%%|*}"
+			set background color of t to ${settings#*|}
 			set custom title of t to "$title"
 			set title displays custom title of t to true
 			set title displays device name of t to false
@@ -105,7 +107,9 @@ launch() {
 		*) die "unknown option: $1" ;;
 		esac
 	done
-	profile "$theme" >/dev/null
+	theme_settings "$theme" >/dev/null
+	check_pane_length "$cols"
+	check_pane_length "$rows"
 	[ -f "$home/.config/alba/config.toml" ] || die "$home has no config; run fixture.py first"
 	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
 	alive "$home/alba.pid" && die "alba already runs from $home; stop it first"

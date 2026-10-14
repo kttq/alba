@@ -1,4 +1,4 @@
-"""Tests for pty_drive.py. Run: python3 -I -m unittest discover -s .agents/skills/verify-alba/scripts"""
+"""Tests for pty_drive.py: its screen model, its step parsing, and its runs of alba."""
 
 import json
 import subprocess
@@ -8,7 +8,7 @@ import time
 import unittest
 from pathlib import Path
 
-from pty_drive import BINARY, Screen
+from pty_drive import BINARY, Screen, screen_restored
 
 SCRIPTS = Path(__file__).resolve().parent
 # Leaves the alternate screen and shows the cursor, but stays in raw mode.
@@ -16,6 +16,18 @@ RAW_EXIT = """#!/bin/sh
 stty raw -echo
 printf '\\033[?1049h\\033[?1049l\\033[?25h'
 """
+# Draws once, then ignores every key.
+DEAF = """#!/bin/sh
+printf '\\033[?1049h'
+exec sleep 30
+"""
+
+
+def executable(directory, text):
+    path = Path(directory) / "binary"
+    path.write_text(text)
+    path.chmod(0o755)
+    return str(path)
 
 
 def drive(*arguments, fixture=()):
@@ -64,21 +76,35 @@ class ScreenTest(unittest.TestCase):
         self.assertEqual(screen.lines(), ["ab"])
 
 
+class RestoreTest(unittest.TestCase):
+    def test_cursor_hidden_after_it_was_shown_is_not_restored(self):
+        output = b"\x1b[?1049h\x1b[?25h\x1b[?25l\x1b[?1049l"
+        self.assertFalse(screen_restored(output))
+
+    def test_alternate_screen_left_and_cursor_shown_is_restored(self):
+        output = b"\x1b[?1049h\x1b[?25l\x1b[?1049l\x1b[?25h"
+        self.assertTrue(screen_restored(output))
+
+
 class StepsTest(unittest.TestCase):
-    def test_a_bad_step_fails_before_launch(self):
-        result, _ = drive("screen", "resize=wide")
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("bad value in 'resize=wide'", result.stderr)
-        self.assertNotIn("exit status", result.stdout)
+    def test_bad_values_fail_before_launch(self):
+        for arguments in (["resize=wide"], ["resize=0x3"], ["flood=nan"], ["sleep=-1"], ["--cols", "0"]):
+            with self.subTest(arguments=arguments):
+                result, _ = drive(*arguments)
+                self.assertEqual(result.returncode, 2)
+                self.assertNotIn("exit status", result.stdout)
 
     def test_raw_mode_left_behind_is_not_restored(self):
         with tempfile.TemporaryDirectory() as directory:
-            raw_exit = Path(directory) / "raw_exit"
-            raw_exit.write_text(RAW_EXIT)
-            raw_exit.chmod(0o755)
-            result, _ = drive("--binary", str(raw_exit))
+            result, _ = drive("--binary", executable(directory, RAW_EXIT))
         self.assertIn("exit status: 0", result.stdout)
         self.assertIn("terminal restored: no", result.stdout)
+        self.assertEqual(result.returncode, 1)
+
+    def test_a_key_that_does_not_quit_fails_exited(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result, _ = drive("--binary", executable(directory, DEAF), "key=\\x1b", "exited")
+        self.assertIn("exited: STILL RUNNING", result.stdout)
         self.assertEqual(result.returncode, 1)
 
 
@@ -90,6 +116,13 @@ class DriveAlbaTest(unittest.TestCase):
         result, _ = drive("--cols", "40", "--rows", "12", "expect=°")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("terminal restored: yes", result.stdout)
+
+    def test_each_quit_key_exits_on_its_own(self):
+        for key in ("q", "\\x1b", "\\x03"):
+            with self.subTest(key=key):
+                result, _ = drive(f"key={key}", "exited")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("exited: ok", result.stdout)
 
     def test_quit_after_a_key_flood_exits_at_once(self):
         result, seconds = drive("flood=2")
