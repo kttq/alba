@@ -65,3 +65,21 @@ fn failed_cache_write_is_logged() {
         harness.log()
     );
 }
+
+#[test]
+fn control_characters_are_escaped_as_logfmt_decoders_expect() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+
+    harness.fetch(
+        &default_instant(),
+        Err(FetchError::Network("bad\u{1b}[0m\nline".to_string())),
+    );
+
+    assert!(
+        harness
+            .log()
+            .ends_with("error=\"network error: bad\\u001b[0m\\nline\"\n"),
+        "{}",
+        harness.log()
+    );
+}

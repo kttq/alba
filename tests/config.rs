@@ -1,10 +1,9 @@
-use std::{
-    fs,
-    os::unix::fs::PermissionsExt,
-    path::{Path, PathBuf},
-};
+mod common;
+
+use std::{fs, path::PathBuf};
 
 use alba::config::{self, Config, Coordinates, HourFormat, Language, Location, Units, WeekStart};
+use common::make_read_only;
 
 #[test]
 fn empty_config_has_every_default() {
@@ -183,10 +182,6 @@ fn temporary_home(test: &str) -> PathBuf {
     let _ = fs::remove_dir_all(&home);
     fs::create_dir_all(&home).unwrap();
     home
-}
-
-fn make_read_only(directory: &Path) {
-    fs::set_permissions(directory, fs::Permissions::from_mode(0o555)).unwrap();
 }
 
 #[test]

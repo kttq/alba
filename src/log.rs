@@ -30,12 +30,17 @@ impl Log {
         let Some(file) = &mut self.file else {
             return;
         };
-        // `{:?}` quotes a value and escapes its quotes, backslashes, and control characters.
         let line = format!(
-            "time={} level=warn msg={message:?} error={:?}\n",
+            "time={} level=warn msg={} error={}\n",
             now.strftime("%Y-%m-%dT%H:%M:%S%:z"),
-            error.to_string(),
+            quoted(message),
+            quoted(&error.to_string()),
         );
         let _ = file.write_all(line.as_bytes());
     }
+}
+
+/// logfmt decoders read a quoted value with JSON string escapes, such as `\u001b`.
+fn quoted(value: &str) -> String {
+    serde_json::to_string(value).expect("a string always serializes")
 }

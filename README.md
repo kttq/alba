@@ -28,4 +28,8 @@ motion      = false                    # a completely still widget
 
 Every option, with defaults and details: [docs/config.md](docs/config.md).
 
+## weather data
+
+Weather data by [Open-Meteo.com](https://open-meteo.com/), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). See its [licence](https://open-meteo.com/en/license).
+
 ## motivation
