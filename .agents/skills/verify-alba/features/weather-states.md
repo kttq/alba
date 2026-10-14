@@ -15,14 +15,14 @@ alba shows weather from its cache at once, refreshes it in the background, and d
 
 - Start alba with an old cache, no cache, or no network. A user cannot pick a condition; the forecast does.
 
-## Driving it with pty_drive.py and ghostty.sh
+## Driving it with pty_drive.py and terminal.sh
 
 Preconditions:
 
 - A new `HOME` per state. Pass `--offline` for every state but fresh, so the startup fetch keeps the fixture.
 
 - **Fresh.** `$S/fixture.py HOME`, then `$S/pty_drive.py HOME expect='14° ‚‚'`.
-- **Stale.** `$S/fixture.py HOME --weather stale`, then `$S/ghostty.sh launch HOME --theme 'Builtin Dark' --cols 40 --rows 12 --offline` and `shot`. The line keeps `14° ‚‚`, and `14°` is dark gray. The log holds `msg="fetch failed"`.
+- **Stale.** `$S/fixture.py HOME --weather stale`, then `$S/terminal.sh launch HOME --theme dark --cols 40 --rows 12 --offline` and `shot`. The line keeps `14° ‚‚`, and `14°` is dark gray. The log holds `msg="fetch failed"`.
 - **Expired.** `$S/fixture.py HOME --weather expired`, then `$S/pty_drive.py HOME --offline screen`. The line is `HH:MM · ddd DD`, with no weather.
 - **Offline start.** `$S/fixture.py HOME --weather none`, then `$S/pty_drive.py HOME --offline sleep=2 screen`. The line is `HH:MM · ddd DD`. Read the log with `env HOME=HOME XDG_CONFIG_HOME= XDG_CACHE_HOME= XDG_STATE_HOME= target/release/alba --log`: one `fetch failed` line.
 - **No location.** `$S/fixture.py HOME --no-location --weather none`, then `$S/pty_drive.py HOME screen`. The line is `HH:MM · ddd DD`, and alba made no fetch: the log is empty.

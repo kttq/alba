@@ -21,7 +21,7 @@ Accept a new or changed `insta` snapshot with `INSTA_UPDATE=always cargo test`, 
 - **Config parsing** (`alba::config::Config::parse`): feed it TOML text. Assert the typed config, or an error's line and a stable fragment of its reason. It owns validation and line numbers.
 - **Config file** (`alba::config::load`): point it at a path under a fresh temporary home. It owns the first-run template and unreadable files.
 - **Source search** (`tests/no_wrap.rs`): reads `src/` and fails on a banned API. It owns rules the compiler cannot express.
-- **The real binary**: CLI flags, terminal restore, tick timing, and the look in a real terminal. No `cargo test` enters here; the `verify-alba` skill drives it, headless or in Ghostty. Its driver has its own tests: `python3 -I -m unittest discover -s .agents/skills/verify-alba/scripts`.
+- **The real binary**: CLI flags, terminal restore, tick timing, and the look in a real terminal. No `cargo test` enters here; the `verify-alba` skill drives it, headless or in the macOS Terminal app. Its headless driver has its own tests, which CI runs: `python3 -I -m unittest discover -s .agents/skills/verify-alba/scripts`.
 
 ## Exemplars
 

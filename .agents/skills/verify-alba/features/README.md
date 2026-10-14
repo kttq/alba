@@ -4,14 +4,14 @@ The maintained source for verifying what a user sees in alba. Read this index be
 
 ## Baseline preconditions
 
-- A release build that is newer than `src/`: `$S/ghostty.sh doctor` prints no `stale build` line.
+- A release build that is newer than `src/`: `$S/terminal.sh doctor` prints no `stale build` line.
 - A fresh scratch `HOME` from `mktemp -d /tmp/alba-verify.XXXXXX`, filled by `$S/fixture.py`. One `HOME` per run, so runs never share a cache or a log.
 - `S=.agents/skills/verify-alba/scripts`, from the repository root.
 
 ## Driving conventions
 
 - Start each recipe from a new `HOME` with the fixture it names.
-- Drive keys, resizes, and timing headless; capture looks in Ghostty.
+- Drive keys, resizes, and timing headless; capture looks in Terminal.
 - Match a positioned write (`ESC[row;colH…`) in a transcript, not a whole `HH:MM`: ratatui writes only the cells that change.
 
 ## Proof and skip reporting

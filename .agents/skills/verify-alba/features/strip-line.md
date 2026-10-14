@@ -12,7 +12,7 @@ alba shows one line, centred in the pane: the clock, the short date, and the wea
 
 - Run `alba` in any pane with a config that sets `coordinates` and a usable cache.
 
-## Driving it with pty_drive.py and ghostty.sh
+## Driving it with pty_drive.py and terminal.sh
 
 Preconditions:
 
@@ -20,7 +20,7 @@ Preconditions:
 
 - **Full line.** Run `$S/pty_drive.py HOME --cols 40 --rows 12 screen expect='· 14° ‚‚'`. Row 6 of 12 reads `HH:MM · ddd DD · 14° ‚‚`, centred.
 - **Drop order.** Run `$S/pty_drive.py HOME --cols 40 --rows 3 resize=16x3 sleep=0.3 screen resize=6x3 sleep=0.3 screen resize=4x3 sleep=0.3 screen`. At 16 columns the line is `HH:MM · 14° ‚‚`; at 6 it is `HH:MM`; at 4 the grid is blank.
-- **Palette.** For each theme, run `$S/ghostty.sh launch HOME --theme 'Builtin Light' --cols 40 --rows 12`, then `$S/ghostty.sh shot HOME target/verify/<ticket>/light-40x12-rain.png`, then `$S/ghostty.sh stop HOME`; repeat with `'Builtin Dark'` and `dark-…`. Read each PNG: the line is legible, the date is blue, and the text uses the theme's colors.
+- **Palette.** For each theme, run `$S/terminal.sh launch HOME --theme light --cols 40 --rows 12`, then `$S/terminal.sh shot HOME target/verify/<ticket>/light-40x12-rain.png`, then `$S/terminal.sh stop HOME`; repeat with `--theme dark` and `dark-…`. Read each PNG: the line is legible, the date is blue, and the text uses the theme's colors.
 
 ## Gotchas
 

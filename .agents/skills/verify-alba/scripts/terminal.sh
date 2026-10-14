@@ -1,0 +1,182 @@
+#!/bin/sh
+# Launch alba in its own macOS Terminal window, screenshot it, and stop it.
+#
+# usage: terminal.sh launch HOME [--theme light|dark] [--cols N] [--rows N] [--offline]
+#        terminal.sh shot HOME FILE.png
+#        terminal.sh stop HOME
+#        terminal.sh doctor
+#
+# HOME is a scratch directory from fixture.py. launch writes alba.pid, window.id, and
+# run.sh into it. launch refuses while Terminal runs, so every Terminal window belongs
+# to this run, and stop can quit Terminal. One run at a time.
+set -eu
+
+REPO=$(cd "$(dirname "$0")/../../../.." && pwd -P)
+BINARY="$REPO/target/release/alba"
+OFFLINE_PROFILE='(version 1)(allow default)(deny network*)'
+
+die() {
+	echo "terminal.sh: $*" >&2
+	exit 1
+}
+
+# Built-in profiles, made opaque by background_line. Basic follows the system
+# appearance, so it cannot pin a theme, and Solid Colors picks a random background.
+profile() {
+	case $1 in
+	light) echo "Clear Light" ;;
+	dark) echo "Pro" ;;
+	*) die "unknown theme: $1; use light or dark" ;;
+	esac
+}
+
+# Both profiles are partly see-through, so the desktop would show in a shot.
+# AppleScript colors are RGB from 0 to 65535, with no alpha, so the result is opaque.
+background_line() {
+	case $1 in
+	light) echo "set background color of t to {65535, 65535, 65535}" ;;
+	dark) echo "set background color of t to {0, 0, 0}" ;;
+	esac
+}
+
+terminal_running() {
+	pgrep -xq Terminal
+}
+
+# Prints the macOS sandbox-exec prefix that denies every network call.
+sandbox_prefix() {
+	echo "/usr/bin/sandbox-exec -p '$OFFLINE_PROFILE'"
+}
+
+# run.sh records alba's pid, then becomes alba, so the pid stays the one to stop.
+write_run_script() {
+	sandbox=""
+	[ -n "$2" ] && sandbox=$(sandbox_prefix)
+	cat >"$1/run.sh" <<-EOF
+		#!/bin/sh
+		echo \$\$ > '$1/alba.pid'
+		exec env HOME='$1' XDG_CONFIG_HOME= XDG_CACHE_HOME= XDG_STATE_HOME= $sandbox '$BINARY'
+	EOF
+	chmod +x "$1/run.sh"
+}
+
+# Opens alba's window and prints its id, found by the tab's terminal device.
+open_window() {
+	home=$1 theme=$2 cols=$3 rows=$4 title=$5
+	osascript <<-EOF
+		tell application "Terminal"
+			set t to do script "exec '$home/run.sh'"
+			set alba_tty to tty of t
+			set alba_window to id of first window whose tty of selected tab is alba_tty
+			set current settings of t to settings set "$(profile "$theme")"
+			$(background_line "$theme")
+			set custom title of t to "$title"
+			set title displays custom title of t to true
+			set title displays device name of t to false
+			set title displays shell path of t to false
+			set title displays window size of t to false
+			set number of columns of t to $cols
+			set number of rows of t to $rows
+			return alba_window
+		end tell
+	EOF
+}
+
+# Prints alba's pane as "COLSxROWS", read from its terminal.
+pane_size() {
+	tty=$(ps -o tty= -p "$1" | tr -d ' ')
+	stty -f "/dev/$tty" size | awk '{ print $2 "x" $1 }'
+}
+
+alive() {
+	[ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
+}
+
+launch() {
+	home=$1
+	shift
+	theme=dark cols=85 rows=26 offline=""
+	while [ $# -gt 0 ]; do
+		case $1 in
+		--theme) theme=$2 && shift 2 ;;
+		--cols) cols=$2 && shift 2 ;;
+		--rows) rows=$2 && shift 2 ;;
+		--offline) offline=1 && shift ;;
+		*) die "unknown option: $1" ;;
+		esac
+	done
+	profile "$theme" >/dev/null
+	[ -f "$home/.config/alba/config.toml" ] || die "$home has no config; run fixture.py first"
+	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
+	alive "$home/alba.pid" && die "alba already runs from $home; stop it first"
+	terminal_running && die "Terminal is running; stop the other run, or ask the user to quit Terminal"
+
+	write_run_script "$home" "$offline"
+	rm -f "$home/alba.pid" "$home/window.id"
+	title="alba · $theme · ${cols}x${rows}${offline:+ · offline}"
+	# Terminal also opens a startup window; it stays until stop, and shot leaves it out.
+	open_window "$home" "$theme" "$cols" "$rows" "$title" >"$home/window.id"
+
+	for _ in $(seq 50); do
+		alive "$home/alba.pid" && break
+		sleep 0.2
+	done
+	alive "$home/alba.pid" || die "alba did not start; read $home/run.sh"
+	# The resize redraw follows at once; a second lets the fetch indicator settle.
+	sleep 1
+	pane=$(pane_size "$(cat "$home/alba.pid")")
+	[ "$pane" = "${cols}x${rows}" ] ||
+		echo "warning: the pane is $pane, not ${cols}x${rows}; a window manager resized the window" >&2
+	echo "alba $(cat "$home/alba.pid") in Terminal window $(cat "$home/window.id"): $title"
+}
+
+shot() {
+	home=$1 file=$2
+	[ -s "$home/window.id" ] || die "no Terminal window from $home; launch first"
+	mkdir -p "$(dirname "$file")"
+	# -l captures only this window, so no other window, shadow, or border gets in.
+	screencapture -x -o -l "$(cat "$home/window.id")" "$file"
+	echo "$file"
+}
+
+# Kills what launch started: alba, then Terminal, which launch started too.
+# Terminal's AppleScript can close a window other than the one named, so stop quits it.
+stop() {
+	home=$1
+	if alive "$home/alba.pid"; then
+		kill "$(cat "$home/alba.pid")"
+		sleep 0.5
+	fi
+	if [ -s "$home/window.id" ] && terminal_running; then
+		osascript -e 'tell application "Terminal" to quit'
+	fi
+	rm -f "$home/alba.pid" "$home/window.id"
+	echo "stopped $home"
+}
+
+doctor() {
+	echo "macOS $(sw_vers -productVersion)"
+	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
+	"$BINARY" --version
+	newer=$(find "$REPO/src" "$REPO/Cargo.toml" -newer "$BINARY" | head -1)
+	[ -z "$newer" ] || echo "stale build: $newer is newer than $BINARY; run cargo build --release"
+	found=""
+	for pidfile in /tmp/alba-verify.*/alba.pid; do
+		[ -f "$pidfile" ] || continue
+		found=1
+		state=stopped
+		alive "$pidfile" && state="running, pid $(cat "$pidfile")"
+		echo "run $(dirname "$pidfile"): $state"
+	done
+	[ -n "$found" ] || echo "no verification runs"
+}
+
+command=${1:-}
+[ $# -gt 0 ] && shift
+case $command in
+launch) [ $# -ge 1 ] || die "usage: launch HOME [options]"; launch "$@" ;;
+shot) [ $# -eq 2 ] || die "usage: shot HOME FILE.png"; shot "$@" ;;
+stop) [ $# -eq 1 ] || die "usage: stop HOME"; stop "$@" ;;
+doctor) doctor ;;
+*) die "usage: terminal.sh launch|shot|stop|doctor" ;;
+esac
