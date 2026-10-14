@@ -40,24 +40,26 @@ def main():
     write(args.home / ".config/alba/config.toml", "\n".join(lines) + "\n")
 
     if args.weather != "none":
-        now = int(time.time())
-        age = args.age if args.age is not None else DEFAULT_AGE_MINUTES[args.weather]
-        fetched_at = now - age * 60
-        shift_to_today(forecast, now)
-        forecast["current"]["time"] = fetched_at - fetched_at % 900
-        if args.code is not None:
-            forecast["current"]["weather_code"] = args.code
-        if args.night:
-            forecast["current"]["is_day"] = 0
-        cache = {
-            "version": 1,
-            "fetched_at": fetched_at,
-            "location": {"latitude": latitude, "longitude": longitude},
-            "forecast": forecast,
-        }
-        write(args.home / ".cache/alba/weather.json", json.dumps(cache))
+        write(args.home / ".cache/alba/weather.json", json.dumps(cache(forecast, args, int(time.time()))))
 
     print(args.home)
+
+
+def cache(forecast, args, now):
+    """The cache file alba would have written after a fetch at now minus the age."""
+    age = args.age if args.age is not None else DEFAULT_AGE_MINUTES[args.weather]
+    fetched_at = now - age * 60
+    shift_to_today(forecast, now)
+    current = forecast["current"]
+    current["time"] = fetched_at - fetched_at % 900
+    current["weather_code"] = current["weather_code"] if args.code is None else args.code
+    current["is_day"] = 0 if args.night else current["is_day"]
+    return {
+        "version": 1,
+        "fetched_at": fetched_at,
+        "location": {"latitude": forecast["latitude"], "longitude": forecast["longitude"]},
+        "forecast": forecast,
+    }
 
 
 def shift_to_today(forecast, now):

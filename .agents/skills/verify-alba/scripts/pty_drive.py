@@ -12,12 +12,15 @@ Steps run in order, then the driver presses q and waits for alba to exit:
   expect=TEXT       fail unless the screen contains TEXT
   flood=SECONDS     type r at 30 keys a second for that long
 
-It exits 0 only when every expect passed, alba exited 0, and the terminal was restored.
+It exits 0 only when every expect passed, alba exited 0, and the terminal was restored:
+the alternate screen left, the cursor shown, and the line discipline back in cooked mode.
+--transcript writes one JSON object per read, {"time": unix seconds, "output": text}.
 """
 
 import argparse
 import codecs
 import fcntl
+import json
 import os
 import pty
 import re
@@ -41,6 +44,7 @@ EXIT_DEADLINE = 5.0
 ENTER_ALTERNATE = b"\x1b[?1049h"
 LEAVE_ALTERNATE = b"\x1b[?1049l"
 SHOW_CURSOR = b"\x1b[?25h"
+STEPS = ("sleep", "key", "flood", "resize", "screen", "expect")
 
 
 class Screen:
@@ -53,7 +57,7 @@ class Screen:
 
     def resize(self, cols, rows):
         self.cols, self.rows = cols, rows
-        self.cells = [[" "] * cols for _ in range(rows)]
+        self.cells = [self._blank_row() for _ in range(rows)]
         self.row = self.col = 0
 
     def feed(self, data):
@@ -132,15 +136,18 @@ class Screen:
         elif final == "G":
             self.col = min(count, self.cols) - 1
         elif final == "J" and first == 2:
-            self.cells = [[" "] * self.cols for _ in range(self.rows)]
+            self.cells = [self._blank_row() for _ in range(self.rows)]
         elif final == "J" and first == 0:
             self.cells[self.row][self.col :] = [" "] * (self.cols - self.col)
             for row in range(self.row + 1, self.rows):
-                self.cells[row] = [" "] * self.cols
+                self.cells[row] = self._blank_row()
         elif final == "K" and first == 0:
             self.cells[self.row][self.col :] = [" "] * (self.cols - self.col)
         elif final == "K" and first == 2:
-            self.cells[self.row] = [" "] * self.cols
+            self.cells[self.row] = self._blank_row()
+
+    def _blank_row(self):
+        return [" "] * self.cols
 
 
 class Alba:
@@ -148,12 +155,10 @@ class Alba:
 
     def __init__(self, home, cols, rows, offline, binary):
         self.screen = Screen(cols, rows)
-        self.output = bytearray()
+        self.reads = []
         self.eof = False
         self.status = None
-        command = [str(binary)]
-        if offline:
-            command = ["/usr/bin/sandbox-exec", "-p", OFFLINE_PROFILE] + command
+        command = sandboxed([str(binary)]) if offline else [str(binary)]
         environment = {
             "HOME": str(home),
             "XDG_CONFIG_HOME": "",
@@ -185,8 +190,20 @@ class Alba:
             if not data:
                 self.eof = True
                 continue
-            self.output += data
+            self.reads.append((time.time(), data))
             self.screen.feed(data)
+
+    def output(self):
+        return b"".join(data for _, data in self.reads)
+
+    def cooked(self):
+        """Reads the line discipline from the master side, which macOS allows after alba exits."""
+        try:
+            iflag, oflag, _, lflag, *_ = termios.tcgetattr(self.fd)
+        except termios.error:
+            return False
+        lflags = termios.ECHO | termios.ICANON | termios.ISIG
+        return lflag & lflags == lflags and bool(oflag & termios.OPOST) and bool(iflag & termios.ICRNL)
 
     def type(self, chars, gap):
         """Paces keys with sleep: alba draws often, so the pseudo-terminal is always ready."""
@@ -219,33 +236,67 @@ class Alba:
         return None
 
 
+def sandboxed(command):
+    """Runs the command under macOS sandbox-exec with every network call denied."""
+    return ["/usr/bin/sandbox-exec", "-p", OFFLINE_PROFILE] + command
+
+
 def set_size(fd, cols, rows):
     fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+
+
+def parse_step(text):
+    """Turns `name=value` into (name, value), with the value in the type its step uses."""
+    name, _, value = text.partition("=")
+    try:
+        if name in ("sleep", "flood"):
+            return name, float(value)
+        if name == "key":
+            return name, value.encode().decode("unicode_escape")
+        if name == "resize":
+            cols, rows = (int(part) for part in value.split("x"))
+            return name, (cols, rows)
+        if name in ("screen", "expect"):
+            return name, value
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"bad value in {text!r}")
+    raise argparse.ArgumentTypeError(f"unknown step {text!r}; steps are {', '.join(STEPS)}")
 
 
 def run(alba, steps, out):
     """Returns the number of failed expects."""
     failures = 0
-    for step in steps:
-        name, _, value = step.partition("=")
+    for name, value in steps:
         if name == "sleep":
-            alba.pump(float(value))
+            alba.pump(value)
         elif name == "key":
-            alba.type(value.encode().decode("unicode_escape"), KEY_GAP)
+            alba.type(value, KEY_GAP)
         elif name == "flood":
-            alba.type("r" * round(float(value) / FLOOD_GAP), FLOOD_GAP)
+            alba.type("r" * round(value / FLOOD_GAP), FLOOD_GAP)
         elif name == "resize":
-            cols, rows = (int(part) for part in value.split("x"))
-            alba.resize(cols, rows)
+            alba.resize(*value)
         elif name == "screen":
             print_screen(alba.screen, out)
         elif name == "expect":
-            found = value in alba.screen.text()
-            print(f"expect {value!r}: {'ok' if found else 'MISSING'}", file=out)
-            failures += not found
-        else:
-            raise SystemExit(f"unknown step: {step}")
+            failures += not expect(alba.screen, value, out)
     return failures
+
+
+def expect(screen, text, out):
+    found = text in screen.text()
+    print(f"expect {text!r}: {'ok' if found else 'MISSING'}", file=out)
+    return found
+
+
+def screen_restored(output):
+    """The last alternate-screen entry is followed by its exit and a shown cursor."""
+    entered = output.rfind(ENTER_ALTERNATE)
+    return entered != -1 and output.rfind(LEAVE_ALTERNATE) > entered and output.rfind(SHOW_CURSOR) > entered
+
+
+def write_transcript(path, reads):
+    lines = (json.dumps({"time": at, "output": data.decode("utf-8", "replace")}) for at, data in reads)
+    path.write_text("\n".join(lines) + "\n")
 
 
 def print_screen(screen, out):
@@ -264,8 +315,8 @@ def main():
     parser.add_argument("--rows", type=int, default=12)
     parser.add_argument("--offline", action="store_true", help="run under sandbox-exec, network denied")
     parser.add_argument("--binary", type=Path, default=BINARY)
-    parser.add_argument("--transcript", type=Path, help="write alba's raw output here")
-    parser.add_argument("steps", nargs="*")
+    parser.add_argument("--transcript", type=Path, help="write alba's timed output here, as JSON lines")
+    parser.add_argument("steps", nargs="*", type=parse_step)
     args = parser.parse_args()
 
     alba = Alba(args.home, args.cols, args.rows, args.offline, args.binary)
@@ -274,14 +325,9 @@ def main():
     status = alba.quit()
     cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
     if args.transcript:
-        args.transcript.write_bytes(bytes(alba.output))
+        write_transcript(args.transcript, alba.reads)
 
-    output = bytes(alba.output)
-    restored = (
-        ENTER_ALTERNATE in output
-        and output.rfind(LEAVE_ALTERNATE) > output.rfind(ENTER_ALTERNATE)
-        and output.rfind(SHOW_CURSOR) > output.rfind(ENTER_ALTERNATE)
-    )
+    restored = screen_restored(alba.output()) and alba.cooked()
     print(f"exit status: {'killed after timeout' if status is None else status}")
     print(f"terminal restored: {'yes' if restored else 'no'}")
     print(f"cpu seconds: {cpu.ru_utime + cpu.ru_stime:.2f}")

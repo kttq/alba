@@ -56,6 +56,23 @@ float() {
 	fi
 }
 
+# Prints the macOS sandbox-exec prefix that denies every network call.
+sandbox_prefix() {
+	echo "/usr/bin/sandbox-exec -p '$OFFLINE_PROFILE'"
+}
+
+# run.sh records alba's pid, then becomes alba, so the pid stays the one to stop.
+write_run_script() {
+	sandbox=""
+	[ -n "$2" ] && sandbox=$(sandbox_prefix)
+	cat >"$1/run.sh" <<-EOF
+		#!/bin/sh
+		echo \$\$ > '$1/alba.pid'
+		exec env HOME='$1' XDG_CONFIG_HOME= XDG_CACHE_HOME= XDG_STATE_HOME= $sandbox '$BINARY'
+	EOF
+	chmod +x "$1/run.sh"
+}
+
 alive() {
 	[ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
 }
@@ -77,14 +94,7 @@ launch() {
 	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
 	alive "$home/alba.pid" && die "alba already runs from $home; stop it first"
 
-	sandbox=""
-	[ -n "$offline" ] && sandbox="/usr/bin/sandbox-exec -p '$OFFLINE_PROFILE'"
-	cat >"$home/run.sh" <<-EOF
-		#!/bin/sh
-		echo \$\$ > '$home/alba.pid'
-		exec env HOME='$home' XDG_CONFIG_HOME= XDG_CACHE_HOME= XDG_STATE_HOME= $sandbox '$BINARY'
-	EOF
-	chmod +x "$home/run.sh"
+	write_run_script "$home" "$offline"
 	rm -f "$home/alba.pid" "$home/ghostty.pid"
 
 	open -na "$GHOSTTY" --args \
