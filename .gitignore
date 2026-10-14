@@ -3,8 +3,5 @@ prototypes/
 
 /target
 
-# Python byte code from the verify-alba scripts and their tests.
-__pycache__/
-
 # Verification shots are attached to pull requests, never committed.
 *.png

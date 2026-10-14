@@ -6,13 +6,15 @@
 #        terminal.sh stop HOME
 #        terminal.sh doctor
 #
-# HOME is a scratch directory from fixture.py. launch writes alba.pid, window.id, and
+# HOME is a scratch directory from the fixture example. launch writes alba.pid, window.id, and
 # run.sh into it. launch refuses while Terminal runs, so every Terminal window belongs
 # to this run, and stop can quit Terminal. One run at a time.
 set -eu
 
 REPO=$(cd "$(dirname "$0")/../../../.." && pwd -P)
 BINARY="$REPO/target/release/alba"
+DRIVER="$REPO/target/release/examples/drive"
+BUILD="cargo build --release --bins --examples"
 OFFLINE_PROFILE='(version 1)(allow default)(deny network*)'
 
 die() {
@@ -110,8 +112,8 @@ launch() {
 	theme_settings "$theme" >/dev/null
 	check_pane_length "$cols"
 	check_pane_length "$rows"
-	[ -f "$home/.config/alba/config.toml" ] || die "$home has no config; run fixture.py first"
-	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
+	[ -f "$home/.config/alba/config.toml" ] || die "$home has no config; run the fixture example first"
+	[ -x "$BINARY" ] || die "no release build; run $BUILD"
 	alive "$home/alba.pid" && die "alba already runs from $home; stop it first"
 	terminal_running && die "Terminal is running; stop the other run, or ask the user to quit Terminal"
 
@@ -160,10 +162,13 @@ stop() {
 
 doctor() {
 	echo "macOS $(sw_vers -productVersion)"
-	[ -x "$BINARY" ] || die "no release build; run cargo build --release"
+	[ -x "$BINARY" ] || die "no release build; run $BUILD"
 	"$BINARY" --version
 	newer=$(find "$REPO/src" "$REPO/Cargo.toml" -newer "$BINARY" | head -1)
-	[ -z "$newer" ] || echo "stale build: $newer is newer than $BINARY; run cargo build --release"
+	[ -z "$newer" ] || echo "stale build: $newer is newer than $BINARY; run $BUILD"
+	[ -x "$DRIVER" ] || die "no headless driver; run $BUILD"
+	newer=$(find "$REPO/src" "$REPO/tests/common" "$REPO/examples" "$REPO/Cargo.toml" -newer "$DRIVER" | head -1)
+	[ -z "$newer" ] || echo "stale build: $newer is newer than $DRIVER; run $BUILD"
 	found=""
 	for pidfile in /tmp/alba-verify.*/alba.pid; do
 		[ -f "$pidfile" ] || continue

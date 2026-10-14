@@ -16,5 +16,3 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
-      - run: cargo build --release
-      - run: python3 -I -m unittest discover -s .agents/skills/verify-alba/scripts -v

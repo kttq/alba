@@ -4,9 +4,9 @@ The maintained source for verifying what a user sees in alba. Read this index be
 
 ## Baseline preconditions
 
-- A release build that is newer than `src/`: `$S/terminal.sh doctor` prints no `stale build` line.
-- A fresh scratch `HOME` from `mktemp -d /tmp/alba-verify.XXXXXX`, filled by `$S/fixture.py`. One `HOME` per run, so runs never share a cache or a log.
-- `S=.agents/skills/verify-alba/scripts`, from the repository root.
+- A release build of alba and the examples that is newer than the sources: `$S/terminal.sh doctor` prints no `stale build` line.
+- A fresh scratch `HOME` from `mktemp -d /tmp/alba-verify.XXXXXX`, filled by `$D/fixture`. One `HOME` per run, so runs never share a cache or a log.
+- `S=.agents/skills/verify-alba/scripts` and `D=target/release/examples`, from the repository root.
 
 ## Driving conventions
 
