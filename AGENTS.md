@@ -16,6 +16,10 @@ How this project tests: `docs/testing.md`.
 
 Review judgement calls for comments, names, and code shape: `CODING_STANDARDS.md`.
 
+## App output
+
+`alba --log` prints the log of the running alba, or of the last run. Read it when alba misbehaves.
+
 ## Commits
 
 Write each commit subject as one Conventional Commits line of at most 72 characters, as in `feat(scope): summary (#12)`. Add a body only to explain why.

@@ -7,6 +7,8 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Keep a comment only when it carries a why, a unit, or a gotcha the code cannot say.
 - Write a doc comment that adds to the name. Let the name and signature carry the rest.
 - Leave examples, ADR numbers, and design labels out of comments. The code and the ADRs carry them.
+- State what the code does now. A bug's history, a rejected option, or a spec's wording goes in the commit body.
+- Name a third-party tool or format in a comment only when the code uses it. User docs can recommend tools and give credit.
 
 ## Names
 
@@ -19,6 +21,7 @@ The judgement calls that make code read like alba. Cite a rule's heading in a re
 - Parse input once at the boundary into a type, and trust that type inward.
 - Keep validation and logic pure, and apart from I/O. Validate first, then write.
 - Give each function one job. An orchestrator calls one-job helpers.
+- Give each module its own state, tick, and rendering. `App` composes the modules and holds no module's logic.
 - Keep a function flat: return early, and give a nested branch its own named helper.
 - Make a platform-specific step a named function.
 - Reach for a derive or a maintained crate, such as `serde_repr`, before a hand-written trait impl or macro. Ask before adding the crate.
