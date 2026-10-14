@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 const WIDEST_PANE: u16 = 250;
 const TALLEST_PANE: u16 = 80;
 
-/// Printable ASCII, the Spanish letters, and the Departure Mono "Available" list.
+/// Beyond printable ASCII: the Spanish letters and the Departure Mono "Available" list.
 const APPROVED_GLYPHS: &str = "áéíóúñüÁÉÍÓÚÑ¡¿\
     █▀▄▌▐░▒▓■□▪•·─│╭╮╰╯┄┈═»«›‹↑↓←→★☆✦✧♪♫♥∙°…▁▂▃▄▅▆▇╷╵┊┆▼♦˙‚′″≈~";
 
@@ -62,8 +62,7 @@ fn instant(time: &str) -> Zoned {
         .unwrap()
 }
 
-/// The widest temperatures: `-12°` and `104°`. Mini and Strip show a two-cell condition mark,
-/// so the condition is the one with the longest name in each language.
+/// The widest temperatures, `-12°` and `104°`, and the longest condition name in each language.
 fn worst_case_forecast(config_text: &str) -> String {
     let celsius = if config_text.contains("imperial") {
         40.0
@@ -135,7 +134,6 @@ impl std::fmt::Display for Case<'_> {
     }
 }
 
-/// The first size tier in order whose smallest pane fits.
 fn largest_fitting(content: &HomeContent, pane: Rect) -> Option<SizeTier> {
     SizeTier::IN_ORDER.into_iter().find(|&size_tier| {
         layout::minimum_size(size_tier, content)

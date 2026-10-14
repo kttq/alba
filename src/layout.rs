@@ -48,7 +48,6 @@ pub struct PlacedItem<'a> {
 pub enum Piece<'a> {
     Text(&'a Line<'static>),
     Picture(&'a Canvas),
-    /// The ` · ` between the parts of the Strip line.
     Separator,
 }
 
@@ -99,7 +98,7 @@ pub fn lay_out<'a>(pane: Rect, content: &'a HomeContent) -> LayoutReport<'a> {
     }
 }
 
-/// The smallest pane the size tier fits, or None when it cannot show this content.
+/// None when the size tier cannot show this content.
 pub fn minimum_size(size_tier: SizeTier, content: &HomeContent) -> Option<Size> {
     arrangements(size_tier, content)
         .into_iter()
