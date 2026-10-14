@@ -39,10 +39,21 @@ fn rendered(harness: &Harness, now: &Zoned, width: u16, height: u16) -> Terminal
 }
 
 #[test]
-fn mini_shows_the_text_clock_mini_icon_and_temperature() {
+fn rain_by_day_at_each_tier_minimum_and_at_large_panes() {
     let harness = with_weather("");
+    let panes = [
+        ("strip_minimum", 5, 1),
+        ("mini_minimum", 18, 2),
+        ("85x26", 85, 26),
+        ("250x80", 250, 80),
+    ];
 
-    insta::assert_snapshot!(rendered(&harness, &default_instant(), 22, 4).backend());
+    for (name, width, height) in panes {
+        insta::assert_snapshot!(
+            name,
+            rendered(&harness, &default_instant(), width, height).backend()
+        );
+    }
 }
 
 #[test]

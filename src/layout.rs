@@ -125,7 +125,6 @@ fn mini_arrangement(content: &HomeContent) -> Option<Arrangement<'_>> {
     Some(row(pieces, 2))
 }
 
-/// The full line, then without the date, then the clock alone.
 fn strip_arrangements(content: &HomeContent) -> Vec<Arrangement<'_>> {
     let clock = Piece::Text(&content.text_clock);
     let date = Piece::Text(&content.short_date);

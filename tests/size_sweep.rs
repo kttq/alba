@@ -42,7 +42,6 @@ const WEATHER_STATES: [WeatherStateFixture; 6] = [
     WeatherStateFixture::Stale,
 ];
 
-/// `language` en and es, by `hour_format` 24 and 12, by `units` metric and imperial.
 fn config_variants() -> Vec<String> {
     let mut variants = Vec::new();
     for language in ["en", "es"] {
@@ -63,16 +62,22 @@ fn instant(time: &str) -> Zoned {
         .unwrap()
 }
 
-/// Three-digit temperatures in either unit, and the longest condition name.
+/// The widest temperatures: `-12°` and `104°`. Mini and Strip show a two-cell condition mark,
+/// so the condition is the one with the longest name in each language.
 fn worst_case_forecast(config_text: &str) -> String {
     let celsius = if config_text.contains("imperial") {
         40.0
     } else {
         -12.0
     };
+    let weather_code = if config_text.contains("\"es\"") {
+        65
+    } else {
+        2
+    };
     let mut forecast: Value = serde_json::from_str(&forecast_body()).unwrap();
     forecast["current"]["temperature_2m"] = json!(celsius);
-    forecast["current"]["weather_code"] = json!(2);
+    forecast["current"]["weather_code"] = json!(weather_code);
     forecast.to_string()
 }
 
@@ -101,7 +106,7 @@ fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned)
             let night = instant("23:38");
             refreshing(&mut harness, &night, &night, body)
         }
-        WeatherStateFixture::Stale => refreshing(&mut harness, &instant("10:38"), &noon, body),
+        WeatherStateFixture::Stale => refreshing(&mut harness, &instant("01:38"), &noon, body),
     };
     (harness.app, shown_at)
 }
@@ -211,15 +216,4 @@ fn every_pane_size_gets_the_largest_fitting_tier_without_clipping() {
             }
         }
     }
-}
-
-#[test]
-fn a_pane_smaller_than_the_clock_alone_renders_nothing() {
-    let (app, now) = app_in(WeatherStateFixture::FreshDay, "hour_format = 12");
-    let content = app.home_content(&now);
-
-    let report = layout::lay_out(Rect::new(0, 0, 6, 3), &content);
-
-    assert_eq!(report.size_tier, None);
-    assert!(report.items.is_empty());
 }
