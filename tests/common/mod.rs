@@ -13,10 +13,11 @@ use alba::{
     app::App,
     config::{Config, Coordinates},
     log::Log,
-    weather::{FetchError, WeatherSource, WeatherStation},
+    weather::{FetchError, Forecast, WeatherSource, WeatherStation},
 };
 use jiff::Zoned;
 use ratatui::{Terminal, backend::TestBackend};
+use serde_json::{Value, json};
 
 pub const BUENOS_AIRES: &str = "coordinates = [-34.6037, -58.3816]";
 
@@ -35,6 +36,40 @@ pub fn default_instant() -> Zoned {
 pub fn forecast_body() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/forecast.json"))
         .unwrap()
+}
+
+pub fn fixture_forecast(name: &str) -> Forecast {
+    edited_fixture_forecast(name, |_| {})
+}
+
+pub fn edited_fixture_forecast(name: &str, edit: impl FnOnce(&mut Value)) -> Forecast {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name);
+    let mut forecast: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+    edit(&mut forecast);
+    Forecast::parse(&forecast.to_string()).unwrap()
+}
+
+/// 2026-10-13 00:00 UTC.
+pub const MIDNIGHT: i64 = 1_791_849_600;
+
+/// A one-day forecast at UTC offset 0, changed by `edit`: sunrise 06:00, sunset 18:00, no hours.
+pub fn small_forecast(edit: impl FnOnce(&mut Value)) -> Forecast {
+    let mut forecast = json!({
+        "utc_offset_seconds": 0,
+        "current": { "time": MIDNIGHT, "temperature_2m": 10.0, "weather_code": 0, "is_day": 1 },
+        "daily": {
+            "time": [MIDNIGHT],
+            "sunrise": [MIDNIGHT + 6 * 3600],
+            "sunset": [MIDNIGHT + 18 * 3600],
+            "temperature_2m_max": [15.0],
+            "temperature_2m_min": [5.0],
+        },
+        "hourly": { "time": [], "precipitation_probability": [] },
+    });
+    edit(&mut forecast);
+    Forecast::parse(&forecast.to_string()).unwrap()
 }
 
 #[derive(Clone, Default)]

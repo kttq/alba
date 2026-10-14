@@ -17,13 +17,12 @@ pub fn text_line(
         WeatherState::Stale { weather, .. } => (weather, Style::new().dark_gray()),
         _ => return None,
     };
-    let current = &weather.forecast.current;
-    let degrees = whole_degrees(current.temperature_2m, units);
+    let degrees = whole_degrees(weather.forecast.temperature(), units);
     let mut spans = vec![Span::styled(format!("{degrees}°"), temperature_style)];
     if shows_fetch_indicator {
         spans.push(Span::raw("…").dim());
     }
-    if let Some(condition) = Condition::from_wmo(current.weather_code) {
+    if let Some(condition) = weather.forecast.condition() {
         spans.push(Span::raw(format!(" {}", condition_mark(condition))));
     }
     Some(Line::from(spans))

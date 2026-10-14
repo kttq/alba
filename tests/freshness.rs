@@ -3,16 +3,31 @@ mod common;
 use alba::weather::{Forecast, Freshness, Weather};
 use common::{default_instant, forecast_body};
 use jiff::{SignedDuration, Timestamp};
+use serde_json::{Value, json};
 
 fn fetched_at() -> Timestamp {
     default_instant().timestamp()
 }
 
 fn weather() -> Weather {
+    weather_from(&forecast_body())
+}
+
+fn weather_from(forecast_body: &str) -> Weather {
     Weather {
         fetched_at: fetched_at(),
-        forecast: Forecast::parse(&forecast_body()).unwrap(),
+        forecast: Forecast::parse(forecast_body).unwrap(),
     }
+}
+
+/// The fixture with one 0% hourly value at each of `times`.
+fn weather_with_hourly_times(times: &[i64]) -> Weather {
+    let mut forecast: Value = serde_json::from_str(&forecast_body()).unwrap();
+    forecast["hourly"] = json!({
+        "time": times,
+        "precipitation_probability": vec![0; times.len()],
+    });
+    weather_from(&forecast.to_string())
 }
 
 fn after(age: SignedDuration) -> Timestamp {
@@ -54,17 +69,15 @@ fn weather_older_than_12_hours_is_expired() {
 
 #[test]
 fn weather_whose_sparkline_window_is_entirely_past_is_expired() {
-    let mut weather = weather();
     let now = after(SignedDuration::from_mins(90));
-    let hourly_times = &mut weather.forecast.hourly.time;
-    hourly_times.retain(|&time| time <= now.as_second());
+    let now_second = now.as_second();
 
-    assert_eq!(weather.freshness(now), Freshness::Expired);
-    let one_hour_ahead = now.as_second() + 3600;
-    weather.forecast.hourly.time.push(one_hour_ahead);
-    weather.forecast.hourly.precipitation_probability.push(0);
+    let past = weather_with_hourly_times(&[now_second - 3600, now_second]);
+    assert_eq!(past.freshness(now), Freshness::Expired);
+
+    let one_ahead = weather_with_hourly_times(&[now_second, now_second + 3600]);
     assert_eq!(
-        weather.freshness(now),
+        one_ahead.freshness(now),
         Freshness::Stale(SignedDuration::from_mins(90))
     );
 }

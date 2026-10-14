@@ -9,7 +9,7 @@ mod station;
 mod text;
 
 pub use condition::Condition;
-pub use forecast::{Forecast, IsDay};
+pub use forecast::{DayOrNight, Forecast, HighAndLow, SunEvent};
 pub use freshness::Freshness;
 pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, WeatherSource};
