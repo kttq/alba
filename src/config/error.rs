@@ -9,7 +9,6 @@ pub enum ConfigError {
 }
 
 impl ConfigError {
-    /// An `Invalid` error on the line where `span` starts. An empty span points at line 1.
     pub(super) fn at(text: &str, span: Range<usize>, reason: &str) -> Self {
         let start = span.start.min(text.len());
         let line = text[..start].matches('\n').count() + 1;

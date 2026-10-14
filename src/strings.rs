@@ -1,7 +1,6 @@
 use crate::config::Language;
 
-/// Every widget string, one constant per language. A struct literal must fill every field, so a
-/// missing translation fails to compile.
+/// Required fields make a missing translation a compile error.
 pub struct Strings {
     pub am: &'static str,
     pub pm: &'static str,

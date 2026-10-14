@@ -3,8 +3,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 
 use super::FetchError;
 
-/// The Open-Meteo response fields alba uses, under their Open-Meteo names. Times are Unix
-/// seconds and temperatures are Celsius. A `null` anywhere fails to parse.
+/// Fields keep their Open-Meteo names. Times are Unix seconds; temperatures are Celsius.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Forecast {
     pub utc_offset_seconds: i32,
@@ -22,7 +21,6 @@ pub struct Current {
     pub is_day: IsDay,
 }
 
-/// Open-Meteo's day flag, sent as `1` or `0`. Any other number fails to parse.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum IsDay {
@@ -30,7 +28,7 @@ pub enum IsDay {
     Day = 1,
 }
 
-/// One entry per day, yesterday through tomorrow.
+/// Yesterday through tomorrow.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Daily {
     pub time: Vec<i64>,
@@ -40,7 +38,7 @@ pub struct Daily {
     pub temperature_2m_min: Vec<f64>,
 }
 
-/// One entry per hour. Each value covers the hour before its time.
+/// Each value covers the hour before its time.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Hourly {
     pub time: Vec<i64>,
@@ -49,8 +47,6 @@ pub struct Hourly {
 }
 
 impl Forecast {
-    /// Rejects anything but a complete forecast: malformed JSON, an HTML or empty body, a
-    /// `null`, or columns of different lengths.
     pub fn parse(body: &str) -> Result<Self, FetchError> {
         let forecast: Self =
             serde_json::from_str(body).map_err(|error| FetchError::Invalid(error.to_string()))?;
@@ -58,7 +54,6 @@ impl Forecast {
         Ok(forecast)
     }
 
-    /// Every column of a table has one value per row.
     pub fn validate(&self) -> Result<(), String> {
         let days = self.daily.time.len();
         let daily_columns = [

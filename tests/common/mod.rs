@@ -1,6 +1,3 @@
-//! The harness for the app core: a parsed config, a fake weather source, and a fresh cache
-//! directory.
-
 #![allow(dead_code)]
 
 use std::{
@@ -28,13 +25,12 @@ pub fn default_instant() -> Zoned {
         .unwrap()
 }
 
-/// A rain forecast at 14.4°, as Open-Meteo sends it.
+/// An Open-Meteo response with rain at 14.4 °C.
 pub fn forecast_body() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/forecast.json"))
         .unwrap()
 }
 
-/// Hands each request's result to the app when the test calls `finish`.
 #[derive(Clone, Default)]
 pub struct FakeWeatherSource(Rc<RefCell<Fetches>>);
 
@@ -76,12 +72,10 @@ impl Harness {
         Self::with_cache(config_text, temporary_directory())
     }
 
-    /// Shares a cache directory with an earlier run.
     pub fn with_cache(config_text: &str, cache_directory: PathBuf) -> Self {
         Self::with_directories(config_text, cache_directory, temporary_directory())
     }
 
-    /// Shares a cache and a state directory with an earlier run.
     pub fn with_directories(
         config_text: &str,
         cache_directory: PathBuf,
@@ -106,7 +100,6 @@ impl Harness {
         fs::read_to_string(self.state_directory.join("alba.log")).unwrap()
     }
 
-    /// Ticks once to start the fetch, then again to receive `result`.
     pub fn fetch(&mut self, now: &Zoned, result: Result<String, FetchError>) {
         self.app.tick(now);
         self.weather_source.finish(result);
@@ -117,7 +110,6 @@ impl Harness {
         render_row(&self.app, now, width)
     }
 
-    /// The characters of a one-row pane, without the centring spaces.
     pub fn text_line(&self, now: &Zoned, width: u16) -> String {
         let terminal = self.render_row(now, width);
         let line: String = terminal
@@ -139,8 +131,7 @@ pub fn render_row(app: &App, now: &Zoned, width: u16) -> Terminal<TestBackend> {
     terminal
 }
 
-/// A path under the system temporary directory that no other test uses. The directory itself
-/// does not exist yet.
+/// Returns a path only; the directory does not exist yet.
 pub fn temporary_directory() -> PathBuf {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let number = NEXT.fetch_add(1, Ordering::Relaxed);

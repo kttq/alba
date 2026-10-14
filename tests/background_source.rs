@@ -1,5 +1,3 @@
-//! The real weather source, over a fetch that never touches the network.
-
 use std::{
     sync::{
         Mutex,
@@ -19,7 +17,6 @@ const BUENOS_AIRES: Coordinates = Coordinates {
     longitude: -58.3816,
 };
 
-/// A source whose fetches report their start, then wait for the test to release them.
 fn gated_source() -> (BackgroundSource, Receiver<Coordinates>, mpsc::Sender<()>) {
     let (started, starts) = mpsc::channel();
     let (release, gate) = mpsc::channel::<()>();
@@ -33,7 +30,6 @@ fn gated_source() -> (BackgroundSource, Receiver<Coordinates>, mpsc::Sender<()>)
     (source, starts, release)
 }
 
-/// Polls like the app's tick does, without blocking on the source.
 fn wait_until_finished(source: &mut BackgroundSource) -> Result<String, FetchError> {
     let deadline = Instant::now() + Duration::from_secs(5);
     loop {

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::{Forecast, Weather};
 use crate::config::Coordinates;
 
-/// Bump this when the file's shape changes. An old file then counts as no cache.
+/// Bump this when the file's shape changes.
 const FORMAT_VERSION: u32 = 1;
 
 const FILE_NAME: &str = "weather.json";
@@ -22,7 +22,6 @@ struct CacheFile {
     forecast: Forecast,
 }
 
-/// The coordinates the forecast was fetched for.
 #[derive(PartialEq, Serialize, Deserialize)]
 struct CachedLocation {
     latitude: f64,
@@ -38,13 +37,11 @@ impl From<Coordinates> for CachedLocation {
     }
 }
 
-/// The cached weather for `coordinates`. A missing or unreadable file counts as no cache.
 pub fn read(directory: &Path, coordinates: Coordinates) -> Option<Weather> {
     let text = fs::read_to_string(directory.join(FILE_NAME)).ok()?;
     usable(&text, coordinates)
 }
 
-/// A malformed file, another format version, or another location all count as no cache.
 fn usable(text: &str, coordinates: Coordinates) -> Option<Weather> {
     let file: CacheFile = serde_json::from_str(text).ok()?;
     if file.version != FORMAT_VERSION || file.location != CachedLocation::from(coordinates) {
@@ -58,7 +55,6 @@ fn usable(text: &str, coordinates: Coordinates) -> Option<Weather> {
 }
 
 /// Writes a temporary file, then renames it into place, so a reader never sees a partial file.
-/// Creates `directory` when missing.
 pub fn write(directory: &Path, coordinates: Coordinates, weather: &Weather) -> io::Result<()> {
     let file = CacheFile {
         version: FORMAT_VERSION,

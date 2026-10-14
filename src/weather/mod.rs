@@ -1,5 +1,3 @@
-//! Weather from Open-Meteo: the request and response, conditions, units, and the disk cache.
-
 pub mod cache;
 mod condition;
 mod forecast;
@@ -14,7 +12,6 @@ use jiff::Timestamp;
 
 use crate::config::Units;
 
-/// A validated forecast and when it arrived.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Weather {
     pub fetched_at: Timestamp,

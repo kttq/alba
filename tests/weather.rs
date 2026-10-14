@@ -49,7 +49,6 @@ fn imperial_units_show_whole_fahrenheit() {
     assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 58° ‚‚");
 }
 
-/// The fixture with its current weather code replaced.
 fn forecast_with_code(code: u16) -> String {
     forecast_body().replace("\"weather_code\":61", &format!("\"weather_code\":{code}"))
 }
@@ -194,7 +193,6 @@ fn cache_for_other_coordinates_counts_as_no_cache() {
     assert_eq!(elsewhere.text_line(&now, 22), "06:38 · tue 13");
 }
 
-/// Turns a good cache file's text into a broken one.
 type Breakage = fn(String) -> String;
 
 #[test]

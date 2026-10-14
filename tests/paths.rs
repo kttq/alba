@@ -2,7 +2,6 @@ use std::{collections::HashMap, ffi::OsString, path::PathBuf};
 
 use alba::paths::Paths;
 
-/// Resolves the paths from these environment variables alone.
 fn resolve(variables: &[(&str, &str)]) -> Option<Paths> {
     let variables: HashMap<_, _> = variables.iter().copied().collect();
     Paths::resolve(|name| variables.get(name).map(OsString::from)).ok()

@@ -66,7 +66,6 @@ fn pane_narrower_than_the_clock_renders_nothing() {
     terminal.backend().assert_buffer_lines(["    "; 3]);
 }
 
-/// The default instant, at another wall-clock time.
 fn instant(time: &str) -> Zoned {
     format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
         .parse()

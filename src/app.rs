@@ -17,7 +17,7 @@ use crate::{
     weather::{self, Condition, FetchError, Forecast, Weather, WeatherSource, cache},
 };
 
-/// The app core. It never reads the system clock or time zone: time arrives only as `now`.
+/// Time and time zone come only from `now`, never the system clock.
 pub struct App {
     config: Config,
     strings: &'static Strings,
@@ -28,7 +28,6 @@ pub struct App {
     fetch_requested: bool,
 }
 
-/// What the event loop does after a key.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Control {
     Continue,
@@ -36,8 +35,7 @@ pub enum Control {
 }
 
 impl App {
-    /// Shows the cached weather for the configured coordinates at once, and starts a fresh log
-    /// in `state_directory`.
+    /// Reads the cache and empties the log.
     pub fn new(
         config: &Config,
         weather_source: Box<dyn WeatherSource>,
@@ -57,8 +55,6 @@ impl App {
         }
     }
 
-    /// The event loop calls this on every wake, before it draws. Fetches once, on the first
-    /// tick.
     pub fn tick(&mut self, now: &Zoned) {
         if let Some(result) = self.weather_source.finished() {
             self.receive(result, now);
@@ -71,7 +67,6 @@ impl App {
         }
     }
 
-    /// Replaces the weather only with a valid forecast. A failed cache write keeps it in memory.
     fn receive(&mut self, result: Result<String, FetchError>, now: &Zoned) {
         let Some(coordinates) = coordinates(&self.config) else {
             return;
@@ -90,7 +85,7 @@ impl App {
         self.weather = Some(weather);
     }
 
-    /// How often the event loop wakes. The blinking colon needs a quarter second.
+    /// The blinking colon needs a quarter-second tick.
     pub fn tick_interval(&self) -> Duration {
         if self.config.motion {
             Duration::from_millis(250)
@@ -126,7 +121,6 @@ impl App {
         );
     }
 
-    /// The Strip line, widest first: the full line, then without the date, then the clock alone.
     fn text_lines(&self, now: &Zoned) -> Vec<Line<'static>> {
         let clock = self.text_clock(now);
         let date = Line::from(self.short_date(now).light_blue());
@@ -140,7 +134,6 @@ impl App {
         }
     }
 
-    /// The temperature, then the condition mark when the code has a condition.
     fn text_weather(&self) -> Option<Line<'static>> {
         let current = &self.weather.as_ref()?.forecast.current;
         let degrees = weather::whole_degrees(current.temperature_2m, self.config.units);
@@ -168,7 +161,6 @@ impl App {
         format!("{weekday} {}", now.day())
     }
 
-    /// The 12-hour clock reads midnight and noon as 12.
     fn hour(&self, now: &Zoned) -> String {
         match (self.config.hour_format, now.hour() % 12) {
             (HourFormat::TwentyFour, _) => format!("{:02}", now.hour()),
@@ -185,7 +177,6 @@ impl App {
         }
     }
 
-    /// Lit for the first half of each wall-clock second, faint in the second half.
     fn colon(&self, now: &Zoned) -> Span<'static> {
         let first_half = now.subsec_nanosecond() < 500_000_000;
         if first_half || !self.config.motion {
@@ -196,7 +187,6 @@ impl App {
     }
 }
 
-/// Joins the parts of the text line with ` · `.
 fn joined(parts: Vec<Line<'static>>) -> Line<'static> {
     let parts: Vec<_> = parts.into_iter().map(|part| part.spans).collect();
     Line::from(parts.join(&Span::raw(" · ")))
@@ -209,7 +199,7 @@ fn coordinates(config: &Config) -> Option<Coordinates> {
     }
 }
 
-/// Two cells that stand for a condition on the text line.
+/// Each mark must take two terminal cells.
 fn condition_mark(condition: Condition) -> &'static str {
     match condition {
         Condition::Clear => "✦✦",

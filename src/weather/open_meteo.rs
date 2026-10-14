@@ -1,4 +1,4 @@
-//! The real forecast request. No test calls it: tests never touch the network.
+//! Tests use a fake fetch instead, so they never touch the network.
 
 use std::time::Duration;
 

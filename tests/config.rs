@@ -66,7 +66,7 @@ fn coordinates_win_over_location() {
     );
 }
 
-/// Asserts the message names `line` and contains `reason`, which comes partly from the TOML parser.
+/// Matches a fragment of the reason, because part of it comes from the TOML parser.
 fn assert_error(text: &str, line: usize, reason: &str) {
     let message = Config::parse(text).unwrap_err().to_string();
     let prefix = format!("config error: line {line}: ");
@@ -176,7 +176,6 @@ week_start  = "monday"
 # motion         = true
 "#;
 
-/// A fresh, empty directory standing in for `HOME`.
 fn temporary_home(test: &str) -> PathBuf {
     let home = std::env::temp_dir().join(format!("alba-{test}-{}", std::process::id()));
     let _ = fs::remove_dir_all(&home);

@@ -67,7 +67,7 @@ fn start() -> Result<(), String> {
     result.map_err(|error| format!("error: {error}"))
 }
 
-/// Accepts no arguments, or `--help` or `--version` alone. Returns the first argument it rejects.
+/// The error is the first argument it rejects.
 fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String> {
     let command = match args.next().as_deref() {
         None => Command::Run,
@@ -81,8 +81,6 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
     }
 }
 
-/// Ticks on every whole multiple of the app's tick interval, on the wall clock. Draws after
-/// each tick, and at once on key and resize events.
 fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let mut now = Zoned::now();
     app.tick(&now);
@@ -109,7 +107,6 @@ fn next_tick(now: Timestamp, interval: Duration) -> Timestamp {
     now - SignedDuration::from_nanos(into_interval) + interval
 }
 
-/// Zero once `deadline` has passed.
 fn until(deadline: Timestamp) -> Duration {
     Duration::try_from(deadline.duration_since(Timestamp::now())).unwrap_or(Duration::ZERO)
 }

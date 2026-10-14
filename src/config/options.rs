@@ -1,5 +1,3 @@
-//! The config options that take one of a few choices.
-
 use serde::Deserialize;
 use serde_repr::Deserialize_repr;
 

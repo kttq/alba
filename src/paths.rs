@@ -21,7 +21,6 @@ impl fmt::Display for HomeNotSet {
 }
 
 impl Paths {
-    /// `variable` reads one environment variable.
     pub fn resolve(variable: impl Fn(&str) -> Option<OsString>) -> Result<Self, HomeNotSet> {
         let base = |name, default| base_directory(&variable, name, default);
         Ok(Self {

@@ -1,4 +1,3 @@
-/// The weather category a WMO code maps to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Condition {
     Clear,
@@ -13,7 +12,7 @@ pub enum Condition {
 }
 
 impl Condition {
-    /// `None` for a code outside the table. Hail codes (96, 99) make no hail claim.
+    /// Hail codes (96, 99) make no hail claim.
     pub fn from_wmo(code: u16) -> Option<Self> {
         let condition = match code {
             0 | 1 => Self::Clear,

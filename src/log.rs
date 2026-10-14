@@ -1,4 +1,4 @@
-//! alba's own log, in logfmt: one event per line, as `key=value` pairs.
+//! alba's log, in logfmt.
 
 use std::{
     fmt::Display,
@@ -11,14 +11,12 @@ use jiff::Zoned;
 
 const FILE_NAME: &str = "alba.log";
 
-/// alba owns the whole terminal while it runs, so events go to this file instead of stderr.
-/// Logging is best effort: when the file can't be created or written, events are dropped.
+/// alba owns the terminal, so events go to a file instead of stderr.
 pub struct Log {
     file: Option<File>,
 }
 
 impl Log {
-    /// Creates `directory` when missing, and empties the log left by an earlier run.
     pub fn start(directory: &Path) -> Self {
         let file = fs::create_dir_all(directory)
             .and_then(|()| File::create(directory.join(FILE_NAME)))
@@ -40,7 +38,7 @@ impl Log {
     }
 }
 
-/// logfmt decoders read a quoted value with JSON string escapes, such as `\u001b`.
+/// logfmt decoders accept JSON string escapes in quoted values.
 fn quoted(value: &str) -> String {
     serde_json::to_string(value).expect("a string always serializes")
 }
