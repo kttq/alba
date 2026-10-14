@@ -7,6 +7,8 @@ use std::{
     thread,
 };
 
+use jiff::SignedDuration;
+
 use crate::config::Coordinates;
 
 /// The app calls `finished` on every tick, so neither method may block.
@@ -23,15 +25,28 @@ pub trait WeatherSource {
 pub enum FetchError {
     /// DNS, connection, TLS, timeout, or a failed body read.
     Network(String),
-    Status(u16),
+    Status {
+        status: u16,
+        retry_after: Option<SignedDuration>,
+    },
     Invalid(String),
+}
+
+impl FetchError {
+    /// How long the server asked alba to wait before the next fetch.
+    pub fn retry_after(&self) -> Option<SignedDuration> {
+        match self {
+            Self::Status { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
 }
 
 impl fmt::Display for FetchError {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Network(reason) => write!(formatter, "network error: {reason}"),
-            Self::Status(status) => write!(formatter, "http status {status}"),
+            Self::Status { status, .. } => write!(formatter, "http status {status}"),
             Self::Invalid(reason) => write!(formatter, "invalid forecast: {reason}"),
         }
     }

@@ -12,12 +12,18 @@ use std::{
 use alba::{
     app::App,
     config::{Config, Coordinates},
-    weather::{FetchError, WeatherSource},
+    log::Log,
+    weather::{FetchError, WeatherSource, WeatherStation},
 };
 use jiff::Zoned;
 use ratatui::{Terminal, backend::TestBackend};
 
 pub const BUENOS_AIRES: &str = "coordinates = [-34.6037, -58.3816]";
+
+pub const BUENOS_AIRES_COORDINATES: Coordinates = Coordinates {
+    latitude: -34.6037,
+    longitude: -58.3816,
+};
 
 pub fn default_instant() -> Zoned {
     "2026-10-13T06:38[America/Argentina/Buenos_Aires]"
@@ -120,6 +126,43 @@ impl Harness {
             .map(|cell| cell.symbol())
             .collect();
         line.trim().to_string()
+    }
+}
+
+/// A weather station for Buenos Aires, with its own log.
+pub struct WeatherStationHarness {
+    pub weather_station: WeatherStation,
+    pub weather_source: FakeWeatherSource,
+    pub log: Log,
+}
+
+impl WeatherStationHarness {
+    pub fn with_cache(cache_directory: PathBuf) -> Self {
+        let weather_source = FakeWeatherSource::default();
+        let weather_station = WeatherStation::new(
+            Some(BUENOS_AIRES_COORDINATES),
+            Box::new(weather_source.clone()),
+            cache_directory,
+        );
+        Self {
+            weather_station,
+            weather_source,
+            log: Log::start(&temporary_directory()),
+        }
+    }
+
+    pub fn tick(&mut self, now: &Zoned) {
+        self.weather_station.tick(now, &mut self.log);
+    }
+
+    /// Finishes the running fetch, then ticks so the station takes the result.
+    pub fn finish(&mut self, now: &Zoned, result: Result<String, FetchError>) {
+        self.weather_source.finish(result);
+        self.tick(now);
+    }
+
+    pub fn fetches(&self) -> usize {
+        self.weather_source.requests().len()
     }
 }
 

@@ -2,11 +2,12 @@ mod common;
 
 use std::fs;
 
-use alba::{config::Coordinates, weather::FetchError};
+use alba::{app::Control, config::Coordinates, weather::FetchError};
 use common::{
     BUENOS_AIRES, Harness, default_instant, forecast_body, make_read_only, temporary_directory,
 };
 use ratatui::{
+    crossterm::event::{KeyCode, KeyEvent},
     style::Stylize,
     text::{Line, Span},
 };
@@ -90,7 +91,13 @@ fn failed_fetches_show_no_weather() {
                 forecast["current"]["is_day"] = json!(7)
             })),
         ),
-        ("http error", Err(FetchError::Status(503))),
+        (
+            "http error",
+            Err(FetchError::Status {
+                status: 503,
+                retry_after: None,
+            }),
+        ),
         (
             "network error",
             Err(FetchError::Network("timed out".to_string())),
@@ -193,7 +200,13 @@ fn failed_fetch_keeps_the_cached_weather() {
     Harness::with_cache(BUENOS_AIRES, cache_directory.clone()).fetch(&now, Ok(forecast_body()));
     let mut next_start = Harness::with_cache(BUENOS_AIRES, cache_directory);
 
-    next_start.fetch(&now, Err(FetchError::Status(500)));
+    next_start.fetch(
+        &now,
+        Err(FetchError::Status {
+            status: 500,
+            retry_after: None,
+        }),
+    );
 
     assert_eq!(next_start.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
 }
@@ -247,4 +260,76 @@ fn failed_cache_write_keeps_the_weather_in_memory() {
 
     assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
     assert!(!cache_directory.join("weather.json").exists());
+}
+
+fn hours_later(hours: i64) -> jiff::Zoned {
+    default_instant()
+        .checked_add(jiff::SignedDuration::from_hours(hours))
+        .unwrap()
+}
+
+#[test]
+fn stale_weather_dims_the_temperature_with_no_age_label() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    harness.fetch(&default_instant(), Ok(forecast_body()));
+
+    harness
+        .render_row(&hours_later(2), 23)
+        .backend()
+        .assert_buffer_lines([Line::from(vec![
+            Span::raw("08:38 · "),
+            "tue 13".light_blue(),
+            Span::raw(" · "),
+            "14°".dark_gray(),
+            Span::raw(" ‚‚"),
+        ])]);
+}
+
+#[test]
+fn expired_weather_drops_the_weather_part() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    harness.fetch(&default_instant(), Ok(forecast_body()));
+
+    assert_eq!(harness.text_line(&hours_later(13), 23), "19:38 · tue 13");
+}
+
+#[test]
+fn r_fetches_the_weather_now() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    let now = default_instant();
+    harness.fetch(&now, Ok(forecast_body()));
+
+    let control = harness.app.key(KeyEvent::from(KeyCode::Char('r')));
+    harness.app.tick(&now);
+
+    assert_eq!(control, Control::Continue);
+    assert_eq!(harness.weather_source.requests().len(), 2);
+}
+
+#[test]
+fn running_fetch_adds_a_dim_ellipsis_after_300_ms() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    let now = default_instant();
+    harness.fetch(&now, Ok(forecast_body()));
+    harness.app.key(KeyEvent::from(KeyCode::Char('r')));
+    harness.app.tick(&now);
+    let later = |milliseconds| {
+        now.checked_add(jiff::SignedDuration::from_millis(milliseconds))
+            .unwrap()
+    };
+
+    assert_eq!(
+        harness.text_line(&later(299), 24),
+        "06:38 · tue 13 · 14° ‚‚"
+    );
+    harness
+        .render_row(&later(300), 24)
+        .backend()
+        .assert_buffer_lines([Line::from(vec![
+            Span::raw("06:38 · "),
+            "tue 13".light_blue(),
+            Span::raw(" · 14°"),
+            "…".dim(),
+            Span::raw(" ‚‚"),
+        ])]);
 }

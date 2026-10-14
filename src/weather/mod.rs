@@ -1,15 +1,19 @@
 pub mod cache;
 mod condition;
 mod forecast;
+mod freshness;
 pub mod open_meteo;
+mod schedule;
 mod source;
 mod station;
 mod text;
 
 pub use condition::Condition;
 pub use forecast::{Forecast, IsDay};
+pub use freshness::Freshness;
+pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, WeatherSource};
-pub use station::WeatherStation;
+pub use station::{WeatherState, WeatherStation};
 pub use text::text_line;
 
 use jiff::Timestamp;

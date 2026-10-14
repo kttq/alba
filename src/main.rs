@@ -23,7 +23,7 @@ usage: alba [--help | --version | --log]
 
 --log prints the log of the running alba, or of the last run.
 
-keys: q, esc, or ctrl-c quits.";
+keys: r fetches the weather now. q, esc, or ctrl-c quits.";
 
 enum Command {
     Run,
