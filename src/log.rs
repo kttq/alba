@@ -1,7 +1,7 @@
 //! alba's log, in logfmt.
 
 use std::{
-    fmt::Display,
+    fmt::{self, Display},
     fs::{self, File},
     io::{self, Write},
     path::Path,
@@ -24,17 +24,45 @@ impl Log {
         Self { file }
     }
 
-    pub fn warn(&mut self, now: &Zoned, message: &str, error: &dyn Display) {
+    /// One logfmt line: the time, the level, the message, then each field in order.
+    pub fn write(
+        &mut self,
+        level: Level,
+        now: &Zoned,
+        message: &str,
+        fields: &[(&str, &dyn Display)],
+    ) {
         let Some(file) = &mut self.file else {
             return;
         };
-        let line = format!(
-            "time={} level=warn msg={} error={}\n",
+        let mut line = format!(
+            "time={} level={level} msg={}",
             now.strftime("%Y-%m-%dT%H:%M:%S%:z"),
             quoted(message),
-            quoted(&error.to_string()),
         );
+        for (key, value) in fields {
+            line.push_str(&format!(" {key}={}", quoted(&value.to_string())));
+        }
+        line.push('\n');
         let _ = file.write_all(line.as_bytes());
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    Info,
+    Warn,
+    Error,
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let name = match self {
+            Self::Info => "info",
+            Self::Warn => "warn",
+            Self::Error => "error",
+        };
+        formatter.write_str(name)
     }
 }
 
