@@ -45,8 +45,7 @@ impl Calendar {
         }
     }
 
-    /// The current week: the weekday header over the days, with a column of space on each side
-    /// so today's pill keeps its padding at either end.
+    /// The current week: the weekday header over the days.
     pub fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
         let today = now.date();
         let days = self.week_of(today);
@@ -63,10 +62,9 @@ impl Calendar {
         let numbers = days
             .iter()
             .map(|&day| Span::styled(format!("{:>2}", day.day()), day_style(day, today)));
-        let today_index = days.iter().position(|&day| day == today);
         [
-            Line::from(spaced(header.collect(), &[])),
-            Line::from(spaced(numbers.collect(), today_index.as_slice())),
+            Line::from(spaced(header.collect())),
+            Line::from(spaced(numbers.collect())),
         ]
     }
 
@@ -106,23 +104,14 @@ fn is_weekend(weekday: Weekday) -> bool {
     matches!(weekday, Weekday::Saturday | Weekday::Sunday)
 }
 
-/// One space before, between, and after the cells. The spaces on each side of a pill cell take
-/// the pill's style.
-fn spaced(cells: Vec<Span<'static>>, pills: &[usize]) -> Vec<Span<'static>> {
-    let space = |touches_pill: bool| {
-        if touches_pill {
-            Span::styled(" ", today_style())
-        } else {
-            Span::raw(" ")
-        }
-    };
-    let count = cells.len();
-    let mut spans = Vec::with_capacity(2 * count + 1);
+/// One space between the cells, so today's pill keeps a space from its neighbours.
+fn spaced(cells: Vec<Span<'static>>) -> Vec<Span<'static>> {
+    let mut spans = Vec::with_capacity(2 * cells.len());
     for (index, cell) in cells.into_iter().enumerate() {
-        let after_pill = index > 0 && pills.contains(&(index - 1));
-        spans.push(space(after_pill || pills.contains(&index)));
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
         spans.push(cell);
     }
-    spans.push(space(count > 0 && pills.contains(&(count - 1))));
     spans
 }

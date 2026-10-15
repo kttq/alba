@@ -433,24 +433,15 @@ fn named_with_weather(config_text: &str, now: &Zoned) -> Harness {
 }
 
 #[test]
-fn medium_top_border_centres_the_place_name_and_truncates_it_to_keep_a_dash_from_each_label() {
-    let noon = default_instant().with().hour(12).build().unwrap();
-    let narrow = named_with_weather("", &default_instant());
-    let wide = named_with_weather("hour_format = 12", &noon);
+fn medium_top_border_leaves_the_place_name_out() {
+    let harness = named_with_weather("", &default_instant());
 
-    let narrow = rendered(&narrow, &default_instant(), 40, 12);
-    let wide = rendered(&wide, &noon, 43, 12);
+    let terminal = rendered(&harness, &default_instant(), 40, 12);
 
     assert_eq!(
-        row_text(narrow.backend().buffer(), 0),
-        "╭─ tue 13 oct ─ buenos aires… ─ wk 42 ─╮"
+        row_text(terminal.backend().buffer(), 0),
+        "╭─ tue 13 oct ───────────────── wk 42 ─╮"
     );
-    assert_eq!(
-        row_text(wide.backend().buffer(), 0),
-        "╭─ tue 13 oct ─ buenos aires, ar ─ wk 42 ─╮"
-    );
-    let name = narrow.backend().buffer()[(16, 0)].clone();
-    assert_eq!((name.symbol(), name.fg), ("b", Color::DarkGray));
 }
 
 #[test]
@@ -527,9 +518,12 @@ fn medium_week_strip_pills_today_dims_past_days_and_tints_the_weekend() {
     assert_eq!(style(10, 9), dim, "a weekday name");
     assert_eq!(style(25, 9), weekend, "a weekend name");
     assert_eq!(style(10, 10), dim, "a past day");
-    for x in 12..16 {
+    for x in 13..15 {
         assert_eq!(style(x, 10), pill, "today's pill, column {x}");
     }
+    let plain = (Color::Reset, Modifier::empty());
+    assert_eq!(style(12, 10), plain, "the space before the pill");
+    assert_eq!(style(15, 10), plain, "the space after the pill");
     assert_eq!(
         style(16, 10),
         (Color::Reset, Modifier::empty()),

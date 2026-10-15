@@ -150,12 +150,7 @@ impl App {
                 ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
             }),
             week_strip: self.calendar.week_strip(now),
-            bezel: Bezel::new(
-                self.strings,
-                now,
-                self.weather_station.place_name(),
-                weather_state.weather().is_some(),
-            ),
+            bezel: Bezel::new(self.strings, now, weather_state.weather().is_some()),
         }
     }
 }

@@ -81,7 +81,7 @@ pub enum Piece<'a> {
     Icon(IconPicture),
     SegmentClock(&'a SegmentClock),
     Timeline(&'a ShownTimeline),
-    BorderRun(BorderRun<'a>),
+    BorderRun,
     BorderSide,
     Separator,
 }
@@ -99,7 +99,7 @@ impl Piece<'_> {
             }
             Self::SegmentClock(segment_clock) => segment_clock.size(),
             Self::Timeline(timeline) => timeline.required_size(),
-            Self::BorderRun(_) | Self::BorderSide => Size::new(1, 1),
+            Self::BorderRun | Self::BorderSide => Size::new(1, 1),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
         }
     }
@@ -111,7 +111,7 @@ impl Piece<'_> {
             Self::Icon(icon) => icon.render(area, buffer),
             Self::SegmentClock(segment_clock) => segment_clock.render(area, buffer),
             Self::Timeline(timeline) => timeline.render(area, buffer),
-            Self::BorderRun(border_run) => border_run.render(area, buffer),
+            Self::BorderRun => BorderRun.render(area, buffer),
             Self::BorderSide => BorderSide.render(area, buffer),
             Self::Separator => Span::raw(SEPARATOR).render(area, buffer),
         }
@@ -276,19 +276,15 @@ fn framed<'a>(bezel: &'a Bezel, content: Arrangement<'a>) -> Arrangement<'a> {
         .max(label_width(&bezel.bottom_left, &bezel.bottom_right));
     let height = content.size.height + 2;
     let mut pieces = Vec::new();
-    let place_name = bezel.place_name.as_deref();
-    for (y, left, right, place_name) in [
-        (0, &bezel.top_left, &bezel.top_right, place_name),
-        (height - 1, &bezel.bottom_left, &bezel.bottom_right, None),
+    for (y, left, right) in [
+        (0, &bezel.top_left, &bezel.top_right),
+        (height - 1, &bezel.bottom_left, &bezel.bottom_right),
     ] {
         let left_width = left.width() as u16;
         let right_width = right.width() as u16;
         pieces.push((Piece::Text(left), Rect::new(0, y, left_width, 1)));
         let run_width = width - left_width - right_width;
-        pieces.push((
-            Piece::BorderRun(BorderRun { place_name }),
-            Rect::new(left_width, y, run_width, 1),
-        ));
+        pieces.push((Piece::BorderRun, Rect::new(left_width, y, run_width, 1)));
         pieces.push((
             Piece::Text(right),
             Rect::new(width - right_width, y, right_width, 1),
