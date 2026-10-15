@@ -101,6 +101,9 @@ impl FixtureHome {
     fn weather(&self, forecast: &mut Value, now: Timestamp) -> io::Result<Weather> {
         let fetched_at = now - self.age.unwrap_or(self.cached_weather.default_age());
         shift_to_today(forecast, now)?;
+        if self.night {
+            centre_tonight_on(forecast, now)?;
+        }
         self.set_current(forecast, fetched_at);
         Ok(Weather {
             fetched_at,
@@ -137,6 +140,23 @@ impl FixtureHome {
             current["is_day"] = 0.into();
         }
     }
+}
+
+/// Moves every sunrise and sunset so that now is halfway from today's sunset to tomorrow's
+/// sunrise. alba takes day or night from them, and `is_day` only without them.
+fn centre_tonight_on(forecast: &mut Value, now: Timestamp) -> io::Result<()> {
+    let daily = &mut forecast["daily"];
+    let midnight = (integer(&daily["sunset"][1])? + integer(&daily["sunrise"][2])?) / 2;
+    let shift = now.as_second() - midnight;
+    for column in ["sunrise", "sunset"] {
+        let Some(times) = daily[column].as_array_mut() else {
+            return Err(invalid(&format!("daily.{column} is not a list")));
+        };
+        for time in times {
+            *time = (integer(time)? + shift).into();
+        }
+    }
+    Ok(())
 }
 
 /// Moves every time by whole days, so sunrise, sunset, and midnights keep their clock times.

@@ -196,3 +196,13 @@ fn condition_name_is_the_main_text_color_and_dims_when_stale() {
     assert_eq!(text(&line), "rain");
     assert_eq!(line.spans[0].style.fg, Some(Color::DarkGray));
 }
+
+#[test]
+fn sparkline_label_is_dim() {
+    let weather = weather();
+    let readings = readings(WeatherState::Fresh(&weather), false);
+
+    let label = readings.sparkline_label();
+    assert_eq!(text(label), "precip · next 12h");
+    assert_eq!(label.style.fg, Some(Color::DarkGray));
+}

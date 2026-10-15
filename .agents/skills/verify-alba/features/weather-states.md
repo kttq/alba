@@ -39,4 +39,4 @@ Preconditions:
 - Online recipes send real requests to Open-Meteo, so their weather and place name can change.
 - Only the Strip shows the condition mark, so recipes that expect a mark use `--rows 1`. The default 40×12 shows Compact, so the recipes that read `HH:MM · ddd DD` need `--rows 1` too.
 - The cache matches the config's `coordinates` exactly. `$D/fixture` writes both from the fixture; a hand-edited `coordinates` line makes alba ignore the cache.
-- The fixture shifts by whole days, so sunrise and sunset keep their Buenos Aires clock times. `--night` sets only the current `is_day`.
+- The fixture shifts by whole days, so sunrise and sunset keep their Buenos Aires clock times. `--night` instead moves them so that now is halfway through the night, at any hour, and the timeline then shows those moved times.

@@ -15,9 +15,9 @@ usage: fixture HOME [--weather fresh|stale|expired|none] [--age MINUTES] [--code
 
 The cache is tests/fixtures/forecast.json (Buenos Aires, rain, 14°, day), shifted so its
 middle day is today. Default ages: fresh 5 minutes, stale 90 minutes, expired 13 hours.
---weather none writes no cache. --night sets the current is_day to 0. --location sets the
-config's location to NAME and caches it as resolved to buenos aires, ar, so alba needs no
-lookup. --config adds a line.";
+--weather none writes no cache. --night moves sunrise and sunset so that now is mid-night,
+and sets the current is_day to 0. --location sets the config's location to NAME and caches
+it as resolved to buenos aires, ar, so alba needs no lookup. --config adds a line.";
 
 fn main() -> ExitCode {
     if env::args().any(|argument| argument == "-h" || argument == "--help") {
