@@ -1,6 +1,6 @@
 //! Picks the size tier that fits the pane, centres it, and places each piece of the face.
 
-use crate::pixels::Canvas;
+use crate::{clock::SegmentClock, icon::IconSize, pixels::Canvas};
 
 use ratatui::{
     buffer::Buffer,
@@ -12,22 +12,32 @@ use ratatui::{
 /// Everything alba shows at one instant, built once for every size tier.
 pub struct Face {
     pub text_clock: Line<'static>,
+    pub segment_clock: SegmentClock,
     pub short_date: Line<'static>,
+    pub weekday_and_day: Line<'static>,
     /// The weather pieces are None when no weather data is shown.
     pub weather_line: Option<Line<'static>>,
     pub temperature: Option<Line<'static>>,
+    pub temperature_high_and_low: Option<Line<'static>>,
+    /// Only for stale weather.
+    pub age_label: Option<Line<'static>>,
+    pub sparkline: Option<Line<'static>>,
+    /// What the weather area says without weather data, each way widest first.
+    pub weather_status: Vec<Line<'static>>,
+    /// The ghost icon without weather data; None for a weather code with no condition.
     pub mini_icon: Option<Canvas>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {
+    Compact,
     Mini,
     Strip,
 }
 
 impl SizeTier {
     /// The first that fits wins.
-    pub const IN_ORDER: [Self; 2] = [Self::Mini, Self::Strip];
+    pub const IN_ORDER: [Self; 3] = [Self::Compact, Self::Mini, Self::Strip];
 }
 
 #[derive(Debug)]
@@ -48,6 +58,7 @@ pub struct PlacedItem<'a> {
 pub enum Piece<'a> {
     Text(&'a Line<'static>),
     Picture(&'a Canvas),
+    SegmentClock(&'a SegmentClock),
     Separator,
 }
 
@@ -58,6 +69,7 @@ impl Piece<'_> {
         match self {
             Self::Text(line) => Size::new(line.width() as u16, 1),
             Self::Picture(canvas) => Size::new(canvas.width(), canvas.height().div_ceil(2)),
+            Self::SegmentClock(segment_clock) => segment_clock.size(),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
         }
     }
@@ -66,6 +78,7 @@ impl Piece<'_> {
         match self {
             Self::Text(line) => line.render(area, buffer),
             Self::Picture(canvas) => canvas.render(area, buffer),
+            Self::SegmentClock(segment_clock) => segment_clock.render(area, buffer),
             Self::Separator => Span::raw(SEPARATOR).render(area, buffer),
         }
     }
@@ -109,8 +122,130 @@ pub fn minimum_size(size_tier: SizeTier, face: &Face) -> Option<Size> {
 /// Widest first.
 fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     match size_tier {
+        SizeTier::Compact => compact_arrangements(face),
         SizeTier::Mini => mini_arrangement(face).into_iter().collect(),
         SizeTier::Strip => strip_arrangements(face),
+    }
+}
+
+/// The short date, the clock, an empty row, and the weather: the icon beside a text row over the
+/// sparkline. Without weather data, the status takes the text row.
+fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    compact_text_rows(face)
+        .into_iter()
+        .map(|text_rows| {
+            column(vec![
+                centred(Piece::Text(&face.short_date)),
+                centred(Piece::SegmentClock(&face.segment_clock)),
+                Block::Gap(1),
+                Block::Centred(icon_beside(face.mini_icon.as_ref(), text_rows)),
+            ])
+        })
+        .collect()
+}
+
+/// Pieces side by side, one column apart.
+type TextRow<'a> = Vec<Piece<'a>>;
+
+/// Each way to fill the text rows beside the icon, widest first.
+fn compact_text_rows(face: &Face) -> Vec<Vec<TextRow<'_>>> {
+    let Some(temperature_high_and_low) = &face.temperature_high_and_low else {
+        return (face.weather_status.iter())
+            .map(|status| vec![vec![Piece::Text(status)]])
+            .collect();
+    };
+    let sparkline_row: Option<TextRow> = face
+        .sparkline
+        .as_ref()
+        .map(|sparkline| vec![Piece::Text(sparkline)]);
+    let with_age = (face.age_label.as_ref()).map(|age_label| {
+        vec![
+            Piece::Text(temperature_high_and_low),
+            Piece::Text(age_label),
+        ]
+    });
+    let without_age = vec![Piece::Text(temperature_high_and_low)];
+    with_age
+        .into_iter()
+        .chain([without_age])
+        .map(|first_row| {
+            std::iter::once(first_row)
+                .chain(sparkline_row.clone())
+                .collect()
+        })
+        .collect()
+}
+
+/// The text keeps its place when there is no icon, so it never jumps.
+fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<TextRow<'a>>) -> Arrangement<'a> {
+    let (icon_width, icon_height) = IconSize::Mini.cells();
+    let text_x = icon_width + ICON_GAP;
+    let mut pieces: Vec<_> = icon
+        .map(|canvas| (Piece::Picture(canvas), Position::ORIGIN))
+        .into_iter()
+        .collect();
+    let mut width = icon_width;
+    let text_height = text_rows.len() as u16;
+    for (y, text_row) in text_rows.into_iter().enumerate() {
+        let text_row = row(text_row, 1);
+        width = width.max(text_x + text_row.size.width);
+        pieces.extend(
+            (text_row.pieces.into_iter())
+                .map(|(piece, offset)| (piece, Position::new(text_x + offset.x, y as u16))),
+        );
+    }
+    Arrangement {
+        size: Size::new(width, icon_height.max(text_height)),
+        pieces,
+    }
+}
+
+const ICON_GAP: u16 = 2;
+
+/// One row of a column.
+enum Block<'a> {
+    Centred(Arrangement<'a>),
+    /// Empty rows.
+    Gap(u16),
+}
+
+fn centred(piece: Piece<'_>) -> Block<'_> {
+    Block::Centred(Arrangement {
+        size: piece.required_size(),
+        pieces: vec![(piece, Position::ORIGIN)],
+    })
+}
+
+/// Stacked top to bottom, each block centred in the widest; an odd leftover column goes after it.
+fn column(blocks: Vec<Block<'_>>) -> Arrangement<'_> {
+    let width = blocks
+        .iter()
+        .map(|block| match block {
+            Block::Centred(arrangement) => arrangement.size.width,
+            Block::Gap(_) => 0,
+        })
+        .max()
+        .unwrap_or(0);
+    let mut y = 0;
+    let mut pieces = Vec::new();
+    for block in blocks {
+        match block {
+            Block::Centred(arrangement) => {
+                let x = (width - arrangement.size.width) / 2;
+                pieces.extend(
+                    arrangement
+                        .pieces
+                        .into_iter()
+                        .map(|(piece, offset)| (piece, Position::new(x + offset.x, y + offset.y))),
+                );
+                y += arrangement.size.height;
+            }
+            Block::Gap(rows) => y += rows,
+        }
+    }
+    Arrangement {
+        size: Size::new(width, y),
+        pieces,
     }
 }
 
@@ -126,7 +261,7 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
 
 fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let clock = Piece::Text(&face.text_clock);
-    let date = Piece::Text(&face.short_date);
+    let date = Piece::Text(&face.weekday_and_day);
     let separator = Piece::Separator;
     let lines = match &face.weather_line {
         Some(weather_line) => {
