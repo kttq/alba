@@ -86,3 +86,87 @@ fn week_strip_crosses_into_the_next_month() {
 
     assert_eq!(texts(&days), ["26", "27", "28", "29", "30", "31", " 1"]);
 }
+
+fn month(config_text: &str, now: &Zoned) -> [Line<'static>; 8] {
+    Calendar::new(&Config::parse(config_text).unwrap()).month(now)
+}
+
+/// One line per row, without the trailing blanks of the empty days.
+fn rows(lines: &[Line]) -> String {
+    (lines.iter())
+        .map(|line| line.to_string().trim_end().to_string())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn month_shows_the_title_the_weekday_header_and_six_week_rows() {
+    let lines = month("", &default_instant());
+
+    assert_eq!(
+        rows(&lines),
+        [
+            "october 2026",
+            "mo tu we th fr sa su",
+            "          1  2  3  4",
+            " 5  6  7  8  9 10 11",
+            "12 13 14 15 16 17 18",
+            "19 20 21 22 23 24 25",
+            "26 27 28 29 30 31",
+            "",
+        ]
+        .join("\n")
+    );
+    for line in &lines[1..] {
+        assert_eq!(line.width(), 20, "{line}");
+    }
+    assert_eq!(
+        cells(&lines[0])[0].1.fg,
+        Some(Color::LightBlue),
+        "the title"
+    );
+}
+
+#[test]
+fn month_pills_today_dims_past_days_and_tints_the_weekend() {
+    let lines = month("", &default_instant());
+
+    let week = cells(&lines[4]);
+    assert_eq!(texts(&lines[4]), ["12", "13", "14", "15", "16", "17", "18"]);
+    assert_eq!(week[0].1, Style::new().fg(Color::DarkGray), "a past day");
+    assert_eq!(
+        week[1].1,
+        Style::new()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::REVERSED),
+        "today's pill"
+    );
+    assert_eq!(week[2].1, Style::new(), "a coming weekday");
+    assert_eq!(
+        week[5].1,
+        Style::new().fg(Color::Green),
+        "a coming saturday"
+    );
+}
+
+#[test]
+fn sunday_first_month_starts_the_header_and_grid_on_sunday() {
+    let lines = month("week_start = \"sunday\"", &default_instant());
+
+    insta::assert_snapshot!(rows(&lines));
+}
+
+#[test]
+fn sunday_first_month_tints_the_weekend_by_the_day_of_the_week() {
+    let lines = month("week_start = \"sunday\"", &default_instant());
+
+    let green = Some(Color::Green);
+    let last_week = cells(&lines[6]);
+    assert_eq!(texts(&lines[6]), ["25", "26", "27", "28", "29", "30", "31"]);
+    assert_eq!(last_week[0].1.fg, green, "sunday 25, first column");
+    assert_eq!(last_week[6].1.fg, green, "saturday 31, last column");
+    assert_eq!(last_week[1].1.fg, None, "monday 26");
+    let header = cells(&lines[1]);
+    assert_eq!(header[0].1.fg, green, "sunday, first");
+    assert_eq!(header[6].1.fg, green, "saturday, last");
+}

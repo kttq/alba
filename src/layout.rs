@@ -32,6 +32,8 @@ pub struct Face {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {
+    Wide,
+    Tall,
     Medium,
     Compact,
     Mini,
@@ -40,7 +42,14 @@ pub enum SizeTier {
 
 impl SizeTier {
     /// The first that fits wins.
-    pub const IN_ORDER: [Self; 4] = [Self::Medium, Self::Compact, Self::Mini, Self::Strip];
+    pub const IN_ORDER: [Self; 6] = [
+        Self::Wide,
+        Self::Tall,
+        Self::Medium,
+        Self::Compact,
+        Self::Mini,
+        Self::Strip,
+    ];
 }
 
 #[derive(Debug)]
@@ -65,7 +74,7 @@ pub enum Piece<'a> {
     Icon(ShownIcon, IconSize),
     SegmentClock(&'a ShownClock, DigitSize),
     Timeline(&'a ShownTimeline),
-    BorderRun,
+    BorderRun(BorderRun<'a>),
     BorderSide,
     Separator,
 }
@@ -91,7 +100,7 @@ impl Piece<'_> {
             }
             Self::SegmentClock(clock, digit_size) => clock.segment_size(*digit_size),
             Self::Timeline(timeline) => timeline.required_size(),
-            Self::BorderRun | Self::BorderSide => Size::new(1, 1),
+            Self::BorderRun(_) | Self::BorderSide => Size::new(1, 1),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
         }
     }
@@ -104,7 +113,7 @@ impl Piece<'_> {
                 (&clock.segment_clock(digit_size)).render(area, buffer);
             }
             Self::Timeline(timeline) => timeline.render(area, buffer),
-            Self::BorderRun => BorderRun.render(area, buffer),
+            Self::BorderRun(border_run) => border_run.render(area, buffer),
             Self::BorderSide => BorderSide.render(area, buffer),
             Self::Separator => Span::raw(SEPARATOR).render(area, buffer),
         }
@@ -167,6 +176,8 @@ pub fn minimum_size(size_tier: SizeTier, face: &Face) -> Option<Size> {
 /// Widest first.
 fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     match size_tier {
+        SizeTier::Wide => wide_arrangements(face),
+        SizeTier::Tall => tall_arrangements(face),
         SizeTier::Medium => medium_arrangements(face),
         SizeTier::Compact => compact_arrangements(face),
         SizeTier::Mini => mini_arrangement(face).into_iter().collect(),
@@ -174,27 +185,66 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
-/// Without a location, the first-run hint takes the weather row and the timeline's first row.
-fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
-    let icon_column = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
-    medium_weather_rows(face, icon_column)
+fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    let icon_column = icon_column(face);
+    weather_and_timeline(face, icon_column, ConditionRow::Without)
         .into_iter()
-        .map(|[weather_row, timeline_rows]| {
-            framed(
-                &face.bezel,
-                column(vec![
-                    Block::Gap(BREATHING_ROWS),
-                    Block::Left(clock_and_icon(face, icon_column)),
-                    weather_row,
-                    Block::Gap(BREATHING_ROWS),
-                    timeline_rows,
-                    Block::Gap(BREATHING_ROWS),
-                    week_strip(face),
-                ]),
-            )
+        .map(|rows| {
+            let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
+            blocks.extend(rows);
+            let content = row(
+                vec![
+                    Cell::Next(column(blocks)),
+                    Cell::Next(calendar_lines(face.calendar.month())),
+                ],
+                CALENDAR_GAP,
+            );
+            framed(&face.bezel, face.bezel.place_name.as_deref(), content)
         })
         .collect()
+}
+
+/// Between the timeline and the month calendar.
+const CALENDAR_GAP: u16 = 3;
+
+fn tall_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    let icon_column = icon_column(face);
+    weather_and_timeline(face, icon_column, ConditionRow::With)
+        .into_iter()
+        .map(|rows| {
+            let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
+            blocks.extend(rows);
+            let month = calendar_lines(face.calendar.month());
+            blocks.extend([Block::Gap(BREATHING_ROWS), Block::Centred(month)]);
+            framed(&face.bezel, None, column(blocks))
+        })
+        .collect()
+}
+
+fn calendar_lines<'a>(lines: &'a [Line<'static>]) -> Arrangement<'a> {
+    column(lines.iter().map(|line| centred(text(line))).collect())
+}
+
+/// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
+fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    let icon_column = icon_column(face);
+    weather_and_timeline(face, icon_column, ConditionRow::Without)
+        .into_iter()
+        .map(|rows| {
+            let mut blocks = vec![
+                Block::Gap(BREATHING_ROWS),
+                Block::Left(clock_and_icon(face, icon_column)),
+            ];
+            blocks.extend(rows);
+            blocks.extend([Block::Gap(BREATHING_ROWS), week_strip(face)]);
+            framed(&face.bezel, None, column(blocks))
+        })
+        .collect()
+}
+
+/// The column the full icon starts at, which the sparkline shares.
+fn icon_column(face: &Face) -> u16 {
+    face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP
 }
 
 /// Under the top border, above the timeline, and above the week strip, so the clock, the
@@ -202,11 +252,7 @@ fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
 const BREATHING_ROWS: u16 = 1;
 
 fn week_strip(face: &Face) -> Block<'_> {
-    Block::Centred(column(
-        (face.calendar.week_strip().iter())
-            .map(|line| centred(text(line)))
-            .collect(),
-    ))
+    Block::Centred(calendar_lines(face.calendar.week_strip()))
 }
 
 fn clock_and_icon(face: &Face, icon_column: u16) -> Arrangement<'_> {
@@ -236,8 +282,21 @@ fn icon_slot(icon: Option<ShownIcon>, icon_size: IconSize) -> Arrangement<'stati
 /// Between the clock and the full icon.
 const CLOCK_GAP: u16 = 1;
 
-/// The weather row and the timeline rows under the clock and icon, each way widest first.
-fn medium_weather_rows(face: &Face, icon_column: u16) -> Vec<[Block<'_>; 2]> {
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConditionRow {
+    With,
+    Without,
+}
+
+/// The rows under the clock and icon: the weather row, the condition row when asked for, and the
+/// timeline, each way widest first. Without a location, the first-run hint takes the first two
+/// rows.
+fn weather_and_timeline(
+    face: &Face,
+    icon_column: u16,
+    condition_row: ConditionRow,
+) -> Vec<Vec<Block<'_>>> {
+    let condition_rows = u16::from(condition_row == ConditionRow::With);
     let timeline = || match &face.timeline {
         Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
         None => Block::Gap(TIMELINE_ROWS),
@@ -252,14 +311,19 @@ fn medium_weather_rows(face: &Face, icon_column: u16) -> Vec<[Block<'_>; 2]> {
                     .map(|line| left(text(line)))
                     .collect(),
             );
-            return vec![[
-                Block::Left(hint),
-                Block::Gap(WEATHER_ROWS + TIMELINE_ROWS - 2),
-            ]];
+            let rows = WEATHER_ROWS + condition_rows + BREATHING_ROWS + TIMELINE_ROWS;
+            let hint_rows = first_run_hint.len() as u16;
+            return vec![vec![Block::Left(hint), Block::Gap(rows - hint_rows)]];
         }
         WeatherArea::NoWeather { lines, .. } => {
             return (lines.iter())
-                .map(|line| [left(text(line)), timeline()])
+                .map(|line| {
+                    vec![
+                        left(text(line)),
+                        Block::Gap(condition_rows + BREATHING_ROWS),
+                        timeline(),
+                    ]
+                })
                 .collect();
         }
         WeatherArea::Readings(readings) => readings,
@@ -272,7 +336,12 @@ fn medium_weather_rows(face: &Face, icon_column: u16) -> Vec<[Block<'_>; 2]> {
         ],
         ICON_GAP,
     );
-    vec![[Block::Left(weather_row), timeline()]]
+    let mut blocks = vec![Block::Left(weather_row)];
+    if condition_row == ConditionRow::With {
+        blocks.push(left(composed(readings.line(&[Part::Condition]))));
+    }
+    blocks.extend([Block::Gap(BREATHING_ROWS), timeline()]);
+    vec![blocks]
 }
 
 const WEATHER_ROWS: u16 = 1;
@@ -280,22 +349,29 @@ const TIMELINE_ROWS: u16 = 3;
 
 /// Inside the bezel, with a column of space on each side. The bezel hugs the content, and widens
 /// only when its labels need more room.
-fn framed<'a>(bezel: &'a Bezel, content: Arrangement<'a>) -> Arrangement<'a> {
+fn framed<'a>(
+    bezel: &'a Bezel,
+    place_name: Option<&'a str>,
+    content: Arrangement<'a>,
+) -> Arrangement<'a> {
     let label_width = |left: &Line, right: &Line| (left.width() + right.width()) as u16 + 1;
     let width = (content.size.width + 4)
         .max(label_width(&bezel.top_left, &bezel.top_right))
         .max(label_width(&bezel.bottom_left, &bezel.bottom_right));
     let height = content.size.height + 2;
     let mut pieces = Vec::new();
-    for (y, left, right) in [
-        (0, &bezel.top_left, &bezel.top_right),
-        (height - 1, &bezel.bottom_left, &bezel.bottom_right),
+    for (y, left, right, place_name) in [
+        (0, &bezel.top_left, &bezel.top_right, place_name),
+        (height - 1, &bezel.bottom_left, &bezel.bottom_right, None),
     ] {
         let left_width = left.width() as u16;
         let right_width = right.width() as u16;
         pieces.push((text(left), Rect::new(0, y, left_width, 1)));
         let run_width = width - left_width - right_width;
-        pieces.push((Piece::BorderRun, Rect::new(left_width, y, run_width, 1)));
+        pieces.push((
+            Piece::BorderRun(BorderRun { place_name }),
+            Rect::new(left_width, y, run_width, 1),
+        ));
         pieces.push((
             text(right),
             Rect::new(width - right_width, y, right_width, 1),

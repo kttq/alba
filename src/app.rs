@@ -115,7 +115,12 @@ impl App {
             timeline: weather_state.weather().and_then(|weather| {
                 ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
             }),
-            bezel: Bezel::new(self.strings, now, weather_state.weather().is_some()),
+            bezel: Bezel::new(
+                self.strings,
+                now,
+                self.weather_station.place_name(),
+                weather_state.weather().is_some(),
+            ),
         }
     }
 }

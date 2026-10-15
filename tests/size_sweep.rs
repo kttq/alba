@@ -5,7 +5,7 @@ use alba::{
     layout::{self, Face, LayoutReport, SizeTier},
     weather::FetchError,
 };
-use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body};
+use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body, long_place_geocoding_body};
 use jiff::{ToSpan, Zoned};
 use ratatui::{
     Terminal,
@@ -87,11 +87,15 @@ fn worst_case_forecast(config_text: &str) -> String {
 fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned) {
     let noon = instant("12:38");
     let located = format!("{BUENOS_AIRES}\n{config_text}");
+    let named = format!("location = \"llanfair\"\n{config_text}");
     let mut harness = match weather_state {
         WeatherStateFixture::NoLocation => Harness::new(config_text),
         WeatherStateFixture::LocationNotFound => {
             Harness::new(&format!("location = \"atlantis\"\n{config_text}"))
         }
+        WeatherStateFixture::FreshDay
+        | WeatherStateFixture::FreshNight
+        | WeatherStateFixture::Stale => Harness::new(&named),
         _ => Harness::new(&located),
     };
     let body = worst_case_forecast(config_text);
@@ -119,8 +123,11 @@ fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned)
     (harness.app, shown_at)
 }
 
+/// A named location resolves before its first forecast, so the lookup answer comes first.
 fn refreshing(harness: &mut Harness, fetched_at: &Zoned, now: &Zoned, body: String) -> Zoned {
-    harness.fetch(fetched_at, Ok(body));
+    harness.fetch(fetched_at, Ok(long_place_geocoding_body()));
+    harness.weather_source.finish(Ok(body));
+    harness.app.tick(fetched_at);
     harness.app.key(KeyEvent::from(KeyCode::Char('r')));
     harness.app.tick(now);
     now.checked_add(1.second()).unwrap()

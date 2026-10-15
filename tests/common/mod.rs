@@ -61,6 +61,14 @@ pub const GEOCODED_BUENOS_AIRES: Coordinates = Coordinates {
     longitude: -58.37723,
 };
 
+/// A geocoding response whose place name is longer than any bezel's free space.
+pub fn long_place_geocoding_body() -> String {
+    let mut geocoding: Value = serde_json::from_str(&geocoding_body()).unwrap();
+    geocoding["results"][0]["name"] =
+        json!("Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch");
+    geocoding.to_string()
+}
+
 /// What Open-Meteo geocoding answers when nothing matches.
 pub const NO_MATCH: &str = r#"{"generationtime_ms":0.5}"#;
 
