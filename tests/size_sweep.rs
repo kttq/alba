@@ -5,7 +5,7 @@ use alba::{
     layout::{self, Face, LayoutReport, SizeTier},
     weather::FetchError,
 };
-use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body, geocoding_body};
+use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body, long_place_geocoding_body};
 use jiff::{ToSpan, Zoned};
 use ratatui::{
     Terminal,
@@ -82,15 +82,6 @@ fn worst_case_forecast(config_text: &str) -> String {
     forecast.to_string()
 }
 
-/// A place name longer than the bezel's free space.
-fn long_place_geocoding() -> String {
-    let mut geocoding: Value = serde_json::from_str(&geocoding_body()).unwrap();
-    geocoding["results"][0]["name"] =
-        json!("Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch");
-    geocoding["results"][0]["country_code"] = json!("GB");
-    geocoding.to_string()
-}
-
 /// The app in the weather state, and the instant to show it at. Every state with weather has a
 /// refresh running long enough to show the fetch indicator, the widest temperature.
 fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned) {
@@ -132,9 +123,9 @@ fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned)
     (harness.app, shown_at)
 }
 
-/// Looks up the long place name first, then fetches the forecast.
+/// A named location resolves before its first forecast, so the lookup answer comes first.
 fn refreshing(harness: &mut Harness, fetched_at: &Zoned, now: &Zoned, body: String) -> Zoned {
-    harness.fetch(fetched_at, Ok(long_place_geocoding()));
+    harness.fetch(fetched_at, Ok(long_place_geocoding_body()));
     harness.weather_source.finish(Ok(body));
     harness.app.tick(fetched_at);
     harness.app.key(KeyEvent::from(KeyCode::Char('r')));

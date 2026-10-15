@@ -360,10 +360,7 @@ fn wide_top_border_centres_the_place_name() {
 #[test]
 fn wide_top_border_truncates_a_long_place_name() {
     let mut harness = Harness::new("location = \"llanfair\"");
-    let mut geocoding: serde_json::Value = serde_json::from_str(&common::geocoding_body()).unwrap();
-    geocoding["results"][0]["name"] =
-        serde_json::json!("Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch");
-    harness.fetch(&default_instant(), Ok(geocoding.to_string()));
+    harness.fetch(&default_instant(), Ok(common::long_place_geocoding_body()));
     harness.weather_source.finish(Ok(forecast_body()));
     harness.app.tick(&default_instant());
 

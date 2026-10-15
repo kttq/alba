@@ -185,8 +185,6 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// The clock and the full icon, the weather row, and the timeline, with the month calendar
-/// beside them, in the bezel with the place name.
 fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let icon_column = icon_column(face);
     weather_and_timeline(face, icon_column, ConditionRow::Without)
@@ -195,7 +193,10 @@ fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
             let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
             blocks.extend(rows);
             let content = row(
-                vec![Cell::Next(column(blocks)), Cell::Next(month(face))],
+                vec![
+                    Cell::Next(column(blocks)),
+                    Cell::Next(calendar_lines(face.calendar.month())),
+                ],
                 CALENDAR_GAP,
             );
             framed(&face.bezel, face.bezel.place_name.as_deref(), content)
@@ -206,8 +207,6 @@ fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
 /// Between the timeline and the month calendar.
 const CALENDAR_GAP: u16 = 3;
 
-/// As Wide, stacked: the condition name under the weather row, and the month calendar under the
-/// timeline.
 fn tall_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let icon_column = icon_column(face);
     weather_and_timeline(face, icon_column, ConditionRow::With)
@@ -215,18 +214,15 @@ fn tall_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         .map(|rows| {
             let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
             blocks.extend(rows);
-            blocks.extend([Block::Gap(BREATHING_ROWS), Block::Centred(month(face))]);
+            let month = calendar_lines(face.calendar.month());
+            blocks.extend([Block::Gap(BREATHING_ROWS), Block::Centred(month)]);
             framed(&face.bezel, None, column(blocks))
         })
         .collect()
 }
 
-fn month(face: &Face) -> Arrangement<'_> {
-    column(
-        (face.calendar.month().iter())
-            .map(|line| centred(text(line)))
-            .collect(),
-    )
+fn calendar_lines<'a>(lines: &'a [Line<'static>]) -> Arrangement<'a> {
+    column(lines.iter().map(|line| centred(text(line))).collect())
 }
 
 /// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
@@ -256,11 +252,7 @@ fn icon_column(face: &Face) -> u16 {
 const BREATHING_ROWS: u16 = 1;
 
 fn week_strip(face: &Face) -> Block<'_> {
-    Block::Centred(column(
-        (face.calendar.week_strip().iter())
-            .map(|line| centred(text(line)))
-            .collect(),
-    ))
+    Block::Centred(calendar_lines(face.calendar.week_strip()))
 }
 
 fn clock_and_icon(face: &Face, icon_column: u16) -> Arrangement<'_> {
