@@ -7,7 +7,12 @@ use alba::{
 };
 use common::pixel_snapshot;
 use jiff::Zoned;
-use ratatui::{buffer::Buffer, layout::Rect, style::Modifier, widgets::Widget};
+use ratatui::{
+    buffer::Buffer,
+    layout::{Rect, Size},
+    style::Modifier,
+    widgets::Widget,
+};
 
 fn instant(time: &str) -> Zoned {
     format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
@@ -26,7 +31,7 @@ fn colon_lit() -> Motion {
 fn buffer(config_text: &str, time: &str, motion: Motion, digit_size: DigitSize) -> Buffer {
     let clock = Clock::new(&Config::parse(config_text).unwrap());
     let segment_clock = clock.segment_clock(&instant(time), motion, digit_size);
-    let size = segment_clock.size();
+    let size = clock.segment_size(digit_size);
     let mut buffer = Buffer::empty(Rect::new(0, 0, size.width, size.height));
     segment_clock.render(buffer.area, &mut buffer);
     buffer
@@ -115,7 +120,7 @@ fn the_current_mark_is_lit_and_the_other_faint() {
 }
 
 #[test]
-fn segment_size_matches_the_drawn_clock_without_drawing_it() {
+fn segment_size_is_the_drawn_clock_extent() {
     for config_text in [
         "",
         "hour_format = 12",
@@ -124,12 +129,29 @@ fn segment_size_matches_the_drawn_clock_without_drawing_it() {
         let clock = Clock::new(&Config::parse(config_text).unwrap());
         for digit_size in [DigitSize::Small, DigitSize::Large] {
             let drawn = clock.segment_clock(&instant("18:38"), colon_lit(), digit_size);
+            let mut buffer = Buffer::empty(Rect::new(0, 0, 80, 20));
+            (&drawn).render(buffer.area, &mut buffer);
 
             assert_eq!(
+                drawn_extent(&buffer),
                 clock.segment_size(digit_size),
-                drawn.size(),
                 "{config_text:?}, {digit_size:?}"
             );
         }
     }
+}
+
+/// From the top-left corner to the last column and row with a glyph.
+fn drawn_extent(buffer: &Buffer) -> Size {
+    let drawn = |x, y| buffer[(x, y)].symbol() != " ";
+    let area = buffer.area;
+    let width = (0..area.width)
+        .filter(|&x| (0..area.height).any(|y| drawn(x, y)))
+        .max()
+        .map_or(0, |x| x + 1);
+    let height = (0..area.height)
+        .filter(|&y| (0..area.width).any(|x| drawn(x, y)))
+        .max()
+        .map_or(0, |y| y + 1);
+    Size::new(width, height)
 }
