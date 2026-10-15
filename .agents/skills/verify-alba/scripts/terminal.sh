@@ -90,8 +90,7 @@ pane_size() {
 	stty -f "/dev/$tty" size | awk '{ print $2 "x" $1 }'
 }
 
-# Zooms the window to fill the screen, less the menu bar and the Dock. A macOS full-screen
-# space would need Accessibility permission for a keystroke; the pane is the same size.
+# Zooms the window to fill the screen, less the menu bar and the Dock.
 fill_screen() {
 	osascript -e "tell application \"Terminal\" to set zoomed of window id $1 to true" >/dev/null
 }
