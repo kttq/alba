@@ -21,13 +21,13 @@ fn with_weather_at(config_text: &str, now: &Zoned) -> Harness {
 }
 
 fn size_tier(harness: &Harness, now: &Zoned, width: u16, height: u16) -> Option<SizeTier> {
-    let content = harness.app.home_content(now);
-    layout::lay_out(Rect::new(0, 0, width, height), &content).size_tier
+    let face = harness.app.face(now);
+    layout::lay_out(Rect::new(0, 0, width, height), &face).size_tier
 }
 
 fn minimum_size(harness: &Harness, now: &Zoned, size_tier: SizeTier) -> Option<Size> {
-    let content = harness.app.home_content(now);
-    layout::minimum_size(size_tier, &content)
+    let face = harness.app.face(now);
+    layout::minimum_size(size_tier, &face)
 }
 
 fn rendered(harness: &Harness, now: &Zoned, width: u16, height: u16) -> Terminal<TestBackend> {

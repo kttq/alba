@@ -12,7 +12,7 @@ use crate::{
     clock::Clock,
     config::{Config, Coordinates, Location, Units},
     icon::{Animation, Icon, IconSize},
-    layout::{self, HomeContent},
+    layout::{self, Face},
     log::Log,
     strings::Strings,
     weather::{self, WeatherSource, WeatherStation},
@@ -78,16 +78,16 @@ impl App {
     }
 
     pub fn render(&self, area: Rect, buffer: &mut Buffer, now: &Zoned) {
-        let content = self.home_content(now);
-        for item in layout::lay_out(area, &content).items {
+        let face = self.face(now);
+        for item in layout::lay_out(area, &face).items {
             item.piece.render(item.area, buffer);
         }
     }
 
-    pub fn home_content(&self, now: &Zoned) -> HomeContent {
+    pub fn face(&self, now: &Zoned) -> Face {
         let weather_state = self.weather_station.weather_state(now);
         let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
-        HomeContent {
+        Face {
             text_clock: self.clock.text_line(now),
             short_date: calendar::short_date(self.strings, now),
             weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),

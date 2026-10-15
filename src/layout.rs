@@ -1,4 +1,4 @@
-//! Picks the size tier that fits the pane, centres it, and places each piece of the Home view.
+//! Picks the size tier that fits the pane, centres it, and places each piece of the face.
 
 use crate::pixels::Canvas;
 
@@ -9,8 +9,8 @@ use ratatui::{
     widgets::Widget,
 };
 
-/// The Home view at one instant, built once for every size tier.
-pub struct HomeContent {
+/// Everything alba shows at one instant, built once for every size tier.
+pub struct Face {
     pub text_clock: Line<'static>,
     pub short_date: Line<'static>,
     /// The weather pieces are None when no weather data is shown.
@@ -77,11 +77,11 @@ struct Arrangement<'a> {
     pieces: Vec<(Piece<'a>, Position)>,
 }
 
-pub fn lay_out<'a>(pane: Rect, content: &'a HomeContent) -> LayoutReport<'a> {
+pub fn lay_out<'a>(pane: Rect, face: &'a Face) -> LayoutReport<'a> {
     let fitting = SizeTier::IN_ORDER
         .into_iter()
         .flat_map(|size_tier| {
-            arrangements(size_tier, content)
+            arrangements(size_tier, face)
                 .into_iter()
                 .map(move |arrangement| (size_tier, arrangement))
         })
@@ -98,37 +98,37 @@ pub fn lay_out<'a>(pane: Rect, content: &'a HomeContent) -> LayoutReport<'a> {
     }
 }
 
-/// None when the size tier cannot show this content.
-pub fn minimum_size(size_tier: SizeTier, content: &HomeContent) -> Option<Size> {
-    arrangements(size_tier, content)
+/// None when the size tier cannot show this face.
+pub fn minimum_size(size_tier: SizeTier, face: &Face) -> Option<Size> {
+    arrangements(size_tier, face)
         .into_iter()
         .map(|arrangement| arrangement.size)
         .min_by_key(|size| (size.width, size.height))
 }
 
 /// Widest first.
-fn arrangements(size_tier: SizeTier, content: &HomeContent) -> Vec<Arrangement<'_>> {
+fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     match size_tier {
-        SizeTier::Mini => mini_arrangement(content).into_iter().collect(),
-        SizeTier::Strip => strip_arrangements(content),
+        SizeTier::Mini => mini_arrangement(face).into_iter().collect(),
+        SizeTier::Strip => strip_arrangements(face),
     }
 }
 
 /// Without weather, Mini would show less than Strip in one more row.
-fn mini_arrangement(content: &HomeContent) -> Option<Arrangement<'_>> {
+fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
     let pieces = vec![
-        Piece::Text(&content.text_clock),
-        Piece::Picture(content.mini_icon.as_ref()?),
-        Piece::Text(content.temperature.as_ref()?),
+        Piece::Text(&face.text_clock),
+        Piece::Picture(face.mini_icon.as_ref()?),
+        Piece::Text(face.temperature.as_ref()?),
     ];
     Some(row(pieces, 2))
 }
 
-fn strip_arrangements(content: &HomeContent) -> Vec<Arrangement<'_>> {
-    let clock = Piece::Text(&content.text_clock);
-    let date = Piece::Text(&content.short_date);
+fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    let clock = Piece::Text(&face.text_clock);
+    let date = Piece::Text(&face.short_date);
     let separator = Piece::Separator;
-    let lines = match &content.weather_line {
+    let lines = match &face.weather_line {
         Some(weather_line) => {
             let weather = Piece::Text(weather_line);
             vec![
