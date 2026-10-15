@@ -128,8 +128,8 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// Without weather data, the status takes the weather's text row, so nothing moves when the
-/// weather returns.
+/// Without weather data, the status takes the weather's text row, and the weather sits at the left
+/// edge whatever its width, so nothing moves when the weather returns.
 fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     compact_text_rows(face)
         .into_iter()
@@ -138,7 +138,7 @@ fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
                 centred(Piece::Text(&face.short_date)),
                 centred(Piece::SegmentClock(&face.segment_clock)),
                 Block::Gap(1),
-                Block::Centred(icon_beside(face.mini_icon.as_ref(), text_rows)),
+                Block::Left(icon_beside(face.mini_icon.as_ref(), text_rows)),
             ])
         })
         .collect()
@@ -187,6 +187,7 @@ const ICON_GAP: u16 = 2;
 /// One row of a column.
 enum Block<'a> {
     Centred(Arrangement<'a>),
+    Left(Arrangement<'a>),
     /// Empty rows.
     Gap(u16),
 }
@@ -198,12 +199,13 @@ fn centred(piece: Piece<'_>) -> Block<'_> {
     })
 }
 
-/// Stacked top to bottom, each block centred in the widest; an odd leftover column goes after it.
+/// Stacked top to bottom in the width of the widest block. A centred block puts an odd leftover
+/// column after it.
 fn column(blocks: Vec<Block<'_>>) -> Arrangement<'_> {
     let width = blocks
         .iter()
         .map(|block| match block {
-            Block::Centred(arrangement) => arrangement.size.width,
+            Block::Centred(arrangement) | Block::Left(arrangement) => arrangement.size.width,
             Block::Gap(_) => 0,
         })
         .max()
@@ -211,19 +213,22 @@ fn column(blocks: Vec<Block<'_>>) -> Arrangement<'_> {
     let mut y = 0;
     let mut pieces = Vec::new();
     for block in blocks {
-        match block {
+        let (arrangement, x) = match block {
             Block::Centred(arrangement) => {
                 let x = (width - arrangement.size.width) / 2;
-                pieces.extend(
-                    arrangement
-                        .pieces
-                        .into_iter()
-                        .map(|(piece, offset)| (piece, Position::new(x + offset.x, y + offset.y))),
-                );
-                y += arrangement.size.height;
+                (arrangement, x)
             }
-            Block::Gap(rows) => y += rows,
-        }
+            Block::Left(arrangement) => (arrangement, 0),
+            Block::Gap(rows) => {
+                y += rows;
+                continue;
+            }
+        };
+        pieces.extend(
+            (arrangement.pieces.into_iter())
+                .map(|(piece, offset)| (piece, Position::new(x + offset.x, y + offset.y))),
+        );
+        y += arrangement.size.height;
     }
     Arrangement {
         size: Size::new(width, y),

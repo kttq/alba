@@ -313,3 +313,21 @@ fn stale_compact_shows_the_fetch_indicator_after_the_age_label_or_the_temperatur
         "▄██▄   14°  ↑19° ↓13° 2h ago…"
     );
 }
+
+#[test]
+fn compact_icon_keeps_its_column_when_the_weather_returns() {
+    let mut harness = Harness::new(BUENOS_AIRES);
+    harness.fetch(
+        &default_instant(),
+        Err(FetchError::Network("timed out".to_string())),
+    );
+    let offline = rendered(&harness, &default_instant(), 23, 8);
+    let retry = default_instant().checked_add(1.minute()).unwrap();
+    harness.fetch(&retry, Ok(forecast_body()));
+    let fresh = rendered(&harness, &retry, 23, 8);
+
+    assert_eq!(size_tier(&harness, &retry, 23, 8), Some(SizeTier::Compact));
+
+    assert_eq!(offline.backend().buffer()[(0, 7)].symbol(), "▀");
+    assert_eq!(fresh.backend().buffer()[(0, 7)].symbol(), "▀");
+}
