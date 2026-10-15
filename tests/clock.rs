@@ -113,3 +113,23 @@ fn the_current_mark_is_lit_and_the_other_faint() {
     assert_eq!(faint_rows("06:38"), [false, true]);
     assert_eq!(faint_rows("18:38"), [true, false]);
 }
+
+#[test]
+fn segment_size_matches_the_drawn_clock_without_drawing_it() {
+    for config_text in [
+        "",
+        "hour_format = 12",
+        "hour_format = 12\nlanguage = \"es\"",
+    ] {
+        let clock = Clock::new(&Config::parse(config_text).unwrap());
+        for digit_size in [DigitSize::Small, DigitSize::Large] {
+            let drawn = clock.segment_clock(&instant("18:38"), colon_lit(), digit_size);
+
+            assert_eq!(
+                clock.segment_size(digit_size),
+                drawn.size(),
+                "{config_text:?}, {digit_size:?}"
+            );
+        }
+    }
+}

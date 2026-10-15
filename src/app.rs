@@ -12,10 +12,10 @@ use ratatui::{
 
 use crate::{
     bezel::Bezel,
-    calendar::{self, Calendar},
-    clock::{Clock, DigitSize},
+    calendar::Calendar,
+    clock::Clock,
     config::{Config, Units},
-    icon::{Icon, IconPicture, IconSize},
+    icon::{Icon, ShownIcon},
     layout::{self, Face},
     log::Log,
     motion::{self, Motion},
@@ -100,12 +100,9 @@ impl App {
     pub fn face(&self, now: &Zoned) -> Face {
         let weather_state = self.weather_station.weather_state(now);
         let motion = Motion::at(now.timestamp(), self.motion);
-        let icon = Icon::shown(weather_state, now);
         Face {
-            text_clock: self.clock.text_line(now, motion),
-            segment_clock: self.clock.segment_clock(now, motion, DigitSize::Small),
-            short_date: calendar::short_date(self.strings, now),
-            weekday_and_day: calendar::weekday_and_day(self.strings, now),
+            clock: self.clock.at(now, motion),
+            calendar: self.calendar.at(now),
             weather_area: WeatherArea::of(
                 weather_state,
                 self.weather_station.shows_fetch_indicator(now),
@@ -114,16 +111,10 @@ impl App {
                 self.strings,
                 &self.shown_config_file,
             ),
-            mini_icon: icon.map(|icon| icon.canvas(IconSize::Mini, motion)),
-            full_icon: icon.map(|icon| IconPicture {
-                icon,
-                size: IconSize::Full,
-                motion,
-            }),
+            icon: Icon::shown(weather_state, now).map(|icon| ShownIcon { icon, motion }),
             timeline: weather_state.weather().and_then(|weather| {
                 ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
             }),
-            week_strip: self.calendar.week_strip(now),
             bezel: Bezel::new(self.strings, now, weather_state.weather().is_some()),
         }
     }

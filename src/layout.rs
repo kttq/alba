@@ -2,12 +2,14 @@
 
 use crate::{
     bezel::{Bezel, BorderRun, BorderSide},
-    clock::SegmentClock,
-    icon::{IconPicture, IconSize},
-    pixels::Canvas,
+    calendar::ShownCalendar,
+    clock::{DigitSize, ShownClock},
+    icon::{IconSize, ShownIcon},
     sky::ShownTimeline,
     weather::{Part, WeatherArea},
 };
+
+use std::borrow::Cow;
 
 use ratatui::{
     buffer::Buffer,
@@ -16,21 +18,15 @@ use ratatui::{
     widgets::Widget,
 };
 
-/// Everything alba shows at one instant, built once for every size tier.
+/// Everything alba shows at one instant. Each size tier asks a part for the size it places.
 pub struct Face {
-    pub text_clock: Line<'static>,
-    pub segment_clock: SegmentClock,
-    pub short_date: Line<'static>,
-    pub weekday_and_day: Line<'static>,
+    pub clock: ShownClock,
+    pub calendar: ShownCalendar,
     pub weather_area: WeatherArea,
     /// The ghost icon without weather data; None for a weather code with no condition.
-    pub mini_icon: Option<Canvas>,
-    /// As the mini icon, with its stars.
-    pub full_icon: Option<IconPicture>,
+    pub icon: Option<ShownIcon>,
     /// None without weather data, and when no sunrise and sunset surround now.
     pub timeline: Option<ShownTimeline>,
-    /// The weekday header over the current week.
-    pub week_strip: [Line<'static>; 2],
     pub bezel: Bezel,
 }
 
@@ -65,10 +61,9 @@ pub struct PlacedItem<'a> {
 
 #[derive(Debug, Clone)]
 pub enum Piece<'a> {
-    Text(Line<'static>),
-    Picture(&'a Canvas),
-    Icon(IconPicture),
-    SegmentClock(&'a SegmentClock),
+    Text(Cow<'a, Line<'static>>),
+    Icon(ShownIcon, IconSize),
+    SegmentClock(&'a ShownClock, DigitSize),
     Timeline(&'a ShownTimeline),
     BorderRun,
     BorderSide,
@@ -77,16 +72,24 @@ pub enum Piece<'a> {
 
 const SEPARATOR: &str = " · ";
 
+fn text<'a>(line: &'a Line<'static>) -> Piece<'a> {
+    Piece::Text(Cow::Borrowed(line))
+}
+
+/// A line built for one size tier, not held by the face.
+fn composed(line: Line<'static>) -> Piece<'static> {
+    Piece::Text(Cow::Owned(line))
+}
+
 impl Piece<'_> {
     pub fn required_size(&self) -> Size {
         match self {
             Self::Text(line) => Size::new(line.width() as u16, 1),
-            Self::Picture(canvas) => Size::new(canvas.width(), canvas.height().div_ceil(2)),
-            Self::Icon(icon) => {
-                let (width, height) = icon.size.cells();
+            Self::Icon(_, icon_size) => {
+                let (width, height) = icon_size.cells();
                 Size::new(width, height)
             }
-            Self::SegmentClock(segment_clock) => segment_clock.size(),
+            Self::SegmentClock(clock, digit_size) => clock.segment_size(*digit_size),
             Self::Timeline(timeline) => timeline.required_size(),
             Self::BorderRun | Self::BorderSide => Size::new(1, 1),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
@@ -95,10 +98,11 @@ impl Piece<'_> {
 
     pub fn render(self, area: Rect, buffer: &mut Buffer) {
         match self {
-            Self::Text(line) => line.render(area, buffer),
-            Self::Picture(canvas) => canvas.render(area, buffer),
-            Self::Icon(icon) => icon.render(area, buffer),
-            Self::SegmentClock(segment_clock) => segment_clock.render(area, buffer),
+            Self::Text(line) => line.as_ref().render(area, buffer),
+            Self::Icon(icon, icon_size) => icon.render(icon_size, area, buffer),
+            Self::SegmentClock(clock, digit_size) => {
+                (&clock.segment_clock(digit_size)).render(area, buffer);
+            }
             Self::Timeline(timeline) => timeline.render(area, buffer),
             Self::BorderRun => BorderRun.render(area, buffer),
             Self::BorderSide => BorderSide.render(area, buffer),
@@ -198,17 +202,23 @@ const BREATHING_ROWS: u16 = 1;
 
 fn week_strip(face: &Face) -> Block<'_> {
     Block::Centred(column(
-        (face.week_strip.iter())
-            .map(|line| centred(Piece::Text(line.clone())))
+        (face.calendar.week_strip().iter())
+            .map(|line| centred(text(line)))
             .collect(),
     ))
 }
 
 /// The icon's columns stay when there is no icon, so nothing moves when it returns.
 fn clock_and_icon(face: &Face) -> Arrangement<'_> {
-    let icon_x = face.segment_clock.size().width + CLOCK_GAP;
-    let mut pieces = vec![(Piece::SegmentClock(&face.segment_clock), Position::ORIGIN)];
-    pieces.extend((face.full_icon.map(Piece::Icon)).map(|icon| (icon, Position::new(icon_x, 0))));
+    let icon_x = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
+    let mut pieces = vec![(
+        Piece::SegmentClock(&face.clock, DigitSize::Small),
+        Position::ORIGIN,
+    )];
+    pieces.extend(
+        (face.icon.map(|icon| Piece::Icon(icon, IconSize::Full)))
+            .map(|icon| (icon, Position::new(icon_x, 0))),
+    );
     let arrangement = at_offsets(pieces);
     let (icon_width, _) = IconSize::Full.cells();
     Arrangement {
@@ -233,7 +243,7 @@ fn medium_weather_rows(face: &Face) -> Vec<[Block<'_>; 2]> {
         } => {
             let hint = column(
                 (first_run_hint.iter())
-                    .map(|line| left(Piece::Text(line.clone())))
+                    .map(|line| left(text(line)))
                     .collect(),
             );
             return vec![[
@@ -243,20 +253,17 @@ fn medium_weather_rows(face: &Face) -> Vec<[Block<'_>; 2]> {
         }
         WeatherArea::NoWeather { lines, .. } => {
             return (lines.iter())
-                .map(|line| [left(Piece::Text(line.clone())), timeline()])
+                .map(|line| [left(text(line)), timeline()])
                 .collect();
         }
         WeatherArea::Readings(readings) => readings,
     };
     let temperature = readings.line(&[Part::Temperature, Part::Age, Part::HighAndLow]);
-    let icon_x = face.segment_clock.size().width + CLOCK_GAP;
+    let icon_x = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
     let sparkline_x = icon_x.max(temperature.width() as u16 + ICON_GAP);
     let pieces = vec![
-        (Piece::Text(temperature), Position::ORIGIN),
-        (
-            Piece::Text(readings.sparkline().clone()),
-            Position::new(sparkline_x, 0),
-        ),
+        (composed(temperature), Position::ORIGIN),
+        (text(readings.sparkline()), Position::new(sparkline_x, 0)),
     ];
     vec![[Block::Left(at_offsets(pieces)), timeline()]]
 }
@@ -293,11 +300,11 @@ fn framed<'a>(bezel: &'a Bezel, content: Arrangement<'a>) -> Arrangement<'a> {
     ] {
         let left_width = left.width() as u16;
         let right_width = right.width() as u16;
-        pieces.push((Piece::Text(left.clone()), Rect::new(0, y, left_width, 1)));
+        pieces.push((text(left), Rect::new(0, y, left_width, 1)));
         let run_width = width - left_width - right_width;
         pieces.push((Piece::BorderRun, Rect::new(left_width, y, run_width, 1)));
         pieces.push((
-            Piece::Text(right.clone()),
+            text(right),
             Rect::new(width - right_width, y, right_width, 1),
         ));
     }
@@ -319,10 +326,10 @@ fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         .into_iter()
         .map(|text_rows| {
             column(vec![
-                centred(Piece::Text(face.short_date.clone())),
-                centred(Piece::SegmentClock(&face.segment_clock)),
+                centred(text(face.calendar.short_date())),
+                centred(Piece::SegmentClock(&face.clock, DigitSize::Small)),
                 Block::Gap(1),
-                Block::Left(icon_beside(face.mini_icon.as_ref(), text_rows)),
+                Block::Left(icon_beside(face.icon, text_rows)),
             ])
         })
         .collect()
@@ -332,9 +339,7 @@ fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
 fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
     let readings = match &face.weather_area {
         WeatherArea::NoWeather { lines, .. } => {
-            return (lines.iter())
-                .map(|line| vec![Piece::Text(line.clone())])
-                .collect();
+            return (lines.iter()).map(|line| vec![text(line)]).collect();
         }
         WeatherArea::Readings(readings) => readings,
     };
@@ -346,21 +351,16 @@ fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
         vec![readings.line(&without_age)]
     };
     (first_rows.into_iter())
-        .map(|first_row| {
-            vec![
-                Piece::Text(first_row),
-                Piece::Text(readings.sparkline().clone()),
-            ]
-        })
+        .map(|first_row| vec![composed(first_row), text(readings.sparkline())])
         .collect()
 }
 
 /// The text keeps its place when there is no icon, so it never jumps.
-fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<Piece<'a>>) -> Arrangement<'a> {
+fn icon_beside(icon: Option<ShownIcon>, text_rows: Vec<Piece<'_>>) -> Arrangement<'_> {
     let (icon_width, icon_height) = IconSize::Mini.cells();
     let text_x = icon_width + ICON_GAP;
     let mut pieces: Vec<_> = icon
-        .map(|canvas| (Piece::Picture(canvas), Position::ORIGIN))
+        .map(|icon| (Piece::Icon(icon, IconSize::Mini), Position::ORIGIN))
         .into_iter()
         .collect();
     for (y, piece) in text_rows.into_iter().enumerate() {
@@ -444,20 +444,20 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
         return None;
     };
     let pieces = vec![
-        Piece::Text(face.text_clock.clone()),
-        Piece::Picture(face.mini_icon.as_ref()?),
-        Piece::Text(readings.line(&[Part::Temperature])),
+        text(face.clock.text_line()),
+        Piece::Icon(face.icon?, IconSize::Mini),
+        composed(readings.line(&[Part::Temperature])),
     ];
     Some(row(pieces, 2))
 }
 
 fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
-    let clock = Piece::Text(face.text_clock.clone());
-    let date = Piece::Text(face.weekday_and_day.clone());
+    let clock = text(face.clock.text_line());
+    let date = text(face.calendar.weekday_and_day());
     let separator = Piece::Separator;
     let lines = match &face.weather_area {
         WeatherArea::Readings(readings) => {
-            let weather = Piece::Text(readings.line(&[Part::Temperature, Part::ConditionMark]));
+            let weather = composed(readings.line(&[Part::Temperature, Part::ConditionMark]));
             vec![
                 vec![
                     clock.clone(),

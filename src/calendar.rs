@@ -17,6 +17,14 @@ pub struct Calendar {
     strings: &'static Strings,
 }
 
+/// The calendar at one instant.
+#[derive(Debug, Clone)]
+pub struct ShownCalendar {
+    week_strip: [Line<'static>; 2],
+    short_date: Line<'static>,
+    weekday_and_day: Line<'static>,
+}
+
 /// For Strip, which has no room for the month.
 pub fn weekday_and_day(strings: &Strings, now: &Zoned) -> Line<'static> {
     Line::from(format!("{} {}", short_weekday(strings, now), now.day()).light_blue())
@@ -42,6 +50,14 @@ impl Calendar {
         Self {
             week_start: config.week_start,
             strings: Strings::of(config.language),
+        }
+    }
+
+    pub fn at(&self, now: &Zoned) -> ShownCalendar {
+        ShownCalendar {
+            week_strip: self.week_strip(now),
+            short_date: short_date(self.strings, now),
+            weekday_and_day: weekday_and_day(self.strings, now),
         }
     }
 
@@ -94,6 +110,21 @@ fn week_row(week: &[Date], today: Date) -> Line<'static> {
     let days =
         (week.iter()).map(|&day| Span::styled(format!("{:>2}", day.day()), day_style(day, today)));
     Line::from(spaced(days.collect()))
+}
+
+impl ShownCalendar {
+    /// The weekday header over the current week.
+    pub fn week_strip(&self) -> &[Line<'static>; 2] {
+        &self.week_strip
+    }
+
+    pub fn short_date(&self) -> &Line<'static> {
+        &self.short_date
+    }
+
+    pub fn weekday_and_day(&self) -> &Line<'static> {
+        &self.weekday_and_day
+    }
 }
 
 /// Today's pill, then past days dimmed, then the weekend tint.

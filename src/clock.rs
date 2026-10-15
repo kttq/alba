@@ -17,6 +17,7 @@ use crate::{
     strings::Strings,
 };
 
+#[derive(Debug, Clone)]
 pub struct Clock {
     hour_format: HourFormat,
     ghost_segments: bool,
@@ -29,6 +30,15 @@ pub enum DigitSize {
     Small,
     /// 8×15-pixel digits with segments 2 pixels thick.
     Large,
+}
+
+/// The clock at one instant, ready to draw at any size.
+#[derive(Debug, Clone)]
+pub struct ShownClock {
+    clock: Clock,
+    now: Zoned,
+    motion: Motion,
+    text_line: Line<'static>,
 }
 
 #[derive(Debug)]
@@ -60,6 +70,15 @@ impl Clock {
         }
     }
 
+    pub fn at(&self, now: &Zoned, motion: Motion) -> ShownClock {
+        ShownClock {
+            clock: self.clone(),
+            now: now.clone(),
+            motion,
+            text_line: self.text_line(now, motion),
+        }
+    }
+
     pub fn text_line(&self, now: &Zoned, motion: Motion) -> Line<'static> {
         let mut spans = vec![
             Span::raw(self.hour(now)),
@@ -88,11 +107,8 @@ impl Clock {
         digit_size: DigitSize,
     ) -> SegmentClock {
         let shape = digit_size.shape();
-        let colon_gap = shape.thickness + 1;
-        let mut digits = Canvas::new(
-            4 * shape.width + 2 * DIGIT_GAP + shape.thickness + 2 * colon_gap,
-            shape.height,
-        );
+        let colon_gap = shape.colon_gap();
+        let mut digits = Canvas::new(shape.clock_width(), shape.height);
         let colon_x = 2 * shape.width + DIGIT_GAP + colon_gap;
         let minutes_x = colon_x + shape.thickness + colon_gap;
         let digit_xs = [
@@ -114,6 +130,21 @@ impl Clock {
             digits,
             mark: self.mark_at(now),
         }
+    }
+
+    /// In cells, without drawing the digits.
+    pub fn segment_size(&self, digit_size: DigitSize) -> Size {
+        let shape = digit_size.shape();
+        let digits = Size::new(shape.clock_width(), shape.height.div_ceil(2));
+        if self.hour_format == HourFormat::TwentyFour {
+            return digits;
+        }
+        let mark_width = [self.strings.am, self.strings.pm]
+            .map(|text| Span::raw(text).width())
+            .into_iter()
+            .max()
+            .unwrap_or(0) as u16;
+        Size::new(digits.width + MARK_GAP + mark_width, digits.height.max(2))
     }
 
     fn mark_at(&self, now: &Zoned) -> Option<[Line<'static>; 2]> {
@@ -209,6 +240,32 @@ fn colon(motion: Motion) -> Span<'static> {
         Span::raw(":")
     } else {
         ":".dim()
+    }
+}
+
+impl ShownClock {
+    pub fn text_line(&self) -> &Line<'static> {
+        &self.text_line
+    }
+
+    pub fn segment_size(&self, digit_size: DigitSize) -> Size {
+        self.clock.segment_size(digit_size)
+    }
+
+    pub fn segment_clock(&self, digit_size: DigitSize) -> SegmentClock {
+        self.clock.segment_clock(&self.now, self.motion, digit_size)
+    }
+}
+
+impl DigitShape {
+    /// In pixels: four digits and the colon, each with its gaps.
+    fn clock_width(&self) -> u16 {
+        4 * self.width + 2 * DIGIT_GAP + self.thickness + 2 * self.colon_gap()
+    }
+
+    /// On each side of the colon.
+    fn colon_gap(&self) -> u16 {
+        self.thickness + 1
     }
 }
 
