@@ -31,7 +31,6 @@ pub enum DigitSize {
     Large,
 }
 
-/// The seven-segment clock at one instant.
 pub struct SegmentClock {
     digits: Canvas,
     /// The 12-hour mark: `am` over `pm`, the current one lit.
@@ -48,7 +47,7 @@ struct DigitShape {
 }
 
 const DIGIT_GAP: u16 = 1;
-/// Columns between the digits and the 12-hour mark.
+/// In columns.
 const MARK_GAP: u16 = 1;
 
 impl Clock {

@@ -3,7 +3,7 @@ use std::time::Duration;
 use alba::motion::{self, Motion};
 use jiff::Timestamp;
 
-/// 2026-10-13 06:38 in Buenos Aires, on an eight-second boundary.
+/// On 2026-10-13 in Buenos Aires, where 06:38:00 falls on an eight-second boundary.
 fn at(time: &str) -> Timestamp {
     format!("2026-10-13T{time}-03:00").parse().unwrap()
 }
