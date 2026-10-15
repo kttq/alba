@@ -1,3 +1,4 @@
+mod area;
 pub mod cache;
 mod condition;
 mod forecast;
@@ -6,19 +7,14 @@ pub mod open_meteo;
 mod schedule;
 mod source;
 mod station;
-mod text;
 
+pub use area::{Part, Readings, WeatherArea};
 pub use condition::Condition;
 pub use forecast::{DayOrNight, Forecast, HighAndLow, SunEvent};
 pub use freshness::Freshness;
 pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, Request, WeatherSource};
 pub use station::{WeatherState, WeatherStation};
-pub use text::{
-    aged_temperature_high_and_low_line, first_run_hint, sparkline,
-    temperature_age_high_and_low_line, temperature_high_and_low_line, temperature_line, text_line,
-    weather_state_lines,
-};
 
 use jiff::Timestamp;
 

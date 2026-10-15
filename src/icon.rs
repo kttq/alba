@@ -29,17 +29,16 @@ pub enum IconSize {
     Large,
 }
 
-/// An icon at one size and instant, drawn with its stars.
+/// An icon at one instant, ready to draw at any size.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct IconPicture {
+pub struct ShownIcon {
     pub icon: Icon,
-    pub size: IconSize,
     pub motion: Motion,
 }
 
-impl Widget for IconPicture {
-    fn render(self, area: Rect, buffer: &mut Buffer) {
-        self.icon.render(self.size, self.motion, area, buffer);
+impl ShownIcon {
+    pub fn render(self, size: IconSize, area: Rect, buffer: &mut Buffer) {
+        self.icon.render(size, self.motion, area, buffer);
     }
 }
 

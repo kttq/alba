@@ -56,6 +56,10 @@ _Avoid_: Weather feed, weather service
 What the weather station has to show now: no location, fetching, offline, fresh, stale, or location not found. Expired weather is never a weather state; it counts as no weather.
 _Avoid_: Status, network state
 
+**Weather area**:
+The part of the face that shows the weather as text: the readings (temperature, high and low, age, condition, sparkline), or, without weather data, what the weather state says. The icon and the timeline are not part of it.
+_Avoid_: Weather row, weather text
+
 **Stale weather**:
 Weather data old enough that refreshes have failed; still shown, but dimmed and labelled with its age.
 _Avoid_: Old data, outdated weather

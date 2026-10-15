@@ -1,6 +1,7 @@
 use crate::{config::Language, sky::MoonPhaseName};
 
 /// Required fields make a missing translation a compile error.
+#[derive(Debug)]
 pub struct Strings {
     pub am: &'static str,
     pub pm: &'static str,
