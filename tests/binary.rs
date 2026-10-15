@@ -394,7 +394,6 @@ fn idle_alba_uses_under_one_percent_of_a_core() {
 /// The spec's CPU check, with rain from the cache and `motion = true`. CI runs it in its own job.
 #[test]
 #[ignore = "takes five minutes"]
-#[expect(clippy::print_stdout, reason = "the CI job reports this line")]
 fn five_idle_minutes_use_under_three_cpu_seconds() {
     let rain_in_motion = FixtureHome {
         config_lines: vec!["motion = true".to_string()],

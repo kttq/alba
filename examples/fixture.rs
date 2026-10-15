@@ -1,11 +1,5 @@
 //! Writes a config and a weather cache into a scratch HOME for one verification run.
 
-#![expect(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    reason = "a command-line tool: its output is its result"
-)]
-
 #[allow(dead_code, reason = "the tests use the parts this example does not")]
 #[path = "../tests/common/fixture_home.rs"]
 mod fixture_home;

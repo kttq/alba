@@ -1,11 +1,5 @@
 //! Drives alba headless in a pseudo-terminal, and prints what its screen shows.
 
-#![expect(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    reason = "a command-line tool: its output is its result"
-)]
-
 #[allow(dead_code, reason = "the tests use the parts this example does not")]
 #[path = "../tests/common/pty.rs"]
 mod pty;
