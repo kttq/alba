@@ -195,7 +195,7 @@ fn large_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
                 Block::Gap(BREATHING_ROWS),
                 timeline(face),
             ]);
-            framed(&face.bezel, face.bezel.place_name.as_deref(), content)
+            framed(&face.bezel, SizeTier::Large, content)
         })
         .collect()
 }
@@ -242,7 +242,7 @@ fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
                 ],
                 CALENDAR_GAP,
             );
-            framed(&face.bezel, face.bezel.place_name.as_deref(), content)
+            framed(&face.bezel, SizeTier::Wide, content)
         })
         .collect()
 }
@@ -259,7 +259,7 @@ fn tall_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
             blocks.extend(rows);
             let month = calendar_lines(face.calendar.month());
             blocks.extend([Block::Gap(BREATHING_ROWS), Block::Centred(month)]);
-            framed(&face.bezel, None, column(blocks))
+            framed(&face.bezel, SizeTier::Tall, column(blocks))
         })
         .collect()
 }
@@ -280,7 +280,7 @@ fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
             ];
             blocks.extend(rows);
             blocks.extend([Block::Gap(BREATHING_ROWS), week_strip(face)]);
-            framed(&face.bezel, None, column(blocks))
+            framed(&face.bezel, SizeTier::Medium, column(blocks))
         })
         .collect()
 }
@@ -392,11 +392,7 @@ const TIMELINE_ROWS: u16 = 3;
 
 /// Inside the bezel, with a column of space on each side. The bezel hugs the content, and widens
 /// only when its labels need more room.
-fn framed<'a>(
-    bezel: &'a Bezel,
-    place_name: Option<&'a str>,
-    content: Arrangement<'a>,
-) -> Arrangement<'a> {
+fn framed<'a>(bezel: &'a Bezel, size_tier: SizeTier, content: Arrangement<'a>) -> Arrangement<'a> {
     let label_width = |left: &Line, right: &Line| (left.width() + right.width()) as u16 + 1;
     let width = (content.size.width + 4)
         .max(label_width(&bezel.top_left, &bezel.top_right))
@@ -404,7 +400,12 @@ fn framed<'a>(
     let height = content.size.height + 2;
     let mut pieces = Vec::new();
     for (y, left, right, place_name) in [
-        (0, &bezel.top_left, &bezel.top_right, place_name),
+        (
+            0,
+            &bezel.top_left,
+            &bezel.top_right,
+            bezel.place_name(size_tier),
+        ),
         (height - 1, &bezel.bottom_left, &bezel.bottom_right, None),
     ] {
         let left_width = left.width() as u16;

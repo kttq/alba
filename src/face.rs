@@ -65,9 +65,17 @@ impl Face {
             Some((weather, sky)) => Icon::of(&weather.forecast, sky),
             None => Some(Icon::Ghost),
         };
+        let calendar = settings.calendar.at(now);
+        let bezel = Bezel::new(
+            settings.strings,
+            &calendar,
+            now,
+            shown_weather.place_name,
+            weather.is_some(),
+        );
         Self {
             clock: settings.clock.at(now, motion),
-            calendar: settings.calendar.at(now),
+            calendar,
             weather_area: WeatherArea::of(
                 shown_weather.weather_state,
                 shown_weather.shows_fetch_indicator,
@@ -80,12 +88,7 @@ impl Face {
             timeline: sky.and_then(|(_, sky)| {
                 ShownTimeline::of(&sky, now, &settings.clock, settings.strings)
             }),
-            bezel: Bezel::new(
-                settings.strings,
-                now,
-                shown_weather.place_name,
-                weather.is_some(),
-            ),
+            bezel,
         }
     }
 }

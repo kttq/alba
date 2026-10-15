@@ -9,7 +9,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::{calendar, strings::Strings};
+use crate::{calendar::ShownCalendar, layout::SizeTier, strings::Strings};
 
 /// The bezel's labels with the corners beside them. Border runs of `─` fill the rest.
 #[derive(Debug)]
@@ -18,9 +18,8 @@ pub struct Bezel {
     pub top_left: Line<'static>,
     /// The ISO week and the corner.
     pub top_right: Line<'static>,
-    /// For the top border of the size tiers wide enough for it; None for configured
-    /// coordinates.
-    pub place_name: Option<String>,
+    /// None for configured coordinates.
+    place_name: Option<String>,
     /// The corner and the greeting.
     pub bottom_left: Line<'static>,
     /// The Open-Meteo credit, when weather data is shown, and the corner.
@@ -35,19 +34,20 @@ const PLACE_NAME_MARGIN: u16 = 2;
 impl Bezel {
     pub fn new(
         strings: &Strings,
+        calendar: &ShownCalendar,
         now: &Zoned,
         place_name: Option<&str>,
         shows_credit: bool,
     ) -> Self {
         let mut top_left = Line::from(frame("╭─ "));
-        top_left.extend(calendar::short_date(strings, now).spans);
+        top_left.extend(calendar.short_date().spans.iter().cloned());
         top_left.push_span(frame(" "));
         let mut top_right = Line::from(frame(" "));
-        top_right.extend(calendar::iso_week(strings, now).spans);
+        top_right.extend(calendar.iso_week().spans.iter().cloned());
         top_right.push_span(frame(" ─╮"));
         let bottom_left = Line::from(vec![
             frame("╰» "),
-            Span::styled(strings.greeting(now.hour()), Style::new().green()),
+            Span::styled(greeting(strings, now.hour()), Style::new().green()),
             frame(" "),
         ]);
         let bottom_right = if shows_credit {
@@ -67,6 +67,26 @@ impl Bezel {
             bottom_right,
         }
     }
+}
+
+impl Bezel {
+    /// The place name for the top border, in the size tiers wide enough for it.
+    pub fn place_name(&self, size_tier: SizeTier) -> Option<&str> {
+        match size_tier {
+            SizeTier::Large | SizeTier::Wide => self.place_name.as_deref(),
+            _ => None,
+        }
+    }
+}
+
+/// The greeting for a local hour, 0 to 23. Before the first start hour, the last greeting still
+/// holds from the evening.
+fn greeting(strings: &Strings, hour: i8) -> &'static str {
+    let (_, last) = strings.greetings[strings.greetings.len() - 1];
+    (strings.greetings.iter())
+        .take_while(|(start, _)| *start <= hour)
+        .last()
+        .map_or(last, |(_, greeting)| greeting)
 }
 
 fn frame(text: &'static str) -> Span<'static> {

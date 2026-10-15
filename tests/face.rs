@@ -4,6 +4,7 @@ use alba::{
     config::Config,
     face::{Face, FaceSettings},
     icon::Icon,
+    layout::SizeTier,
     weather::{Forecast, ShownWeather, Weather, WeatherState},
 };
 use common::{default_instant, forecast_body};
@@ -87,7 +88,10 @@ fn the_place_name_goes_to_the_bezel() {
 
     let face = Face::at(&settings(""), shown_weather, &default_instant());
 
-    assert_eq!(face.bezel.place_name.as_deref(), Some("Buenos Aires, AR"));
+    assert_eq!(
+        face.bezel.place_name(SizeTier::Large),
+        Some("Buenos Aires, AR")
+    );
 }
 
 #[test]
