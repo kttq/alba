@@ -11,6 +11,10 @@ use crate::{
 
 use std::borrow::Cow;
 
+/// PROTOTYPE (issue #55): the size ladder of the revamped look.
+#[path = "prototype_look/ladder.rs"]
+pub mod ladder;
+
 use ratatui::{
     buffer::Buffer,
     layout::{Position, Rect, Size},

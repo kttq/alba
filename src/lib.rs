@@ -13,6 +13,7 @@ pub mod log;
 pub mod motion;
 pub mod paths;
 pub mod pixels;
+pub mod prototype_look;
 pub mod sky;
 pub mod sprites;
 pub mod strings;

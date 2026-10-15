@@ -13,8 +13,8 @@ use ratatui::{
 use crate::{
     config::Config,
     face::{Face, FaceSettings},
-    layout,
     log::Log,
+    prototype_look::{PrototypeLook, probe::Profile},
     weather::{WeatherSource, WeatherStation},
 };
 
@@ -23,6 +23,8 @@ pub struct App {
     face_settings: FaceSettings,
     weather_station: WeatherStation,
     log: Log,
+    /// PROTOTYPE (issue #55): the revamped look.
+    prototype: PrototypeLook,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -40,7 +42,27 @@ impl App {
         cache_directory: PathBuf,
         state_directory: &Path,
     ) -> Self {
+        Self::with_profile(
+            config,
+            weather_source,
+            shown_config_file,
+            cache_directory,
+            state_directory,
+            &Profile::from_env(),
+        )
+    }
+
+    /// PROTOTYPE (issue #55): with what the terminal said it can do.
+    pub fn with_profile(
+        config: Config,
+        weather_source: Box<dyn WeatherSource>,
+        shown_config_file: String,
+        cache_directory: PathBuf,
+        state_directory: &Path,
+        profile: &Profile,
+    ) -> Self {
         Self {
+            prototype: PrototypeLook::new(config.clone(), profile),
             face_settings: FaceSettings::new(&config, shown_config_file),
             weather_station: WeatherStation::new(
                 config.location,
@@ -62,6 +84,9 @@ impl App {
 
     /// Raw mode swallows the interrupt signal, so `ctrl-c` arrives here as a key.
     pub fn key(&mut self, event: KeyEvent) -> Control {
+        if self.prototype.key(event) {
+            return Control::Continue;
+        }
         match (event.code, event.modifiers) {
             (KeyCode::Char('q') | KeyCode::Esc, KeyModifiers::NONE) => Control::Quit,
             (KeyCode::Char('c'), KeyModifiers::CONTROL) => Control::Quit,
@@ -74,10 +99,13 @@ impl App {
     }
 
     pub fn render(&self, area: Rect, buffer: &mut Buffer, now: &Zoned) {
-        let face = self.face(now);
-        for item in layout::lay_out(area, &face).items {
-            item.piece.render(item.area, buffer);
-        }
+        let shown_now = self.prototype.display_now(now);
+        let face = Face::at(
+            &self.face_settings,
+            self.weather_station.shown(now),
+            &shown_now,
+        );
+        self.prototype.render(area, buffer, &face, &shown_now);
     }
 
     pub fn face(&self, now: &Zoned) -> Face {

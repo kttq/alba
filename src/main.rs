@@ -27,6 +27,7 @@ keys: r fetches the weather now. q, esc, or ctrl-c quits.";
 
 enum Command {
     Run,
+    Probe,
     Help,
     Version,
     Log,
@@ -44,6 +45,11 @@ fn main() -> ExitCode {
             Ok(())
         }
         Ok(Command::Log) => print_log(),
+        Ok(Command::Probe) => {
+            let profile = alba::prototype_look::probe::Profile::detect();
+            println!("{}", profile.report());
+            Ok(())
+        }
         Err(argument) => Err(format!(
             "error: unexpected argument '{argument}'\n\nrun 'alba --help' for usage"
         )),
@@ -62,12 +68,14 @@ fn start() -> Result<(), String> {
     let paths = paths()?;
     let config = config::load(&paths.config_file).map_err(|error| error.to_string())?;
     let weather_source = Box::new(BackgroundSource::new(open_meteo::fetch));
-    let mut app = App::new(
+    let profile = alba::prototype_look::probe::Profile::detect();
+    let mut app = App::with_profile(
         config,
         weather_source,
         paths.shown_config_file,
         paths.cache_directory,
         &paths.state_directory,
+        &profile,
     );
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);
@@ -101,6 +109,7 @@ fn parse_args(mut args: impl Iterator<Item = String>) -> Result<Command, String>
         Some("--help") => Command::Help,
         Some("--version") => Command::Version,
         Some("--log") => Command::Log,
+        Some("--probe") => Command::Probe,
         Some(other) => return Err(other.to_string()),
     };
     match args.next() {
