@@ -1,0 +1,12 @@
+---
+source: tests/clock.rs
+expression: "rendered(\"ghost_segments = false\", \"06:38\", colon_ghost, DigitSize::Small)"
+---
+..ffff......ffff..............ffff......ffff..
+ff....ff..ff......................ff..ff....ff
+ff....ff..ff......................ff..ff....ff
+............ffff..............ffff......ffff..
+ff....ff..ff....ff................ff..ff....ff
+ff....ff..ff....ff................ff..ff....ff
+..ffff......ffff..............ffff......ffff..
+..............................................

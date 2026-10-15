@@ -309,3 +309,13 @@ pub const MINI_THUNDERSTORM: Frames = [MINI_THUNDERSTORM_FRAME, MINI_THUNDERSTOR
 pub const FULL_STARS: [(u16, u16); 4] = [(8, 0), (10, 1), (7, 0), (10, 3)];
 pub const LARGE_STARS: [(u16, u16); 4] = [(17, 0), (21, 2), (14, 1), (21, 6)];
 pub const STAR_GLYPHS: [[&str; 4]; 2] = [["✧", "✦", " ", "·"], ["✦", "·", "·", "✧"]];
+
+/// The lit segments of each digit, 0 to 9: `a` top, `b` top right, `c` bottom right, `d` bottom,
+/// `e` bottom left, `f` top left, `g` middle. 6 and 9 have tails (`a` on 6, `d` on 9); 7 has no
+/// hook.
+pub const DIGIT_SEGMENTS: [&str; 10] = [
+    "abcdef", "bc", "abdeg", "abcdg", "bcfg", "acdfg", "acdefg", "abc", "abcdefg", "abcdfg",
+];
+
+pub const LIT_SEGMENT: Pixel = Pixel::new(PixelColor::Foreground);
+pub const GHOST_SEGMENT: Pixel = Pixel::faint(PixelColor::BrightBlack);
