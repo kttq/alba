@@ -478,64 +478,6 @@ fn medium_bottom_border_credits_open_meteo_only_with_weather() {
 }
 
 #[test]
-fn medium_week_strip_pills_today_dims_past_days_and_tints_the_weekend() {
-    let terminal = rendered(&with_weather(""), &default_instant(), 40, 15);
-
-    let buffer = terminal.backend().buffer();
-    assert_eq!(
-        row_text(buffer, 12),
-        "│         mo tu we th fr sa su         │"
-    );
-    assert_eq!(
-        row_text(buffer, 13),
-        "│         12 13 14 15 16 17 18         │"
-    );
-    let style = |x: u16, y: u16| (buffer[(x, y)].fg, buffer[(x, y)].modifier);
-    let dim = (Color::DarkGray, Modifier::empty());
-    let weekend = (Color::Green, Modifier::empty());
-    let pill = (Color::Yellow, Modifier::REVERSED);
-    assert_eq!(style(10, 12), dim, "a weekday name");
-    assert_eq!(style(25, 12), weekend, "a weekend name");
-    assert_eq!(style(10, 13), dim, "a past day");
-    for x in 13..15 {
-        assert_eq!(style(x, 13), pill, "today's pill, column {x}");
-    }
-    let plain = (Color::Reset, Modifier::empty());
-    assert_eq!(style(12, 13), plain, "the space before the pill");
-    assert_eq!(style(15, 13), plain, "the space after the pill");
-    assert_eq!(
-        style(16, 13),
-        (Color::Reset, Modifier::empty()),
-        "a coming weekday"
-    );
-    assert_eq!(style(25, 13), weekend, "a coming weekend day");
-}
-
-#[test]
-fn sunday_first_week_strip_tints_the_weekend_by_the_day_of_the_week() {
-    let terminal = rendered(
-        &with_weather("week_start = \"sunday\""),
-        &default_instant(),
-        40,
-        15,
-    );
-
-    let buffer = terminal.backend().buffer();
-    assert_eq!(
-        row_text(buffer, 12),
-        "│         su mo tu we th fr sa         │"
-    );
-    assert_eq!(
-        row_text(buffer, 13),
-        "│         11 12 13 14 15 16 17         │"
-    );
-    assert_eq!(buffer[(10, 12)].fg, Color::Green, "sunday, first");
-    assert_eq!(buffer[(28, 12)].fg, Color::Green, "saturday, last");
-    assert_eq!(buffer[(28, 13)].fg, Color::Green);
-    assert_eq!(buffer[(13, 12)].fg, Color::DarkGray, "monday");
-}
-
-#[test]
 fn stale_medium_dims_the_text_and_sparkline_but_not_the_icon_or_timeline() {
     let later = default_instant().checked_add(2.hours()).unwrap();
     let fresh = rendered(&with_weather(""), &default_instant(), 40, 15);

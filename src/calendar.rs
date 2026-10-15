@@ -48,37 +48,52 @@ impl Calendar {
     /// The current week: the weekday header over the days.
     pub fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
         let today = now.date();
-        let days = self.week_of(today);
-        let header = days.iter().map(|day| {
-            let initials =
-                self.strings.weekday_initials[day.weekday().to_sunday_zero_offset() as usize];
-            let style = if is_weekend(day.weekday()) {
+        let weeks = self.weeks(today, 1);
+        [self.weekday_header(), week_row(&weeks[0], today)]
+    }
+
+    fn weekday_header(&self) -> Line<'static> {
+        let initials = (0..7).map(|offset| {
+            let weekday = self.first_weekday().wrapping_add(offset);
+            let initial = self.strings.weekday_initials[weekday.to_sunday_zero_offset() as usize];
+            let style = if is_weekend(weekday) {
                 Style::new().green()
             } else {
                 Style::new().dark_gray()
             };
-            Span::styled(initials, style)
+            Span::styled(initial, style)
         });
-        let numbers = days
-            .iter()
-            .map(|&day| Span::styled(format!("{:>2}", day.day()), day_style(day, today)));
-        [
-            Line::from(spaced(header.collect())),
-            Line::from(spaced(numbers.collect())),
-        ]
+        Line::from(spaced(initials.collect()))
     }
 
-    /// The seven days of the week that holds `today`, from the configured first weekday.
-    fn week_of(&self, today: Date) -> Vec<Date> {
-        let first_weekday = match self.week_start {
-            WeekStart::Monday => Weekday::Monday,
-            WeekStart::Sunday => Weekday::Sunday,
-        };
-        let days_since_start = i64::from(today.weekday().since(first_weekday));
-        (0..7)
-            .filter_map(|offset| today.checked_add((offset - days_since_start).days()).ok())
+    /// `count` weeks from the configured first weekday, the first one holding `day`. A week at
+    /// the edge of the supported dates is short.
+    fn weeks(&self, day: Date, count: i64) -> Vec<Vec<Date>> {
+        let days_since_start = i64::from(day.weekday().since(self.first_weekday()));
+        (0..count)
+            .map(|week| {
+                (0..7)
+                    .filter_map(|offset| {
+                        day.checked_add((7 * week + offset - days_since_start).days())
+                            .ok()
+                    })
+                    .collect()
+            })
             .collect()
     }
+
+    fn first_weekday(&self) -> Weekday {
+        match self.week_start {
+            WeekStart::Monday => Weekday::Monday,
+            WeekStart::Sunday => Weekday::Sunday,
+        }
+    }
+}
+
+fn week_row(week: &[Date], today: Date) -> Line<'static> {
+    let days =
+        (week.iter()).map(|&day| Span::styled(format!("{:>2}", day.day()), day_style(day, today)));
+    Line::from(spaced(days.collect()))
 }
 
 /// Today's pill, then past days dimmed, then the weekend tint.
