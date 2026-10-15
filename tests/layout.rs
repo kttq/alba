@@ -1,7 +1,11 @@
 mod common;
 
-use alba::layout::{self, SizeTier};
 use alba::weather::FetchError;
+use alba::{
+    clock::DigitSize,
+    icon::IconSize,
+    layout::{self, Piece, SizeTier},
+};
 use common::{BUENOS_AIRES, Harness, NO_MATCH, default_instant, forecast_body};
 use jiff::{ToSpan, Zoned};
 use ratatui::{
@@ -40,6 +44,32 @@ fn size_tier(harness: &Harness, now: &Zoned, width: u16, height: u16) -> Option<
 fn minimum_size(harness: &Harness, now: &Zoned, size_tier: SizeTier) -> Option<Size> {
     let face = harness.app.face(now);
     layout::minimum_size(size_tier, &face)
+}
+
+/// The area of the first placed item that `wanted` picks.
+fn area_of(harness: &Harness, width: u16, height: u16, wanted: fn(&Piece) -> bool) -> Rect {
+    let face = harness.app.face(&default_instant());
+    let report = layout::lay_out(Rect::new(0, 0, width, height), &face);
+    (report.items.into_iter())
+        .find(|item| wanted(&item.piece))
+        .map(|item| item.area)
+        .expect("a placed item")
+}
+
+fn is_full_icon(piece: &Piece) -> bool {
+    matches!(piece, Piece::Icon(_, IconSize::Full))
+}
+
+fn is_small_clock(piece: &Piece) -> bool {
+    matches!(piece, Piece::SegmentClock(_, DigitSize::Small))
+}
+
+fn is_sparkline(piece: &Piece) -> bool {
+    matches!(piece, Piece::Text(line) if line.to_string().contains('▁'))
+}
+
+fn is_timeline(piece: &Piece) -> bool {
+    matches!(piece, Piece::Timeline(_))
 }
 
 fn rendered(harness: &Harness, now: &Zoned, width: u16, height: u16) -> Terminal<TestBackend> {
@@ -703,5 +733,42 @@ fn large_labels_the_sparkline_in_each_language() {
         assert_eq!(size_tier(&harness, &now, width, 23), Some(SizeTier::Large));
         let row = row_text(terminal.backend().buffer(), 14);
         assert!(row.contains(&format!("   {label}   ")), "{row}");
+    }
+}
+
+#[test]
+fn the_sparkline_starts_at_the_full_icon_column() {
+    let harness = with_weather("");
+    for (width, height) in [(40, 15), (63, 11), (40, 21)] {
+        let icon = area_of(&harness, width, height, is_full_icon);
+        let sparkline = area_of(&harness, width, height, is_sparkline);
+
+        assert_eq!(sparkline.x, icon.x, "{width}×{height}");
+    }
+}
+
+#[test]
+fn the_clock_and_the_icon_stay_put_when_the_weather_arrives() {
+    let fetching = Harness::new(BUENOS_AIRES);
+    let fetched = with_weather("");
+    for wanted in [is_small_clock, is_full_icon] {
+        assert_eq!(
+            area_of(&fetching, 40, 15, wanted),
+            area_of(&fetched, 40, 15, wanted)
+        );
+    }
+}
+
+#[test]
+fn the_timeline_stretches_across_the_bezel_in_large_tall_and_medium() {
+    let harness = with_weather("");
+    for (width, height) in [(71, 23), (40, 21), (40, 15)] {
+        let timeline = area_of(&harness, width, height, is_timeline);
+
+        assert_eq!(
+            (timeline.x, timeline.width),
+            (2, width - 4),
+            "{width}×{height}"
+        );
     }
 }
