@@ -171,10 +171,10 @@ impl Harness {
     ) -> Self {
         let weather_source = FakeWeatherSource::default();
         let app = App::new(
-            &Config::parse(config_text).unwrap(),
+            Config::parse(config_text).unwrap(),
             Box::new(weather_source.clone()),
             cache_directory.clone(),
-            state_directory.clone(),
+            &state_directory,
         );
         Self {
             app,

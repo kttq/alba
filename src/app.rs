@@ -1,4 +1,7 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use jiff::Zoned;
 use ratatui::{
@@ -38,23 +41,23 @@ pub enum Control {
 impl App {
     /// Reads the cache and empties the log.
     pub fn new(
-        config: &Config,
+        config: Config,
         weather_source: Box<dyn WeatherSource>,
         cache_directory: PathBuf,
-        state_directory: PathBuf,
+        state_directory: &Path,
     ) -> Self {
         Self {
             units: config.units,
             motion: config.motion,
             strings: Strings::of(config.language),
-            clock: Clock::new(config),
+            clock: Clock::new(&config),
             weather_station: WeatherStation::new(
-                config.location.clone(),
+                config.location,
                 config.language,
                 weather_source,
                 cache_directory,
             ),
-            log: Log::start(&state_directory),
+            log: Log::start(state_directory),
         }
     }
 

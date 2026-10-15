@@ -63,10 +63,10 @@ fn start() -> Result<(), String> {
     let config = config::load(&paths.config_file).map_err(|error| error.to_string())?;
     let weather_source = Box::new(BackgroundSource::new(open_meteo::fetch));
     let mut app = App::new(
-        &config,
+        config,
         weather_source,
         paths.cache_directory,
-        paths.state_directory,
+        &paths.state_directory,
     );
     let mut terminal = ratatui::init();
     let result = run(&mut terminal, &mut app);

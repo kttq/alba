@@ -213,7 +213,7 @@ impl WeatherStation {
                 log.write(Level::Warn, now, "location not found", &[]);
                 self.location_not_found = true;
             }
-            Err(error) => self.fail("lookup failed", error, now, log),
+            Err(error) => self.fail("lookup failed", &error, now, log),
         }
     }
 
@@ -224,12 +224,12 @@ impl WeatherStation {
                 self.failures = 0;
                 self.next_fetch = next_fetch(LastFetchResult::Success, now.timestamp());
             }
-            Err(error) => self.fail("fetch failed", error, now, log),
+            Err(error) => self.fail("fetch failed", &error, now, log),
         }
     }
 
-    fn fail(&mut self, message: &str, error: FetchError, now: &Zoned, log: &mut Log) {
-        log.write(Level::Warn, now, message, &[("error", &error)]);
+    fn fail(&mut self, message: &str, error: &FetchError, now: &Zoned, log: &mut Log) {
+        log.write(Level::Warn, now, message, &[("error", error)]);
         self.failures += 1;
         let last_fetch_result = LastFetchResult::Failure {
             failures: self.failures,
