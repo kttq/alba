@@ -197,3 +197,33 @@ fn bad_steps_and_sizes_fail_to_parse() {
         Ok(Step::Key("\x1bq\\".to_string()))
     );
 }
+
+#[test]
+fn a_night_fixture_is_night_with_a_timeline_at_any_hour() {
+    for hour in [0, 6, 12, 15, 20] {
+        let now: jiff::Zoned = format!("2026-10-15T{hour:02}:00[America/Argentina/Buenos_Aires]")
+            .parse()
+            .unwrap();
+        let home = temporary_directory();
+        let fixture_home = FixtureHome {
+            night: true,
+            ..FixtureHome::default()
+        };
+        fixture_home.write(&home, now.timestamp()).unwrap();
+
+        let cache_directory = home.join(".cache/alba");
+        let location = alba::config::Location::Coordinates(alba::config::Coordinates {
+            latitude: -34.622143,
+            longitude: -58.40909,
+        });
+        let (weather, _) = alba::weather::cache::read(&cache_directory, &location).unwrap();
+        let sky = alba::sky::Sky::at(&weather.forecast, now.timestamp());
+
+        assert_eq!(
+            sky.day_or_night,
+            alba::weather::DayOrNight::Night,
+            "{hour}:00"
+        );
+        assert!(sky.timeline.is_some(), "{hour}:00");
+    }
+}
