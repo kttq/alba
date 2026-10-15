@@ -1,14 +1,17 @@
 ---
 source: tests/layout.rs
-expression: "rendered(&harness, &now, 40, 12).backend()"
+expression: "rendered(&harness, &now, 40, 15).backend()"
 ---
 "╭─ tue 13 oct ───────────────── wk 42 ─╮"
+"│                                      │"
 "│ ▄▀▀▄ ▄▀▀▄     ▄▀▀▄ ▄▀▀▄        ▄▄▄   │"
 "│ ▀▄▄▀ ▀▄▄▀  ▀  ▀▄▄▀ ▀▄▄▀  ▄███▄█████▄ │"
 "│ █  █ █  █  ▄  █  █ █  █ ██████████▀▀ │"
 "│  ▀▀   ▀▀       ▀▀   ▀▀   ▀▀▀▀▀▀▀▀▀   │"
 "│ add location = "your city" to        │"
 "│ ~/.config/alba/config.toml           │"
+"│                                      │"
+"│                                      │"
 "│                                      │"
 "│                                      │"
 "│         mo tu we th fr sa su         │"

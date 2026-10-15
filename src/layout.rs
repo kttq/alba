@@ -186,19 +186,33 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
 fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     medium_weather_rows(face)
         .into_iter()
-        .map(|weather_rows| {
-            let band = clock_and_icon(face);
-            let mut blocks = vec![Block::Left(band)];
-            blocks.extend(weather_rows);
-            blocks.push(Block::Centred(column(
-                face.week_strip
-                    .iter()
-                    .map(|line| centred(Piece::Text(line)))
-                    .collect(),
-            )));
-            framed(&face.bezel, column(blocks))
+        .map(|[weather_row, timeline_rows]| {
+            framed(
+                &face.bezel,
+                column(vec![
+                    Block::Gap(BREATHING_ROWS),
+                    Block::Left(clock_and_icon(face)),
+                    weather_row,
+                    Block::Gap(BREATHING_ROWS),
+                    timeline_rows,
+                    Block::Gap(BREATHING_ROWS),
+                    week_strip(face),
+                ]),
+            )
         })
         .collect()
+}
+
+/// Under the top border, above the timeline, and above the week strip, so the clock, the
+/// timeline marker, and the week strip do not touch what is above them.
+const BREATHING_ROWS: u16 = 1;
+
+fn week_strip(face: &Face) -> Block<'_> {
+    Block::Centred(column(
+        (face.week_strip.iter())
+            .map(|line| centred(Piece::Text(line)))
+            .collect(),
+    ))
 }
 
 /// The icon's columns stay when there is no icon, so nothing moves when it returns.
@@ -217,8 +231,8 @@ fn clock_and_icon(face: &Face) -> Arrangement<'_> {
 /// Between the clock and the full icon.
 const CLOCK_GAP: u16 = 1;
 
-/// The rows under the clock and icon, each way widest first.
-fn medium_weather_rows(face: &Face) -> Vec<Vec<Block<'_>>> {
+/// The weather row and the timeline rows under the clock and icon, each way widest first.
+fn medium_weather_rows(face: &Face) -> Vec<[Block<'_>; 2]> {
     let timeline = || match &face.timeline {
         Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
         None => Block::Gap(TIMELINE_ROWS),
@@ -230,7 +244,7 @@ fn medium_weather_rows(face: &Face) -> Vec<Vec<Block<'_>>> {
                 .map(|line| left(Piece::Text(line)))
                 .collect(),
         );
-        return vec![vec![
+        return vec![[
             Block::Left(hint),
             Block::Gap(WEATHER_ROWS + TIMELINE_ROWS - 2),
         ]];
@@ -241,7 +255,7 @@ fn medium_weather_rows(face: &Face) -> Vec<Vec<Block<'_>>> {
         .or(face.temperature_high_and_low.as_ref());
     let Some(temperature) = temperature else {
         return (face.weather_state_lines.iter())
-            .map(|line| vec![left(Piece::Text(line)), timeline()])
+            .map(|line| [left(Piece::Text(line)), timeline()])
             .collect();
     };
     let icon_x = face.segment_clock.size().width + CLOCK_GAP;
@@ -250,7 +264,7 @@ fn medium_weather_rows(face: &Face) -> Vec<Vec<Block<'_>>> {
         let x = icon_x.max(temperature.width() as u16 + ICON_GAP);
         pieces.push((Piece::Text(sparkline), Position::new(x, 0)));
     }
-    vec![vec![Block::Left(at_offsets(pieces)), timeline()]]
+    vec![[Block::Left(at_offsets(pieces)), timeline()]]
 }
 
 const WEATHER_ROWS: u16 = 1;

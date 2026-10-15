@@ -67,7 +67,7 @@ fn rain_by_day_at_each_tier_minimum_and_at_large_panes() {
         ("strip_minimum", 5, 1),
         ("compact_minimum", 23, 8),
         ("mini_minimum", 18, 2),
-        ("medium_minimum", 40, 12),
+        ("medium_minimum", 40, 15),
         ("85x26", 85, 26),
         ("250x80", 250, 80),
     ];
@@ -334,23 +334,23 @@ fn compact_icon_keeps_its_column_when_the_weather_returns() {
 }
 
 #[test]
-fn medium_fits_forty_by_twelve_with_the_default_config() {
+fn medium_fits_forty_by_fifteen_with_the_default_config() {
     let harness = with_weather("");
 
     assert_eq!(
         minimum_size(&harness, &default_instant(), SizeTier::Medium),
-        Some(Size::new(40, 12))
+        Some(Size::new(40, 15))
     );
     assert_eq!(
-        size_tier(&harness, &default_instant(), 40, 12),
+        size_tier(&harness, &default_instant(), 40, 15),
         Some(SizeTier::Medium)
     );
     assert_eq!(
-        size_tier(&harness, &default_instant(), 39, 12),
+        size_tier(&harness, &default_instant(), 39, 15),
         Some(SizeTier::Compact)
     );
     assert_eq!(
-        size_tier(&harness, &default_instant(), 40, 11),
+        size_tier(&harness, &default_instant(), 40, 14),
         Some(SizeTier::Compact)
     );
 }
@@ -362,7 +362,7 @@ fn twelve_hour_clock_widens_medium_by_three_columns() {
 
     assert_eq!(
         minimum_size(&harness, &noon, SizeTier::Medium),
-        Some(Size::new(43, 12))
+        Some(Size::new(43, 15))
     );
 }
 
@@ -416,11 +416,11 @@ fn medium_weather_states() {
 
     for (name, (harness, now)) in cases {
         assert_eq!(
-            size_tier(&harness, &now, 40, 12),
+            size_tier(&harness, &now, 40, 15),
             Some(SizeTier::Medium),
             "{name}"
         );
-        insta::assert_snapshot!(name, rendered(&harness, &now, 40, 12).backend());
+        insta::assert_snapshot!(name, rendered(&harness, &now, 40, 15).backend());
     }
 }
 
@@ -436,7 +436,7 @@ fn named_with_weather(config_text: &str, now: &Zoned) -> Harness {
 fn medium_top_border_leaves_the_place_name_out() {
     let harness = named_with_weather("", &default_instant());
 
-    let terminal = rendered(&harness, &default_instant(), 40, 12);
+    let terminal = rendered(&harness, &default_instant(), 40, 15);
 
     assert_eq!(
         row_text(terminal.backend().buffer(), 0),
@@ -450,7 +450,7 @@ fn medium_top_border_is_blue_date_and_dim_week_in_spanish_too() {
         &with_weather("language = \"es\""),
         &default_instant(),
         40,
-        12,
+        15,
     );
 
     let buffer = terminal.backend().buffer();
@@ -481,55 +481,55 @@ fn medium_bottom_border_greets_by_the_hour_in_each_language() {
         let now: Zoned = format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
             .parse()
             .unwrap();
-        let terminal = rendered(&Harness::new(config_text), &now, 40, 12);
+        let terminal = rendered(&Harness::new(config_text), &now, 40, 15);
 
-        let bottom = row_text(terminal.backend().buffer(), 11);
+        let bottom = row_text(terminal.backend().buffer(), 14);
         assert!(bottom.starts_with(greeting), "{time}: {bottom}");
-        assert_eq!(terminal.backend().buffer()[(3, 11)].fg, Color::Green);
+        assert_eq!(terminal.backend().buffer()[(3, 14)].fg, Color::Green);
     }
 }
 
 #[test]
 fn medium_bottom_border_credits_open_meteo_only_with_weather() {
-    let with = rendered(&with_weather(""), &default_instant(), 40, 12);
-    let without = rendered(&Harness::new(BUENOS_AIRES), &default_instant(), 40, 12);
+    let with = rendered(&with_weather(""), &default_instant(), 40, 15);
+    let without = rendered(&Harness::new(BUENOS_AIRES), &default_instant(), 40, 15);
 
-    assert!(row_text(with.backend().buffer(), 11).ends_with("── open-meteo ─╯"));
-    assert!(row_text(without.backend().buffer(), 11).ends_with("─────╯"));
+    assert!(row_text(with.backend().buffer(), 14).ends_with("── open-meteo ─╯"));
+    assert!(row_text(without.backend().buffer(), 14).ends_with("─────╯"));
 }
 
 #[test]
 fn medium_week_strip_pills_today_dims_past_days_and_tints_the_weekend() {
-    let terminal = rendered(&with_weather(""), &default_instant(), 40, 12);
+    let terminal = rendered(&with_weather(""), &default_instant(), 40, 15);
 
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        row_text(buffer, 9),
+        row_text(buffer, 12),
         "│         mo tu we th fr sa su         │"
     );
     assert_eq!(
-        row_text(buffer, 10),
+        row_text(buffer, 13),
         "│         12 13 14 15 16 17 18         │"
     );
     let style = |x: u16, y: u16| (buffer[(x, y)].fg, buffer[(x, y)].modifier);
     let dim = (Color::DarkGray, Modifier::empty());
     let weekend = (Color::Green, Modifier::empty());
     let pill = (Color::Yellow, Modifier::REVERSED);
-    assert_eq!(style(10, 9), dim, "a weekday name");
-    assert_eq!(style(25, 9), weekend, "a weekend name");
-    assert_eq!(style(10, 10), dim, "a past day");
+    assert_eq!(style(10, 12), dim, "a weekday name");
+    assert_eq!(style(25, 12), weekend, "a weekend name");
+    assert_eq!(style(10, 13), dim, "a past day");
     for x in 13..15 {
-        assert_eq!(style(x, 10), pill, "today's pill, column {x}");
+        assert_eq!(style(x, 13), pill, "today's pill, column {x}");
     }
     let plain = (Color::Reset, Modifier::empty());
-    assert_eq!(style(12, 10), plain, "the space before the pill");
-    assert_eq!(style(15, 10), plain, "the space after the pill");
+    assert_eq!(style(12, 13), plain, "the space before the pill");
+    assert_eq!(style(15, 13), plain, "the space after the pill");
     assert_eq!(
-        style(16, 10),
+        style(16, 13),
         (Color::Reset, Modifier::empty()),
         "a coming weekday"
     );
-    assert_eq!(style(25, 10), weekend, "a coming weekend day");
+    assert_eq!(style(25, 13), weekend, "a coming weekend day");
 }
 
 #[test]
@@ -538,45 +538,45 @@ fn sunday_first_week_strip_tints_the_weekend_by_the_day_of_the_week() {
         &with_weather("week_start = \"sunday\""),
         &default_instant(),
         40,
-        12,
+        15,
     );
 
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        row_text(buffer, 9),
+        row_text(buffer, 12),
         "│         su mo tu we th fr sa         │"
     );
     assert_eq!(
-        row_text(buffer, 10),
+        row_text(buffer, 13),
         "│         11 12 13 14 15 16 17         │"
     );
-    assert_eq!(buffer[(10, 9)].fg, Color::Green, "sunday, first");
-    assert_eq!(buffer[(28, 9)].fg, Color::Green, "saturday, last");
-    assert_eq!(buffer[(28, 10)].fg, Color::Green);
-    assert_eq!(buffer[(13, 9)].fg, Color::DarkGray, "monday");
+    assert_eq!(buffer[(10, 12)].fg, Color::Green, "sunday, first");
+    assert_eq!(buffer[(28, 12)].fg, Color::Green, "saturday, last");
+    assert_eq!(buffer[(28, 13)].fg, Color::Green);
+    assert_eq!(buffer[(13, 12)].fg, Color::DarkGray, "monday");
 }
 
 #[test]
 fn stale_medium_dims_the_text_and_sparkline_but_not_the_icon_or_timeline() {
     let later = default_instant().checked_add(2.hours()).unwrap();
-    let fresh = rendered(&with_weather(""), &default_instant(), 40, 12);
-    let stale = rendered(&with_weather(""), &later, 40, 12);
+    let fresh = rendered(&with_weather(""), &default_instant(), 40, 15);
+    let stale = rendered(&with_weather(""), &later, 40, 15);
 
     let buffer = stale.backend().buffer();
     for x in 2..24 {
-        let cell = &buffer[(x, 5)];
+        let cell = &buffer[(x, 6)];
         if cell.symbol() != " " {
             assert_eq!(cell.fg, Color::DarkGray, "column {x}");
         }
     }
     for x in 26..29 {
-        assert_eq!(buffer[(x, 5)].fg, Color::DarkGray, "bar {x}");
+        assert_eq!(buffer[(x, 6)].fg, Color::DarkGray, "bar {x}");
     }
     let fresh = fresh.backend().buffer();
-    assert_eq!(buffer[(30, 2)], fresh[(30, 2)], "the icon keeps its colors");
+    assert_eq!(buffer[(30, 3)], fresh[(30, 3)], "the icon keeps its colors");
     assert_eq!(
-        buffer[(20, 6)].fg,
-        fresh[(20, 6)].fg,
+        buffer[(20, 8)].fg,
+        fresh[(20, 8)].fg,
         "the timeline keeps its colors"
     );
 }
@@ -586,10 +586,10 @@ fn medium_without_a_match_says_location_not_found() {
     let mut harness = Harness::new("location = \"atlantis\"");
     harness.fetch(&default_instant(), Ok(NO_MATCH.to_string()));
 
-    let terminal = rendered(&harness, &default_instant(), 40, 12);
+    let terminal = rendered(&harness, &default_instant(), 40, 15);
 
     assert_eq!(
-        row_text(terminal.backend().buffer(), 5),
+        row_text(terminal.backend().buffer(), 6),
         "│ location not found: atlantis         │"
     );
 }
@@ -605,11 +605,11 @@ fn polar_night_leaves_the_medium_timeline_rows_empty() {
     let mut harness = Harness::new(BUENOS_AIRES);
     harness.fetch(&now, Ok(body));
 
-    let terminal = rendered(&harness, &now, 40, 12);
+    let terminal = rendered(&harness, &now, 40, 15);
 
     let buffer = terminal.backend().buffer();
-    assert_eq!(size_tier(&harness, &now, 40, 12), Some(SizeTier::Medium));
-    for y in 6..9 {
+    assert_eq!(size_tier(&harness, &now, 40, 15), Some(SizeTier::Medium));
+    for y in 8..11 {
         assert_eq!(
             row_text(buffer, y),
             "│                                      │",
@@ -627,10 +627,10 @@ fn medium_timeline_counts_down_to_sunset_with_minutes_under_an_hour() {
         .build()
         .unwrap();
 
-    let terminal = rendered(&with_weather_at("", &evening), &evening, 40, 12);
+    let terminal = rendered(&with_weather_at("", &evening), &evening, 40, 15);
 
     assert_eq!(
-        row_text(terminal.backend().buffer(), 8),
+        row_text(terminal.backend().buffer(), 10),
         "│ ↑06:14     sunset in 0h36     19:06↓ │"
     );
 }
@@ -644,11 +644,11 @@ fn medium_timeline_bar_is_full_behind_the_marker_and_faint_ahead() {
         .build()
         .unwrap();
 
-    let terminal = rendered(&with_weather_at("", &midday), &midday, 40, 12);
+    let terminal = rendered(&with_weather_at("", &midday), &midday, 40, 15);
 
     let buffer = terminal.backend().buffer();
     let bar = |x: u16| {
-        let cell = &buffer[(2 + x, 6)];
+        let cell = &buffer[(2 + x, 8)];
         (
             cell.symbol(),
             cell.fg,
@@ -664,4 +664,18 @@ fn medium_timeline_bar_is_full_behind_the_marker_and_faint_ahead() {
         "ahead of the marker"
     );
     assert_eq!(bar(35), ("▄", Color::LightRed, true), "dusk");
+}
+
+#[test]
+fn medium_leaves_blank_rows_under_the_top_border_and_around_the_timeline() {
+    let terminal = rendered(&with_weather(""), &default_instant(), 40, 15);
+
+    let blank = "│                                      │";
+    let buffer = terminal.backend().buffer();
+    assert_eq!(row_text(buffer, 1), blank, "under the top border");
+    assert_eq!(
+        row_text(buffer, 7),
+        blank,
+        "between the sparkline and the timeline"
+    );
 }
