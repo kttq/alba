@@ -1,6 +1,5 @@
 //! The icon for a condition, in three sizes and two animation frames, with its night stars.
 
-use jiff::Zoned;
 use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::Widget};
 
 use crate::{
@@ -8,7 +7,7 @@ use crate::{
     pixels::{Canvas, Legend},
     sky::{MoonPhase, Sky},
     sprites::{self, Frames},
-    weather::{Condition, DayOrNight, Weather, WeatherState},
+    weather::{Condition, DayOrNight, Forecast},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,21 +54,12 @@ impl IconSize {
 
 impl Icon {
     /// None for a weather code with no condition.
-    pub fn of(weather: &Weather, now: &Zoned) -> Option<Self> {
-        let condition = weather.forecast.condition()?;
-        let sky = Sky::at(&weather.forecast, now.timestamp());
+    pub fn of(forecast: &Forecast, sky: &Sky) -> Option<Self> {
+        let condition = forecast.condition()?;
         Some(match sky.day_or_night {
             DayOrNight::Day => Self::Day(condition),
             DayOrNight::Night => Self::Night(condition, sky.moon_phase),
         })
-    }
-
-    /// The ghost icon without weather data.
-    pub fn shown(weather_state: WeatherState, now: &Zoned) -> Option<Self> {
-        match weather_state.weather() {
-            Some(weather) => Self::of(weather, now),
-            None => Some(Self::Ghost),
-        }
     }
 
     pub fn canvas(self, size: IconSize, motion: Motion) -> Canvas {

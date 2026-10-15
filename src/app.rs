@@ -11,28 +11,16 @@ use ratatui::{
 };
 
 use crate::{
-    bezel::Bezel,
-    calendar::Calendar,
-    clock::Clock,
-    config::{Config, Units},
-    icon::{Icon, ShownIcon},
-    layout::{self, Face},
+    config::Config,
+    face::{Face, FaceSettings},
+    layout,
     log::Log,
-    motion::{self, Motion},
-    sky::ShownTimeline,
-    strings::Strings,
-    weather::{WeatherArea, WeatherSource, WeatherStation},
+    weather::{WeatherSource, WeatherStation},
 };
 
 /// Time and time zone come only from `now`, never the system clock.
 pub struct App {
-    units: Units,
-    motion: bool,
-    strings: &'static Strings,
-    /// For the first-run hint, with `HOME` shown as `~`.
-    shown_config_file: String,
-    clock: Clock,
-    calendar: Calendar,
+    face_settings: FaceSettings,
     weather_station: WeatherStation,
     log: Log,
 }
@@ -53,12 +41,7 @@ impl App {
         state_directory: &Path,
     ) -> Self {
         Self {
-            units: config.units,
-            motion: config.motion,
-            strings: Strings::of(config.language),
-            shown_config_file,
-            clock: Clock::new(&config),
-            calendar: Calendar::new(&config),
+            face_settings: FaceSettings::new(&config, shown_config_file),
             weather_station: WeatherStation::new(
                 config.location,
                 config.language,
@@ -74,7 +57,7 @@ impl App {
     }
 
     pub fn tick_interval(&self) -> Duration {
-        motion::tick_interval(self.motion)
+        self.face_settings.tick_interval()
     }
 
     /// Raw mode swallows the interrupt signal, so `ctrl-c` arrives here as a key.
@@ -98,29 +81,6 @@ impl App {
     }
 
     pub fn face(&self, now: &Zoned) -> Face {
-        let weather_state = self.weather_station.weather_state(now);
-        let motion = Motion::at(now.timestamp(), self.motion);
-        Face {
-            clock: self.clock.at(now, motion),
-            calendar: self.calendar.at(now),
-            weather_area: WeatherArea::of(
-                weather_state,
-                self.weather_station.shows_fetch_indicator(now),
-                self.units,
-                now.timestamp(),
-                self.strings,
-                &self.shown_config_file,
-            ),
-            icon: Icon::shown(weather_state, now).map(|icon| ShownIcon { icon, motion }),
-            timeline: weather_state.weather().and_then(|weather| {
-                ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
-            }),
-            bezel: Bezel::new(
-                self.strings,
-                now,
-                self.weather_station.place_name(),
-                weather_state.weather().is_some(),
-            ),
-        }
+        Face::at(&self.face_settings, self.weather_station.shown(now), now)
     }
 }

@@ -2,8 +2,8 @@
 
 use crate::{
     bezel::{Bezel, BorderRun, BorderSide},
-    calendar::ShownCalendar,
     clock::{DigitSize, ShownClock},
+    face::Face,
     icon::{IconSize, ShownIcon},
     sky::ShownTimeline,
     weather::{Part, WeatherArea},
@@ -17,18 +17,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::Widget,
 };
-
-/// Everything alba shows at one instant. Each size tier asks a part for the size it places.
-pub struct Face {
-    pub clock: ShownClock,
-    pub calendar: ShownCalendar,
-    pub weather_area: WeatherArea,
-    /// The ghost icon without weather data; None for a weather code with no condition.
-    pub icon: Option<ShownIcon>,
-    /// None without weather data, and when no sunrise and sunset surround now.
-    pub timeline: Option<ShownTimeline>,
-    pub bezel: Bezel,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {

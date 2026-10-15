@@ -2,7 +2,8 @@ mod common;
 
 use alba::{
     app::App,
-    layout::{self, Face, LayoutReport, SizeTier},
+    face::Face,
+    layout::{self, LayoutReport, SizeTier},
     weather::FetchError,
 };
 use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body, long_place_geocoding_body};

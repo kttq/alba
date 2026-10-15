@@ -14,7 +14,7 @@ pub use forecast::{DayOrNight, Forecast, HighAndLow, SunEvent};
 pub use freshness::Freshness;
 pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, Request, WeatherSource};
-pub use station::{WeatherState, WeatherStation};
+pub use station::{ShownWeather, WeatherState, WeatherStation};
 
 use jiff::Timestamp;
 
