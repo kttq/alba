@@ -1,4 +1,4 @@
-//! The tick interval and every animation phase, from the Unix time and the `motion` setting.
+//! The tick interval and every motion phase, from the Unix time and the `motion` setting.
 
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ pub fn tick_interval(motion: bool) -> Duration {
     if motion { TICK } else { Duration::from_secs(1) }
 }
 
-/// Every animation phase at one instant.
+/// Every motion phase at one instant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Motion {
     /// Lit for the first two ticks of each second; a ghost in the other two.

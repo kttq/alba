@@ -4,7 +4,7 @@ use jiff::Zoned;
 use ratatui::{
     buffer::Buffer,
     layout::{Rect, Size},
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     text::{Line, Span},
     widgets::Widget,
 };
@@ -112,7 +112,7 @@ impl Clock {
             return None;
         }
         let lit = Style::reset();
-        let unlit = Style::reset().fg(Color::DarkGray).dim();
+        let unlit = Style::reset().dim();
         let (am, pm) = if now.hour() < 12 {
             (lit, unlit)
         } else {
@@ -126,11 +126,7 @@ impl Clock {
 
     /// None is the empty leading digit of a 12-hour clock.
     fn digits_at(&self, now: &Zoned) -> [Option<usize>; 4] {
-        let hour = match (self.hour_format, now.hour() % 12) {
-            (HourFormat::TwentyFour, _) => now.hour(),
-            (HourFormat::Twelve, 0) => 12,
-            (HourFormat::Twelve, hour) => hour,
-        } as usize;
+        let hour = self.shown_hour(now) as usize;
         let hour_tens = match self.hour_format {
             HourFormat::Twelve if hour < 10 => None,
             _ => Some(hour / 10),
@@ -175,10 +171,18 @@ impl Clock {
     }
 
     fn hour(&self, now: &Zoned) -> String {
+        match self.hour_format {
+            HourFormat::TwentyFour => format!("{:02}", self.shown_hour(now)),
+            HourFormat::Twelve => self.shown_hour(now).to_string(),
+        }
+    }
+
+    /// 0 to 23, or 1 to 12 on a 12-hour clock.
+    fn shown_hour(&self, now: &Zoned) -> i8 {
         match (self.hour_format, now.hour() % 12) {
-            (HourFormat::TwentyFour, _) => format!("{:02}", now.hour()),
-            (HourFormat::Twelve, 0) => "12".to_string(),
-            (HourFormat::Twelve, hour) => hour.to_string(),
+            (HourFormat::TwentyFour, _) => now.hour(),
+            (HourFormat::Twelve, 0) => 12,
+            (HourFormat::Twelve, hour) => hour,
         }
     }
 

@@ -7,7 +7,7 @@ use alba::{
 };
 use common::pixel_snapshot;
 use jiff::Zoned;
-use ratatui::{buffer::Buffer, layout::Rect, widgets::Widget};
+use ratatui::{buffer::Buffer, layout::Rect, style::Modifier, widgets::Widget};
 
 fn instant(time: &str) -> Zoned {
     format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
@@ -23,24 +23,18 @@ fn colon_lit() -> Motion {
     }
 }
 
-fn rendered(config_text: &str, time: &str, motion: Motion, digit_size: DigitSize) -> String {
+fn buffer(config_text: &str, time: &str, motion: Motion, digit_size: DigitSize) -> Buffer {
     let clock = Clock::new(&Config::parse(config_text).unwrap());
     let segment_clock = clock.segment_clock(&instant(time), motion, digit_size);
     let size = segment_clock.size();
-    let area = Rect::new(0, 0, size.width, size.height);
-    let mut buffer = Buffer::empty(area);
-    segment_clock.render(area, &mut buffer);
-    pixel_snapshot(&buffer, area)
+    let mut buffer = Buffer::empty(Rect::new(0, 0, size.width, size.height));
+    segment_clock.render(buffer.area, &mut buffer);
+    buffer
 }
 
-#[test]
-fn small_clock_with_the_colon_lit() {
-    insta::assert_snapshot!(rendered("", "06:38", colon_lit(), DigitSize::Small));
-}
-
-#[test]
-fn large_clock_with_the_colon_lit() {
-    insta::assert_snapshot!(rendered("", "06:38", colon_lit(), DigitSize::Large));
+fn rendered(config_text: &str, time: &str, motion: Motion, digit_size: DigitSize) -> String {
+    let buffer = buffer(config_text, time, motion, digit_size);
+    pixel_snapshot(&buffer, buffer.area)
 }
 
 #[test]
@@ -60,16 +54,13 @@ fn the_colon_blinks_to_a_ghost_in_both_sizes() {
 }
 
 #[test]
-fn without_motion_the_colon_stays_lit() {
+fn without_motion_the_colon_stays_lit_in_both_sizes() {
     let second_half = instant("06:38:05.5").timestamp();
-    let still = rendered(
-        "",
-        "06:38:05.5",
-        Motion::at(second_half, false),
-        DigitSize::Small,
-    );
+    for digit_size in [DigitSize::Small, DigitSize::Large] {
+        let still = rendered("", "06:38:05.5", Motion::at(second_half, false), digit_size);
 
-    assert_eq!(still, rendered("", "06:38", colon_lit(), DigitSize::Small));
+        assert_eq!(still, rendered("", "06:38", colon_lit(), digit_size));
+    }
 }
 
 #[test]
@@ -108,4 +99,17 @@ fn twelve_hour_clock_with_its_mark_in_both_sizes() {
         );
         insta::assert_snapshot!(format!("twelve_hour_{name}"), sheet);
     }
+}
+
+/// The pixel snapshots show the mark's color but not its faint style.
+#[test]
+fn the_current_mark_is_lit_and_the_other_faint() {
+    let faint_rows = |time: &str| {
+        let buffer = buffer("hour_format = 12", time, colon_lit(), DigitSize::Small);
+        let mark_column = buffer.area.width - 1;
+        [0, 1].map(|row| buffer[(mark_column, row)].modifier.contains(Modifier::DIM))
+    };
+
+    assert_eq!(faint_rows("06:38"), [false, true]);
+    assert_eq!(faint_rows("18:38"), [true, false]);
 }
