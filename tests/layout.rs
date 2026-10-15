@@ -222,7 +222,7 @@ fn offline_compact_drops_retrying_beside_the_ghost_icon_when_it_does_not_fit() {
 }
 
 #[test]
-fn compact_without_weather_shows_the_status_beside_the_ghost_icon() {
+fn compact_without_weather_shows_the_weather_state_beside_the_ghost_icon() {
     let no_match = |config_text: &str| {
         let mut harness = Harness::new(config_text);
         harness.fetch(&default_instant(), Ok(NO_MATCH.to_string()));

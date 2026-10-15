@@ -23,7 +23,7 @@ pub struct Face {
     pub aged_temperature_high_and_low: Option<Line<'static>>,
     pub sparkline: Option<Line<'static>>,
     /// What the weather area says without weather data, each way widest first.
-    pub weather_status: Vec<Line<'static>>,
+    pub weather_state_lines: Vec<Line<'static>>,
     /// The ghost icon without weather data; None for a weather code with no condition.
     pub mini_icon: Option<Canvas>,
 }
@@ -128,7 +128,7 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// Without weather data, the status takes the weather's text row, and the weather sits at the left
+/// Without weather data, the weather state line takes the weather's text row, and the weather sits at the left
 /// edge whatever its width, so nothing moves when the weather returns.
 fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     compact_text_rows(face)
@@ -147,8 +147,8 @@ fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
 /// Each way to fill the text rows beside the icon, widest first.
 fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
     let Some(temperature_high_and_low) = &face.temperature_high_and_low else {
-        return (face.weather_status.iter())
-            .map(|status| vec![Piece::Text(status)])
+        return (face.weather_state_lines.iter())
+            .map(|line| vec![Piece::Text(line)])
             .collect();
     };
     let sparkline = face.sparkline.as_ref().map(Piece::Text);

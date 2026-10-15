@@ -118,7 +118,7 @@ impl App {
                 self.strings,
             ),
             sparkline: weather::sparkline(weather_state, now.timestamp()),
-            weather_status: weather::status_lines(weather_state, self.strings),
+            weather_state_lines: weather::weather_state_lines(weather_state, self.strings),
             mini_icon: Icon::shown(weather_state, now)
                 .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }

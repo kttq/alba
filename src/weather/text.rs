@@ -110,7 +110,7 @@ pub fn aged_temperature_high_and_low_line(
 }
 
 /// What the weather area says without weather, each way widest first; empty with weather.
-pub fn status_lines(weather_state: WeatherState, strings: &Strings) -> Vec<Line<'static>> {
+pub fn weather_state_lines(weather_state: WeatherState, strings: &Strings) -> Vec<Line<'static>> {
     let texts = match weather_state {
         WeatherState::NoLocation => vec![strings.no_location.to_string()],
         WeatherState::Fetching => vec![strings.fetching.to_string()],
