@@ -183,10 +183,12 @@ impl MoonPhaseName {
 /// the start time, status, and end time under it. It stretches to the width it is given.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ShownTimeline {
-    day_or_night: DayOrNight,
     /// How far now is from the start to the end, from 0 to 1.
     progress: f64,
-    moon_phase: MoonPhase,
+    /// Each color holds up to its fraction of the bar.
+    gradient: &'static [(f64, PixelColor)],
+    /// The sun by day, tonight's moon by night.
+    marker: Canvas,
     start_label: Line<'static>,
     end_label: Line<'static>,
     /// Each way to say the status, widest first.
@@ -198,7 +200,6 @@ const MARKER_SIZE: u16 = 4;
 /// Pixel rows of the bar inside the marker's height.
 const BAR_ROWS: [u16; 2] = [1, 2];
 
-/// Each color holds up to its fraction of the bar.
 const DAY_GRADIENT: [(f64, PixelColor); 5] = [
     (0.08, PixelColor::BrightRed),
     (0.22, PixelColor::Yellow),
@@ -225,11 +226,13 @@ impl ShownTimeline {
         let accent = Style::new().yellow();
         let dim = Style::new().dark_gray();
         let countdown = duration_text(minutes_between(now.timestamp(), timeline.end));
-        let (start_label, end_label, statuses) = match sky.day_or_night {
+        let (start_label, end_label, statuses, gradient, marker) = match sky.day_or_night {
             DayOrNight::Day => (
                 Line::from(vec![Span::styled("↑", accent), Span::styled(start, dim)]),
                 Line::from(vec![Span::styled(end, dim), Span::styled("↓", accent)]),
                 vec![format!("{} {countdown}", strings.sunset_in)],
+                &DAY_GRADIENT[..],
+                sun(),
             ),
             DayOrNight::Night => {
                 let countdown = format!("{} {countdown}", strings.sunrise_in);
@@ -242,15 +245,17 @@ impl ShownTimeline {
                     Line::from(vec![Span::styled("↓", accent), Span::styled(start, dim)]),
                     Line::from(vec![Span::styled(end, dim), Span::styled("↑", accent)]),
                     vec![format!("{phase} · {countdown}"), countdown],
+                    &NIGHT_GRADIENT[..],
+                    sky.moon_phase.disc(MARKER_SIZE),
                 )
             }
         };
         let elapsed = now.timestamp().duration_since(timeline.start).as_secs_f64();
         let length = timeline.end.duration_since(timeline.start).as_secs_f64();
         Some(Self {
-            day_or_night: sky.day_or_night,
             progress: (elapsed / length).clamp(0.0, 1.0),
-            moon_phase: sky.moon_phase,
+            gradient,
+            marker,
             start_label,
             end_label,
             statuses,
@@ -264,40 +269,35 @@ impl ShownTimeline {
     }
 
     fn bar(&self, width: u16) -> Canvas {
-        let gradient: &[(f64, PixelColor)] = match self.day_or_night {
-            DayOrNight::Day => &DAY_GRADIENT,
-            DayOrNight::Night => &NIGHT_GRADIENT,
-        };
         let marker_x = (self.progress * f64::from(width - MARKER_SIZE)).round() as u16;
         let mut bar = Canvas::new(width, MARKER_SIZE);
         for x in 0..width {
-            let fraction = f64::from(x) / f64::from((width - 1).max(1));
-            let color = gradient
-                .iter()
-                .find(|(up_to, _)| fraction <= *up_to)
-                .map_or(gradient[gradient.len() - 1].1, |(_, color)| *color);
-            let travelled = x < marker_x + MARKER_SIZE / 2;
-            let pixel = if travelled {
-                Pixel::new(color)
-            } else {
-                Pixel::faint(color)
+            let Some(pixel) = self.bar_pixel(x, width, marker_x) else {
+                continue;
             };
-            let in_air = x + 1 == marker_x || x == marker_x + MARKER_SIZE;
-            if !in_air {
-                for y in BAR_ROWS {
-                    bar.set(x, y, pixel);
-                }
+            for y in BAR_ROWS {
+                bar.set(x, y, pixel);
             }
         }
-        bar.paint(marker_x, 0, &self.marker());
+        bar.paint(marker_x, 0, &self.marker);
         bar
     }
 
-    fn marker(&self) -> Canvas {
-        match self.day_or_night {
-            DayOrNight::Day => sun(),
-            DayOrNight::Night => self.moon_phase.disc(MARKER_SIZE),
+    /// Full color up to the marker's middle and faint ahead; None in the air beside the marker.
+    fn bar_pixel(&self, x: u16, width: u16, marker_x: u16) -> Option<Pixel> {
+        if x + 1 == marker_x || x == marker_x + MARKER_SIZE {
+            return None;
         }
+        let fraction = f64::from(x) / f64::from((width - 1).max(1));
+        let (_, last) = self.gradient[self.gradient.len() - 1];
+        let color = (self.gradient.iter())
+            .find(|(up_to, _)| fraction <= *up_to)
+            .map_or(last, |(_, color)| *color);
+        Some(if x < marker_x + MARKER_SIZE / 2 {
+            Pixel::new(color)
+        } else {
+            Pixel::faint(color)
+        })
     }
 }
 
@@ -321,7 +321,7 @@ fn minutes_between(from: Timestamp, to: Timestamp) -> i64 {
     (to.as_second().div_euclid(60) - from.as_second().div_euclid(60)).max(0)
 }
 
-/// `1h36`, and `0h36` under an hour.
+/// Hours, `h`, and two-digit minutes; the hours stay even when zero.
 fn duration_text(minutes: i64) -> String {
     format!("{}h{:02}", minutes / 60, minutes % 60)
 }

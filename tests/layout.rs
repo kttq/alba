@@ -623,3 +623,51 @@ fn polar_night_leaves_the_medium_timeline_rows_empty() {
         );
     }
 }
+
+#[test]
+fn medium_timeline_counts_down_to_sunset_with_minutes_under_an_hour() {
+    let evening = default_instant()
+        .with()
+        .hour(18)
+        .minute(30)
+        .build()
+        .unwrap();
+
+    let terminal = rendered(&with_weather_at("", &evening), &evening, 40, 12);
+
+    assert_eq!(
+        row_text(terminal.backend().buffer(), 8),
+        "│ ↑06:14     sunset in 0h36     19:06↓ │"
+    );
+}
+
+#[test]
+fn medium_timeline_bar_is_full_behind_the_marker_and_faint_ahead() {
+    let midday = default_instant()
+        .with()
+        .hour(12)
+        .minute(40)
+        .build()
+        .unwrap();
+
+    let terminal = rendered(&with_weather_at("", &midday), &midday, 40, 12);
+
+    let buffer = terminal.backend().buffer();
+    let bar = |x: u16| {
+        let cell = &buffer[(2 + x, 6)];
+        (
+            cell.symbol(),
+            cell.fg,
+            cell.modifier.contains(Modifier::DIM),
+        )
+    };
+    assert_eq!(bar(0), ("▄", Color::LightRed, false), "dawn");
+    assert_eq!(bar(4), ("▄", Color::Yellow, false), "behind the marker");
+    assert_eq!(bar(12), ("▄", Color::LightYellow, false), "toward noon");
+    assert_eq!(
+        bar(24),
+        ("▄", Color::LightYellow, true),
+        "ahead of the marker"
+    );
+    assert_eq!(bar(35), ("▄", Color::LightRed, true), "dusk");
+}

@@ -342,13 +342,6 @@ fn label_row(buffer: &ratatui::buffer::Buffer) -> String {
 }
 
 #[test]
-fn day_timeline_counts_down_to_sunset_with_minutes_under_an_hour() {
-    let buffer = shown_timeline("2026-10-13T17:24[UTC]", "", 36);
-
-    assert_eq!(label_row(&buffer), "↑06:00     sunset in 0h36     18:00↓");
-}
-
-#[test]
 fn night_timeline_drops_the_moon_phase_before_the_countdown() {
     let night = "2026-10-13T20:00[UTC]";
     let wide = shown_timeline(night, "", 60);
@@ -361,25 +354,4 @@ fn night_timeline_drops_the_moon_phase_before_the_countdown() {
     );
     assert_eq!(label_row(&narrow), "↓18:00    sunrise in 10h00    06:00↑");
     assert_eq!(label_row(&spanish), "↓6:00pm   amanece en 10h00   6:00am↑");
-}
-
-#[test]
-fn timeline_bar_is_full_behind_the_marker_and_faint_ahead() {
-    use ratatui::style::{Color, Modifier};
-
-    let buffer = shown_timeline("2026-10-13T12:00[UTC]", "", 36);
-
-    let behind = &buffer[(4, 0)];
-    let ahead = &buffer[(31, 0)];
-    assert_eq!((behind.symbol(), behind.fg), ("▄", Color::Yellow));
-    assert!(!behind.modifier.contains(Modifier::DIM));
-    assert_eq!((ahead.symbol(), ahead.fg), ("▄", Color::Yellow));
-    assert!(ahead.modifier.contains(Modifier::DIM));
-    assert_eq!(buffer[(0, 0)].fg, Color::LightRed, "dawn");
-    assert_eq!(buffer[(12, 0)].fg, Color::LightYellow, "noon");
-    assert_eq!(
-        (buffer[(17, 0)].symbol(), buffer[(17, 0)].bg),
-        ("▀", Color::LightYellow),
-        "the sun's bright core, at the middle"
-    );
 }

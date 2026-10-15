@@ -12,9 +12,9 @@ use ratatui::{
 
 use crate::{
     bezel::Bezel,
-    calendar,
+    calendar::{self, Calendar},
     clock::{Clock, DigitSize},
-    config::{Config, Units, WeekStart},
+    config::{Config, Units},
     icon::{Icon, IconPicture, IconSize},
     layout::{self, Face},
     log::Log,
@@ -27,12 +27,12 @@ use crate::{
 /// Time and time zone come only from `now`, never the system clock.
 pub struct App {
     units: Units,
-    week_start: WeekStart,
     motion: bool,
     strings: &'static Strings,
     /// For the first-run hint, with `HOME` shown as `~`.
     shown_config_file: String,
     clock: Clock,
+    calendar: Calendar,
     weather_station: WeatherStation,
     log: Log,
 }
@@ -54,11 +54,11 @@ impl App {
     ) -> Self {
         Self {
             units: config.units,
-            week_start: config.week_start,
             motion: config.motion,
             strings: Strings::of(config.language),
             shown_config_file,
             clock: Clock::new(&config),
+            calendar: Calendar::new(&config),
             weather_station: WeatherStation::new(
                 config.location,
                 config.language,
@@ -149,7 +149,7 @@ impl App {
             timeline: weather_state.weather().and_then(|weather| {
                 ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
             }),
-            week_strip: calendar::week_strip(self.strings, self.week_start, now),
+            week_strip: self.calendar.week_strip(now),
             bezel: Bezel::new(
                 self.strings,
                 now,
