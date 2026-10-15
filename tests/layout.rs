@@ -60,6 +60,7 @@ fn rain_by_day_at_each_tier_minimum_and_at_large_panes() {
         ("medium_minimum", 40, 15),
         ("wide_minimum", 63, 11),
         ("tall_minimum", 40, 21),
+        ("large_minimum", 71, 23),
         ("85x26", 85, 26),
         ("250x80", 250, 80),
     ];
@@ -401,8 +402,8 @@ fn tall_without_a_location_puts_the_first_run_hint_under_the_clock() {
     );
 }
 
-#[test]
-fn medium_weather_states() {
+/// Each weather state with the instant to show it at, named for its snapshot.
+fn weather_state_cases() -> Vec<(&'static str, (Harness, Zoned))> {
     let offline = || {
         let mut harness = Harness::new(BUENOS_AIRES);
         harness.fetch(
@@ -423,39 +424,60 @@ fn medium_weather_states() {
         (harness, at.checked_add(1.second()).unwrap())
     };
     let night = default_instant().with().hour(23).build().unwrap();
-    let cases = [
-        ("medium_no_location", (Harness::new(""), default_instant())),
-        ("medium_fetching", fetching()),
-        ("medium_offline", offline()),
+    vec![
+        ("no_location", (Harness::new(""), default_instant())),
+        ("fetching", fetching()),
+        ("offline", offline()),
         (
-            "medium_stale",
+            "stale",
             (
                 with_weather(""),
                 default_instant().checked_add(2.hours()).unwrap(),
             ),
         ),
         (
-            "medium_expired",
+            "expired",
             (
                 with_weather(""),
                 default_instant().checked_add(13.hours()).unwrap(),
             ),
         ),
-        ("medium_night", (with_weather_at("", &night), night)),
-        ("medium_fetch_indicator", refreshing(default_instant())),
+        ("night", (with_weather_at("", &night), night)),
+        ("fetch_indicator", refreshing(default_instant())),
         (
-            "medium_stale_fetch_indicator",
+            "stale_fetch_indicator",
             refreshing(default_instant().checked_add(2.hours()).unwrap()),
         ),
-    ];
+    ]
+}
 
-    for (name, (harness, now)) in cases {
+#[test]
+fn medium_weather_states() {
+    for (name, (harness, now)) in weather_state_cases() {
         assert_eq!(
             size_tier(&harness, &now, 40, 15),
             Some(SizeTier::Medium),
             "{name}"
         );
-        insta::assert_snapshot!(name, rendered(&harness, &now, 40, 15).backend());
+        insta::assert_snapshot!(
+            format!("medium_{name}"),
+            rendered(&harness, &now, 40, 15).backend()
+        );
+    }
+}
+
+#[test]
+fn large_weather_states() {
+    for (name, (harness, now)) in weather_state_cases() {
+        assert_eq!(
+            size_tier(&harness, &now, 85, 26),
+            Some(SizeTier::Large),
+            "{name}"
+        );
+        insta::assert_snapshot!(
+            format!("large_{name}"),
+            rendered(&harness, &now, 85, 26).backend()
+        );
     }
 }
 
@@ -651,4 +673,41 @@ fn medium_leaves_blank_rows_under_the_top_border_and_around_the_timeline() {
         blank,
         "between the sparkline and the timeline"
     );
+}
+
+#[test]
+fn large_fits_seventy_one_by_twenty_three_with_the_default_config() {
+    let harness = with_weather("");
+    let now = default_instant();
+
+    assert_eq!(
+        minimum_size(&harness, &now, SizeTier::Large),
+        Some(Size::new(71, 23))
+    );
+    assert_eq!(size_tier(&harness, &now, 71, 23), Some(SizeTier::Large));
+    assert_eq!(size_tier(&harness, &now, 70, 23), Some(SizeTier::Wide));
+    assert_eq!(size_tier(&harness, &now, 71, 22), Some(SizeTier::Wide));
+}
+
+#[test]
+fn large_labels_the_sparkline_in_each_language() {
+    let cases = [
+        ("", 71, "precip · next 12h"),
+        ("language = \"es\"", 72, "precip · próx. 12h"),
+    ];
+
+    for (config_text, width, label) in cases {
+        let harness = with_weather(config_text);
+        let now = default_instant();
+        let terminal = rendered(&harness, &now, width, 23);
+
+        let buffer = terminal.backend().buffer();
+        assert_eq!(size_tier(&harness, &now, width, 23), Some(SizeTier::Large));
+        assert!(
+            row_text(buffer, 14).contains(label),
+            "{}",
+            row_text(buffer, 14)
+        );
+        assert_eq!(buffer[(29, 14)].fg, Color::DarkGray, "{label}");
+    }
 }

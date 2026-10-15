@@ -32,6 +32,7 @@ pub struct Face {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {
+    Large,
     Wide,
     Tall,
     Medium,
@@ -42,7 +43,8 @@ pub enum SizeTier {
 
 impl SizeTier {
     /// The first that fits wins.
-    pub const IN_ORDER: [Self; 6] = [
+    pub const IN_ORDER: [Self; 7] = [
+        Self::Large,
         Self::Wide,
         Self::Tall,
         Self::Medium,
@@ -176,6 +178,7 @@ pub fn minimum_size(size_tier: SizeTier, face: &Face) -> Option<Size> {
 /// Widest first.
 fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     match size_tier {
+        SizeTier::Large => large_arrangements(face),
         SizeTier::Wide => wide_arrangements(face),
         SizeTier::Tall => tall_arrangements(face),
         SizeTier::Medium => medium_arrangements(face),
@@ -183,6 +186,64 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
         SizeTier::Mini => mini_arrangement(face).into_iter().collect(),
         SizeTier::Strip => strip_arrangements(face),
     }
+}
+
+/// The large clock over the Large icon, the details column, and the month calendar, then the
+/// timeline, in the bezel.
+fn large_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    details_columns(face)
+        .into_iter()
+        .map(|details| {
+            let middle = row(
+                vec![
+                    Cell::Next(icon_slot(face.icon, IconSize::Large)),
+                    Cell::Next(details),
+                    Cell::Next(calendar_lines(face.calendar.month())),
+                ],
+                CALENDAR_GAP,
+            );
+            let content = column(vec![
+                centred(Piece::SegmentClock(&face.clock, DigitSize::Large)),
+                Block::Gap(BREATHING_ROWS),
+                Block::Left(middle),
+                Block::Gap(BREATHING_ROWS),
+                timeline(face),
+            ]);
+            framed(&face.bezel, face.bezel.place_name.as_deref(), content)
+        })
+        .collect()
+}
+
+/// Large's weather area, each way widest first: the readings over the labelled sparkline, the
+/// first-run hint, or the weather state line.
+fn details_columns(face: &Face) -> Vec<Arrangement<'_>> {
+    let readings = match &face.weather_area {
+        WeatherArea::NoWeather {
+            first_run_hint: Some(first_run_hint),
+            ..
+        } => {
+            return vec![column(
+                first_run_hint.iter().map(|line| left(text(line))).collect(),
+            )];
+        }
+        WeatherArea::NoWeather { lines, .. } => {
+            return (lines.iter())
+                .map(|line| Arrangement::of(text(line)))
+                .collect();
+        }
+        WeatherArea::Readings(readings) => readings,
+    };
+    vec![column(vec![
+        left(composed(readings.line(&[
+            Part::Temperature,
+            Part::Age,
+            Part::HighAndLow,
+        ]))),
+        left(composed(readings.line(&[Part::Condition]))),
+        Block::Gap(1),
+        left(text(readings.sparkline_label())),
+        left(text(readings.sparkline())),
+    ])]
 }
 
 fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
@@ -297,10 +358,6 @@ fn weather_and_timeline(
     condition_row: ConditionRow,
 ) -> Vec<Vec<Block<'_>>> {
     let condition_rows = u16::from(condition_row == ConditionRow::With);
-    let timeline = || match &face.timeline {
-        Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
-        None => Block::Gap(TIMELINE_ROWS),
-    };
     let readings = match &face.weather_area {
         WeatherArea::NoWeather {
             first_run_hint: Some(first_run_hint),
@@ -321,7 +378,7 @@ fn weather_and_timeline(
                     vec![
                         left(text(line)),
                         Block::Gap(condition_rows + BREATHING_ROWS),
-                        timeline(),
+                        timeline(face),
                     ]
                 })
                 .collect();
@@ -340,8 +397,16 @@ fn weather_and_timeline(
     if condition_row == ConditionRow::With {
         blocks.push(left(composed(readings.line(&[Part::Condition]))));
     }
-    blocks.extend([Block::Gap(BREATHING_ROWS), timeline()]);
+    blocks.extend([Block::Gap(BREATHING_ROWS), timeline(face)]);
     vec![blocks]
+}
+
+/// Empty rows without a timeline, so the layout does not jump.
+fn timeline(face: &Face) -> Block<'_> {
+    match &face.timeline {
+        Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
+        None => Block::Gap(TIMELINE_ROWS),
+    }
 }
 
 const WEATHER_ROWS: u16 = 1;

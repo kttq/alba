@@ -35,6 +35,7 @@ pub struct Readings {
     /// None for a weather code with no condition.
     condition: Option<Span<'static>>,
     sparkline: Line<'static>,
+    sparkline_label: Line<'static>,
     shows_fetch_indicator: bool,
 }
 
@@ -118,6 +119,7 @@ impl Readings {
             condition_mark,
             condition,
             sparkline: sparkline(weather.forecast.precipitation_after(now), age.is_some()),
+            sparkline_label: Line::styled(strings.sparkline_label, Style::new().dark_gray()),
             shows_fetch_indicator,
         }
     }
@@ -152,6 +154,10 @@ impl Readings {
     /// The precipitation probability for each of the next 12 hours.
     pub fn sparkline(&self) -> &Line<'static> {
         &self.sparkline
+    }
+
+    pub fn sparkline_label(&self) -> &Line<'static> {
+        &self.sparkline_label
     }
 }
 

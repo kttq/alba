@@ -31,6 +31,8 @@ pub struct Strings {
     pub age: [&'static str; 2],
     /// The first line of the first-run hint; the config file path follows on the second.
     pub first_run_hint: &'static str,
+    /// Above the sparkline in Large.
+    pub sparkline_label: &'static str,
 }
 
 impl Strings {
@@ -92,6 +94,7 @@ impl Strings {
         offline: "offline · retrying",
         age: ["", "h ago"],
         first_run_hint: "add location = \"your city\" to",
+        sparkline_label: "precip · next 12h",
     };
     pub const ES: Self = Self {
         am: "am",
@@ -151,6 +154,7 @@ impl Strings {
         offline: "offline · reintentando",
         age: ["hace ", "h"],
         first_run_hint: "agrega location = \"tu ciudad\" en",
+        sparkline_label: "precip · próx. 12h",
     };
 
     pub fn moon_phase(&self, name: MoonPhaseName) -> &'static str {
