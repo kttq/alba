@@ -21,6 +21,7 @@ pub struct Calendar {
 #[derive(Debug, Clone)]
 pub struct ShownCalendar {
     week_strip: [Line<'static>; 2],
+    month: [Line<'static>; MONTH_ROWS],
     short_date: Line<'static>,
     weekday_and_day: Line<'static>,
 }
@@ -56,6 +57,7 @@ impl Calendar {
     pub fn at(&self, now: &Zoned) -> ShownCalendar {
         ShownCalendar {
             week_strip: self.week_strip(now),
+            month: self.month(now),
             short_date: short_date(self.strings, now),
             weekday_and_day: weekday_and_day(self.strings, now),
         }
@@ -64,7 +66,29 @@ impl Calendar {
     /// The current week: the weekday header over the days.
     pub fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
         let today = now.date();
-        [self.weekday_header(), week_row(&self.week_of(today), today)]
+        [
+            self.weekday_header(),
+            week_row(&self.week_of(today), today, |_| true),
+        ]
+    }
+
+    /// The month title and the weekday header over six weeks from the week that holds the 1st,
+    /// so the height never changes between months. Days outside the month stay empty.
+    pub fn month(&self, now: &Zoned) -> [Line<'static>; MONTH_ROWS] {
+        let today = now.date();
+        let first = today.first_of_month();
+        let title = format!(
+            "{} {}",
+            self.strings.months[today.month() as usize - 1],
+            today.year()
+        );
+        let in_month = |day: Date| day.year() == today.year() && day.month() == today.month();
+        let mut lines = vec![Line::from(title.light_blue()), self.weekday_header()];
+        lines.extend((0..MONTH_WEEKS).map(|week| {
+            let day = first.checked_add((7 * week).days()).unwrap_or(first);
+            week_row(&self.week_of(day), today, in_month)
+        }));
+        lines.try_into().expect("a title, a header, and the weeks")
     }
 
     fn weekday_header(&self) -> Line<'static> {
@@ -98,9 +122,19 @@ impl Calendar {
     }
 }
 
-fn week_row(week: &[Date], today: Date) -> Line<'static> {
-    let days =
-        (week.iter()).map(|&day| Span::styled(format!("{:>2}", day.day()), day_style(day, today)));
+const MONTH_WEEKS: i64 = 6;
+/// The title, the weekday header, and the weeks.
+pub const MONTH_ROWS: usize = 2 + MONTH_WEEKS as usize;
+
+/// A day that `shows` rejects keeps its two columns, empty.
+fn week_row(week: &[Date], today: Date, shows: impl Fn(Date) -> bool) -> Line<'static> {
+    let days = (week.iter()).map(|&day| {
+        if shows(day) {
+            Span::styled(format!("{:>2}", day.day()), day_style(day, today))
+        } else {
+            Span::raw("  ")
+        }
+    });
     Line::from(spaced(days.collect()))
 }
 
@@ -108,6 +142,11 @@ impl ShownCalendar {
     /// The weekday header over the current week.
     pub fn week_strip(&self) -> &[Line<'static>; 2] {
         &self.week_strip
+    }
+
+    /// The month title and the weekday header over six weeks.
+    pub fn month(&self) -> &[Line<'static>; MONTH_ROWS] {
+        &self.month
     }
 
     pub fn short_date(&self) -> &Line<'static> {

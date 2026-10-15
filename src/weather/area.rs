@@ -32,6 +32,8 @@ pub struct Readings {
     /// Only for stale weather.
     age_label: Option<Span<'static>>,
     condition_mark: Option<Span<'static>>,
+    /// None for a weather code with no condition.
+    condition: Option<Span<'static>>,
     sparkline: Line<'static>,
     shows_fetch_indicator: bool,
 }
@@ -44,6 +46,8 @@ pub enum Part {
     Age,
     HighAndLow,
     ConditionMark,
+    /// The condition's name.
+    Condition,
 }
 
 impl WeatherArea {
@@ -105,11 +109,14 @@ impl Readings {
             .collect();
         let condition_mark = (weather.forecast.condition())
             .map(|condition| Span::raw(format!(" {}", condition_mark(condition))));
+        let condition = (weather.forecast.condition())
+            .map(|condition| Span::styled(strings.condition(condition), text_style));
         Self {
             temperature: degrees(weather.forecast.temperature()),
             high_and_low,
             age_label: age.map(|age| age_label(age, strings)),
             condition_mark,
+            condition,
             sparkline: sparkline(weather.forecast.precipitation_after(now), age.is_some()),
             shows_fetch_indicator,
         }
@@ -133,6 +140,7 @@ impl Readings {
                 Part::Age => spans.extend(self.age_label.clone()),
                 Part::HighAndLow => spans.extend(self.high_and_low.iter().cloned()),
                 Part::ConditionMark => spans.extend(self.condition_mark.clone()),
+                Part::Condition => spans.extend(self.condition.clone()),
             }
             if part == fetch_indicator_after && self.shows_fetch_indicator {
                 spans.push(Span::raw("…").dim());

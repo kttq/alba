@@ -58,6 +58,8 @@ fn rain_by_day_at_each_tier_minimum_and_at_large_panes() {
         ("compact_minimum", 23, 8),
         ("mini_minimum", 18, 2),
         ("medium_minimum", 40, 15),
+        ("wide_minimum", 63, 11),
+        ("tall_minimum", 40, 21),
         ("85x26", 85, 26),
         ("250x80", 250, 80),
     ];
@@ -288,6 +290,117 @@ fn twelve_hour_clock_widens_medium_by_three_columns() {
     assert_eq!(
         minimum_size(&harness, &noon, SizeTier::Medium),
         Some(Size::new(43, 15))
+    );
+}
+
+#[test]
+fn wide_fits_sixty_three_by_eleven_with_the_default_config() {
+    let harness = with_weather("");
+    let now = default_instant();
+
+    assert_eq!(
+        minimum_size(&harness, &now, SizeTier::Wide),
+        Some(Size::new(63, 11))
+    );
+    assert_eq!(size_tier(&harness, &now, 63, 11), Some(SizeTier::Wide));
+    assert_eq!(size_tier(&harness, &now, 62, 11), Some(SizeTier::Compact));
+    assert_eq!(size_tier(&harness, &now, 63, 10), Some(SizeTier::Compact));
+}
+
+#[test]
+fn tall_fits_forty_by_twenty_one_with_the_default_config() {
+    let harness = with_weather("");
+    let now = default_instant();
+
+    assert_eq!(
+        minimum_size(&harness, &now, SizeTier::Tall),
+        Some(Size::new(40, 21))
+    );
+    assert_eq!(size_tier(&harness, &now, 40, 21), Some(SizeTier::Tall));
+    assert_eq!(size_tier(&harness, &now, 40, 20), Some(SizeTier::Medium));
+    assert_eq!(size_tier(&harness, &now, 39, 21), Some(SizeTier::Compact));
+}
+
+#[test]
+fn wide_comes_before_tall_when_both_fit() {
+    let harness = with_weather("");
+    let now = default_instant();
+
+    assert_eq!(size_tier(&harness, &now, 63, 21), Some(SizeTier::Wide));
+    assert_eq!(size_tier(&harness, &now, 62, 21), Some(SizeTier::Tall));
+}
+
+#[test]
+fn twelve_hour_clock_widens_wide_and_tall_by_three_columns() {
+    let noon = default_instant().with().hour(12).build().unwrap();
+    let harness = with_weather_at("hour_format = 12", &noon);
+
+    assert_eq!(
+        minimum_size(&harness, &noon, SizeTier::Wide),
+        Some(Size::new(66, 11))
+    );
+    assert_eq!(
+        minimum_size(&harness, &noon, SizeTier::Tall),
+        Some(Size::new(43, 21))
+    );
+}
+
+#[test]
+fn wide_top_border_centres_the_place_name() {
+    let harness = named_with_weather("", &default_instant());
+
+    let terminal = rendered(&harness, &default_instant(), 63, 11);
+
+    assert_eq!(
+        row_text(terminal.backend().buffer(), 0),
+        "╭─ tue 13 oct ─────────── buenos aires, ar ─────────── wk 42 ─╮"
+    );
+}
+
+#[test]
+fn wide_top_border_truncates_a_long_place_name() {
+    let mut harness = Harness::new("location = \"llanfair\"");
+    let mut geocoding: serde_json::Value = serde_json::from_str(&common::geocoding_body()).unwrap();
+    geocoding["results"][0]["name"] =
+        serde_json::json!("Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch");
+    harness.fetch(&default_instant(), Ok(geocoding.to_string()));
+    harness.weather_source.finish(Ok(forecast_body()));
+    harness.app.tick(&default_instant());
+
+    let terminal = rendered(&harness, &default_instant(), 63, 11);
+
+    assert_eq!(
+        row_text(terminal.backend().buffer(), 0),
+        "╭─ tue 13 oct ─ llanfairpwllgwyngyllgogerychwyrndro… ─ wk 42 ─╮"
+    );
+}
+
+#[test]
+fn tall_top_border_leaves_the_place_name_out() {
+    let harness = named_with_weather("", &default_instant());
+
+    let terminal = rendered(&harness, &default_instant(), 40, 21);
+
+    assert_eq!(
+        row_text(terminal.backend().buffer(), 0),
+        "╭─ tue 13 oct ───────────────── wk 42 ─╮"
+    );
+}
+
+#[test]
+fn tall_without_a_location_puts_the_first_run_hint_under_the_clock() {
+    let harness = Harness::new("");
+
+    let terminal = rendered(&harness, &default_instant(), 40, 21);
+
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        row_text(buffer, 5),
+        "│ add location = \"your city\" to        │"
+    );
+    assert_eq!(
+        row_text(buffer, 6),
+        "│ ~/.config/alba/config.toml           │"
     );
 }
 

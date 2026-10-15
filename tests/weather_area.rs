@@ -182,3 +182,17 @@ fn offline_lines_drop_the_text_after_the_separator_widest_first() {
     assert_eq!(widths.len(), 2);
     assert!(widths[0] > widths[1], "{widths:?}");
 }
+
+#[test]
+fn condition_name_is_the_main_text_color_and_dims_when_stale() {
+    let weather = weather();
+    let fresh = readings(WeatherState::Fresh(&weather), false);
+    let stale = readings(stale(&weather), false);
+
+    let line = fresh.line(&[Part::Condition]);
+    assert_eq!(text(&line), "rain");
+    assert_eq!(line.spans[0].style.fg, None);
+    let line = stale.line(&[Part::Condition]);
+    assert_eq!(text(&line), "rain");
+    assert_eq!(line.spans[0].style.fg, Some(Color::DarkGray));
+}
