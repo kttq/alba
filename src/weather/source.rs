@@ -23,10 +23,7 @@ pub trait WeatherSource {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Request {
     Forecast(Coordinates),
-    Lookup {
-        name: String,
-        language: Language,
-    },
+    Lookup { name: String, language: Language },
 }
 
 /// The text is for display only.
