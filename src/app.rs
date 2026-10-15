@@ -12,7 +12,7 @@ use ratatui::{
 
 use crate::{
     calendar,
-    clock::Clock,
+    clock::{Clock, DigitSize},
     config::{Config, Units},
     icon::{Icon, IconSize},
     layout::{self, Face},
@@ -95,16 +95,31 @@ impl App {
         let motion = Motion::at(now.timestamp(), self.motion);
         Face {
             text_clock: self.clock.text_line(now, motion),
+            segment_clock: self.clock.segment_clock(now, motion, DigitSize::Small),
             short_date: calendar::short_date(self.strings, now),
+            weekday_and_day: calendar::weekday_and_day(self.strings, now),
             weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),
             temperature: weather::temperature_line(
                 weather_state,
                 shows_fetch_indicator,
                 self.units,
             ),
-            mini_icon: weather_state
-                .weather()
-                .and_then(|weather| Icon::of(weather, now))
+            temperature_high_and_low: weather::temperature_high_and_low_line(
+                weather_state,
+                shows_fetch_indicator,
+                self.units,
+                now.timestamp(),
+            ),
+            aged_temperature_high_and_low: weather::aged_temperature_high_and_low_line(
+                weather_state,
+                shows_fetch_indicator,
+                self.units,
+                now.timestamp(),
+                self.strings,
+            ),
+            sparkline: weather::sparkline(weather_state, now.timestamp()),
+            weather_state_lines: weather::weather_state_lines(weather_state, self.strings),
+            mini_icon: Icon::shown(weather_state, now)
                 .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }
     }

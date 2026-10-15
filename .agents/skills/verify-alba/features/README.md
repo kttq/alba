@@ -23,6 +23,7 @@ The maintained source for verifying what a user sees in alba. Read this index be
 ## Features
 
 - [Strip line](./strip-line.md): the one-line face, its drop order, and its palette in light and dark themes.
+- [Compact](./compact.md): the eight-row tier with the short date, the LCD clock, and the weather, and its no-data and stale states.
 - [Mini](./mini.md): the two-row tier with the text clock, the mini icon, and the temperature, and the switch to Strip.
 - [Weather states](./weather-states.md): fresh, stale, expired, offline start, no location, and the nine conditions.
 - [Terminal lifecycle](./terminal-lifecycle.md): quit keys, terminal restore, resize, the refresh key, tick timing, and idle CPU.

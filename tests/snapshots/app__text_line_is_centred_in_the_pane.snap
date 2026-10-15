@@ -2,15 +2,8 @@
 source: tests/app.rs
 expression: terminal.backend()
 ---
-"                                        "
-"                                        "
-"                                        "
-"                                        "
-"                                        "
-"                                        "
-"             06:38 · tue 13             "
-"                                        "
-"                                        "
-"                                        "
-"                                        "
-"                                        "
+"                      "
+"                      "
+"    06:38 · tue 13    "
+"                      "
+"                      "

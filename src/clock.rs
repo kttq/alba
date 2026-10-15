@@ -31,6 +31,7 @@ pub enum DigitSize {
     Large,
 }
 
+#[derive(Debug)]
 pub struct SegmentClock {
     digits: Canvas,
     /// The 12-hour mark: `am` over `pm`, the current one lit.

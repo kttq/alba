@@ -1,0 +1,12 @@
+---
+source: tests/layout.rs
+expression: "rendered(&harness, &default_instant(), width, height).backend()"
+---
+"      tue 13 oct       "
+"▄▀▀▄ ▄▀▀▄     ▄▀▀▄ ▄▀▀▄"
+"▀▄▄▀ ▀▄▄▀  ▀  ▀▄▄▀ ▀▄▄▀"
+"█  █ █  █  ▄  █  █ █  █"
+" ▀▀   ▀▀       ▀▀   ▀▀ "
+"                       "
+" ▄██▄   14°  ↑19° ↓13° "
+"▀▀▀▀▀▀  █████▇▅▂▁▁▁▁   "

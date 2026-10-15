@@ -6,10 +6,16 @@ pub struct Strings {
     pub pm: &'static str,
     /// Sunday first.
     pub short_weekdays: [&'static str; 7],
+    pub short_months: [&'static str; 12],
     /// In cycle order, from new moon.
     moon_phases: [&'static str; 8],
     /// Followed by `: ` and the configured name.
     pub location_not_found: &'static str,
+    pub no_location: &'static str,
+    pub fetching: &'static str,
+    pub offline: &'static str,
+    /// The text before and after the whole hours of the age label.
+    pub age: [&'static str; 2],
 }
 
 impl Strings {
@@ -17,6 +23,9 @@ impl Strings {
         am: "am",
         pm: "pm",
         short_weekdays: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"],
+        short_months: [
+            "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+        ],
         moon_phases: [
             "new moon",
             "waxing crescent",
@@ -28,11 +37,18 @@ impl Strings {
             "waning crescent",
         ],
         location_not_found: "location not found",
+        no_location: "no location set",
+        fetching: "fetching…",
+        offline: "offline · retrying",
+        age: ["", "h ago"],
     };
     pub const ES: Self = Self {
         am: "am",
         pm: "pm",
         short_weekdays: ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"],
+        short_months: [
+            "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
+        ],
         moon_phases: [
             "luna nueva",
             "luna creciente",
@@ -44,6 +60,10 @@ impl Strings {
             "luna menguante",
         ],
         location_not_found: "ubicación no encontrada",
+        no_location: "sin ubicación",
+        fetching: "cargando…",
+        offline: "offline · reintentando",
+        age: ["hace ", "h"],
     };
 
     pub fn moon_phase(&self, name: MoonPhaseName) -> &'static str {
