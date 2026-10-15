@@ -224,12 +224,12 @@ impl ShownTimeline {
         let time_text = |at: Timestamp| clock.time_text(&at.to_zoned(now.time_zone().clone()));
         let (start, end) = (time_text(timeline.start), time_text(timeline.end));
         let accent = Style::new().yellow();
-        let dim = Style::new().dark_gray();
+        let text = Style::new();
         let countdown = duration_text(minutes_between(now.timestamp(), timeline.end));
         let (start_label, end_label, statuses, gradient, marker) = match sky.day_or_night {
             DayOrNight::Day => (
-                Line::from(vec![Span::styled("↑", accent), Span::styled(start, dim)]),
-                Line::from(vec![Span::styled(end, dim), Span::styled("↓", accent)]),
+                Line::from(vec![Span::styled("↑", accent), Span::styled(start, text)]),
+                Line::from(vec![Span::styled(end, text), Span::styled("↓", accent)]),
                 vec![format!("{} {countdown}", strings.sunset_in)],
                 &DAY_GRADIENT[..],
                 sun(),
@@ -242,8 +242,8 @@ impl ShownTimeline {
                     sky.moon_phase.illumination_percent()
                 );
                 (
-                    Line::from(vec![Span::styled("↓", accent), Span::styled(start, dim)]),
-                    Line::from(vec![Span::styled(end, dim), Span::styled("↑", accent)]),
+                    Line::from(vec![Span::styled("↓", accent), Span::styled(start, text)]),
+                    Line::from(vec![Span::styled(end, text), Span::styled("↑", accent)]),
                     vec![format!("{phase} · {countdown}"), countdown],
                     &NIGHT_GRADIENT[..],
                     sky.moon_phase.disc(MARKER_SIZE),
@@ -344,7 +344,7 @@ impl Widget for &ShownTimeline {
         let status = self
             .statuses
             .iter()
-            .map(|status| Span::styled(status.as_str(), Style::new().dark_gray()))
+            .map(|status| Span::raw(status.as_str()))
             .find(|status| status.width() as u16 <= room);
         if let Some(status) = status {
             let status_width = status.width() as u16;

@@ -1,4 +1,4 @@
-use jiff::Timestamp;
+use jiff::{SignedDuration, Timestamp};
 use ratatui::{
     style::{Style, Stylize},
     text::{Line, Span},
@@ -98,14 +98,7 @@ pub fn aged_temperature_high_and_low_line(
         return None;
     };
     let mut line = temperature_high_and_low_line(weather_state, false, units, now)?;
-    let [before, after] = strings.age;
-    line.push_span(Span::styled(
-        format!(" {before}{}{after}", age.as_hours()),
-        Style::new().dark_gray(),
-    ));
-    if shows_fetch_indicator {
-        line.push_span(Span::raw("…").dim());
-    }
+    push_age_label(&mut line, age, shows_fetch_indicator, strings);
     Some(line)
 }
 
@@ -122,14 +115,7 @@ pub fn temperature_age_high_and_low_line(
         return None;
     };
     let mut line = temperature_line(weather_state, false, units)?;
-    let [before, after] = strings.age;
-    line.push_span(Span::styled(
-        format!(" {before}{}{after}", age.as_hours()),
-        Style::new().dark_gray(),
-    ));
-    if shows_fetch_indicator {
-        line.push_span(Span::raw("…").dim());
-    }
+    push_age_label(&mut line, age, shows_fetch_indicator, strings);
     let high_and_low = temperature_high_and_low_line(weather_state, false, units, now)?;
     line.extend(high_and_low.spans.into_iter().skip(1));
     Some(line)
@@ -149,6 +135,23 @@ pub fn first_run_hint(
         Line::styled(strings.first_run_hint, style),
         Line::styled(shown_config_file.to_string(), style),
     ])
+}
+
+/// The age in whole hours, dim, then the fetch indicator.
+fn push_age_label(
+    line: &mut Line<'static>,
+    age: SignedDuration,
+    shows_fetch_indicator: bool,
+    strings: &Strings,
+) {
+    let [before, after] = strings.age;
+    line.push_span(Span::styled(
+        format!(" {before}{}{after}", age.as_hours()),
+        Style::new().dark_gray(),
+    ));
+    if shows_fetch_indicator {
+        line.push_span(Span::raw("…").dim());
+    }
 }
 
 /// What the weather area says without weather, each way widest first; empty with weather.

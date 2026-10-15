@@ -633,6 +633,11 @@ fn medium_timeline_counts_down_to_sunset_with_minutes_under_an_hour() {
         row_text(terminal.backend().buffer(), 10),
         "│ ↑06:14     sunset in 0h36     19:06↓ │"
     );
+    let buffer = terminal.backend().buffer();
+    assert_eq!(buffer[(2, 10)].fg, Color::Yellow, "the sunrise arrow");
+    assert_eq!(buffer[(3, 10)].fg, Color::Reset, "the start time");
+    assert_eq!(buffer[(13, 10)].fg, Color::Reset, "the status");
+    assert_eq!(buffer[(32, 10)].fg, Color::Reset, "the end time");
 }
 
 #[test]
