@@ -21,7 +21,7 @@ All paths below are relative to the repository root. `S=.agents/skills/verify-al
 3. Write a config and a weather cache into it: `$D/fixture HOME [--weather fresh|stale|expired|none] [--age MINUTES] [--code WMO] [--night] [--no-location] [--config 'key = value' ...]`. The cache is `tests/fixtures/forecast.json` (Buenos Aires, rain, 14°, day), shifted to today. It writes the cache with alba's own cache code, so the format cannot drift. `--weather none` writes no cache, for the offline start.
 4. Start alba in one harness:
    - Headless: `$D/drive HOME --cols 40 --rows 12 [--offline] STEP ...`. It runs the steps, presses `q`, and prints the exit status, `terminal restored: yes|no`, and the CPU seconds alba used. Steps are listed in `$D/drive --help`. It is ready when it prints; a failed `expect` or a dirty exit makes it exit 1.
-   - Terminal: `$S/terminal.sh launch HOME --theme light|dark --cols 85 --rows 26 [--offline]`. It is ready when it prints `alba <pid> in Terminal window <id>: …`. A `warning: the pane is …` line means the shot would be at the wrong size; see Setup.
+   - Terminal: `$S/terminal.sh launch HOME --theme light|dark --cols 85 --rows 26 [--full-screen] [--offline]`. It is ready when it prints `alba <pid> in Terminal window <id>: …, pane COLSxROWS`. A `warning: the pane is …` line means the shot would be at the wrong size; see Setup. `--full-screen` zooms the window to fill the screen, and the printed pane gives its size.
 
 `--offline` runs alba under `sandbox-exec` with every network call denied. It works on macOS only. Use it for stale weather and the offline start: without it, the startup fetch replaces the fixture.
 
