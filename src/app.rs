@@ -21,7 +21,7 @@ use crate::{
     motion::{self, Motion},
     sky::ShownTimeline,
     strings::Strings,
-    weather::{self, WeatherSource, WeatherStation},
+    weather::{WeatherArea, WeatherSource, WeatherStation},
 };
 
 /// Time and time zone come only from `now`, never the system clock.
@@ -99,7 +99,6 @@ impl App {
 
     pub fn face(&self, now: &Zoned) -> Face {
         let weather_state = self.weather_station.weather_state(now);
-        let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
         let motion = Motion::at(now.timestamp(), self.motion);
         let icon = Icon::shown(weather_state, now);
         Face {
@@ -107,45 +106,20 @@ impl App {
             segment_clock: self.clock.segment_clock(now, motion, DigitSize::Small),
             short_date: calendar::short_date(self.strings, now),
             weekday_and_day: calendar::weekday_and_day(self.strings, now),
-            weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),
-            temperature: weather::temperature_line(
+            weather_area: WeatherArea::of(
                 weather_state,
-                shows_fetch_indicator,
-                self.units,
-            ),
-            temperature_high_and_low: weather::temperature_high_and_low_line(
-                weather_state,
-                shows_fetch_indicator,
-                self.units,
-                now.timestamp(),
-            ),
-            aged_temperature_high_and_low: weather::aged_temperature_high_and_low_line(
-                weather_state,
-                shows_fetch_indicator,
+                self.weather_station.shows_fetch_indicator(now),
                 self.units,
                 now.timestamp(),
                 self.strings,
+                &self.shown_config_file,
             ),
-            sparkline: weather::sparkline(weather_state, now.timestamp()),
-            weather_state_lines: weather::weather_state_lines(weather_state, self.strings),
             mini_icon: icon.map(|icon| icon.canvas(IconSize::Mini, motion)),
             full_icon: icon.map(|icon| IconPicture {
                 icon,
                 size: IconSize::Full,
                 motion,
             }),
-            temperature_age_high_and_low: weather::temperature_age_high_and_low_line(
-                weather_state,
-                shows_fetch_indicator,
-                self.units,
-                now.timestamp(),
-                self.strings,
-            ),
-            first_run_hint: weather::first_run_hint(
-                weather_state,
-                self.strings,
-                &self.shown_config_file,
-            ),
             timeline: weather_state.weather().and_then(|weather| {
                 ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
             }),

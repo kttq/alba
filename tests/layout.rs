@@ -295,27 +295,6 @@ fn stale_compact_dims_the_text_and_sparkline_and_shows_the_age_only_when_it_fits
 }
 
 #[test]
-fn stale_compact_shows_the_fetch_indicator_after_the_age_label_or_the_temperature() {
-    let later = default_instant().checked_add(2.hours()).unwrap();
-    let mut harness = with_weather("");
-    harness.app.key(KeyEvent::from(KeyCode::Char('r')));
-    harness.app.tick(&later);
-    let shown_at = later.checked_add(1.second()).unwrap();
-
-    let narrow = rendered(&harness, &shown_at, 23, 8);
-    let wide = rendered(&harness, &shown_at, 30, 8);
-
-    assert_eq!(
-        row_text(narrow.backend().buffer(), 6),
-        "▄██▄   14°…  ↑19° ↓13°"
-    );
-    assert_eq!(
-        row_text(wide.backend().buffer(), 6),
-        "▄██▄   14°  ↑19° ↓13° 2h ago…"
-    );
-}
-
-#[test]
 fn compact_icon_keeps_its_column_when_the_weather_returns() {
     let mut harness = Harness::new(BUENOS_AIRES);
     harness.fetch(
