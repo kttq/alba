@@ -207,7 +207,8 @@ impl Harness {
         render_row(&self.app, now, width)
     }
 
-    pub fn text_line(&self, now: &Zoned, width: u16) -> String {
+    /// The one-row pane, trimmed.
+    pub fn strip(&self, now: &Zoned, width: u16) -> String {
         let terminal = self.render_row(now, width);
         let line: String = terminal
             .backend()

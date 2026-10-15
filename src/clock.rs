@@ -38,7 +38,7 @@ pub struct ShownClock {
     clock: Clock,
     now: Zoned,
     motion: Motion,
-    text_line: Line<'static>,
+    text_clock: Line<'static>,
 }
 
 #[derive(Debug)]
@@ -75,11 +75,11 @@ impl Clock {
             clock: self.clone(),
             now: now.clone(),
             motion,
-            text_line: self.text_line(now, motion),
+            text_clock: self.text_clock(now, motion),
         }
     }
 
-    pub fn text_line(&self, now: &Zoned, motion: Motion) -> Line<'static> {
+    pub fn text_clock(&self, now: &Zoned, motion: Motion) -> Line<'static> {
         let mut spans = vec![
             Span::raw(self.hour(now)),
             colon(motion),
@@ -243,8 +243,8 @@ fn colon(motion: Motion) -> Span<'static> {
 }
 
 impl ShownClock {
-    pub fn text_line(&self) -> &Line<'static> {
-        &self.text_line
+    pub fn text_clock(&self) -> &Line<'static> {
+        &self.text_clock
     }
 
     pub fn segment_size(&self, digit_size: DigitSize) -> Size {

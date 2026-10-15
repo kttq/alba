@@ -14,7 +14,7 @@ use ratatui::{
 };
 
 #[test]
-fn text_line_is_centred_in_the_pane() {
+fn strip_is_centred_in_the_pane() {
     let app = app_with("");
     let now = default_instant();
     let mut terminal = Terminal::new(TestBackend::new(22, 5)).unwrap();
@@ -151,7 +151,7 @@ fn still_clock_ticks_every_second() {
 }
 
 #[test]
-fn text_line_shows_the_weekday_and_day_in_bright_blue_when_it_fits() {
+fn strip_shows_the_weekday_and_day_in_bright_blue_when_it_fits() {
     let terminal = render_row(&app_with(""), &default_instant(), 14);
 
     terminal.backend().assert_buffer_lines([Line::from(vec![
@@ -161,7 +161,7 @@ fn text_line_shows_the_weekday_and_day_in_bright_blue_when_it_fits() {
 }
 
 #[test]
-fn spanish_text_line_shows_the_spanish_weekday() {
+fn spanish_strip_shows_the_spanish_weekday() {
     let terminal = render_row(&app_with("language = \"es\""), &default_instant(), 14);
 
     terminal.backend().assert_buffer_lines([Line::from(vec![

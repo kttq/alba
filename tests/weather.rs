@@ -19,7 +19,7 @@ use ratatui::{
 use serde_json::{Value, json};
 
 #[test]
-fn fetched_weather_shows_on_the_text_line() {
+fn fetched_weather_shows_in_the_strip() {
     let mut harness = Harness::new(BUENOS_AIRES);
     let now = default_instant();
 
@@ -42,8 +42,8 @@ fn narrow_pane_drops_the_date_first() {
 
     harness.fetch(&now, Ok(forecast_body()));
 
-    assert_eq!(harness.text_line(&now, 22), "06:38 · 14° ‚‚");
-    assert_eq!(harness.text_line(&now, 13), "06:38");
+    assert_eq!(harness.strip(&now, 22), "06:38 · 14° ‚‚");
+    assert_eq!(harness.strip(&now, 13), "06:38");
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn imperial_units_show_whole_fahrenheit() {
 
     harness.fetch(&now, Ok(forecast_body()));
 
-    assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 58° ‚‚");
+    assert_eq!(harness.strip(&now, 23), "06:38 · tue 13 · 58° ‚‚");
 }
 
 fn edited_forecast(edit: impl FnOnce(&mut Value)) -> String {
@@ -114,7 +114,7 @@ fn failed_fetches_show_no_weather() {
         let mut harness = Harness::new(BUENOS_AIRES);
         harness.fetch(&now, failure);
 
-        assert_eq!(harness.text_line(&now, 22), "06:38 · tue 13", "{name}");
+        assert_eq!(harness.strip(&now, 22), "06:38 · tue 13", "{name}");
     }
 }
 
@@ -125,7 +125,7 @@ fn unknown_weather_code_shows_the_temperature_alone() {
 
     harness.fetch(&now, Ok(forecast_with_code(42)));
 
-    assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 14°");
+    assert_eq!(harness.strip(&now, 23), "06:38 · tue 13 · 14°");
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn each_condition_has_a_two_cell_mark() {
         harness.fetch(&now, Ok(forecast_with_code(code)));
 
         assert_eq!(
-            harness.text_line(&now, 23),
+            harness.strip(&now, 23),
             format!("06:38 · tue 13 · 14° {mark}")
         );
     }
@@ -211,7 +211,7 @@ fn location_name_shows_weather_once_it_resolves() {
             Request::Forecast(GEOCODED_BUENOS_AIRES),
         ]
     );
-    assert_eq!(harness.text_line(&now, 23), "06:38 · mar 13 · 14° ‚‚");
+    assert_eq!(harness.strip(&now, 23), "06:38 · mar 13 · 14° ‚‚");
 }
 
 #[test]
@@ -222,7 +222,7 @@ fn fetched_weather_shows_at_once_on_the_next_start() {
 
     let next_start = Harness::with_cache(BUENOS_AIRES, cache_directory.clone());
 
-    assert_eq!(next_start.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
+    assert_eq!(next_start.strip(&now, 23), "06:38 · tue 13 · 14° ‚‚");
     let files: Vec<_> = fs::read_dir(&cache_directory)
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
@@ -245,7 +245,7 @@ fn failed_fetch_keeps_the_cached_weather() {
         }),
     );
 
-    assert_eq!(next_start.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
+    assert_eq!(next_start.strip(&now, 23), "06:38 · tue 13 · 14° ‚‚");
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn cache_for_other_coordinates_counts_as_no_cache() {
 
     let elsewhere = Harness::with_cache("coordinates = [48.8566, 2.3522]", cache_directory);
 
-    assert_eq!(elsewhere.text_line(&now, 22), "06:38 · tue 13");
+    assert_eq!(elsewhere.strip(&now, 22), "06:38 · tue 13");
 }
 
 type Breakage = fn(String) -> String;
@@ -283,7 +283,7 @@ fn unusable_cache_counts_as_no_cache() {
 
         let next_start = Harness::with_cache(BUENOS_AIRES, cache_directory);
 
-        assert_eq!(next_start.text_line(&now, 22), "06:38 · tue 13", "{name}");
+        assert_eq!(next_start.strip(&now, 22), "06:38 · tue 13", "{name}");
     }
 }
 
@@ -297,7 +297,7 @@ fn failed_cache_write_keeps_the_weather_in_memory() {
 
     harness.fetch(&now, Ok(forecast_body()));
 
-    assert_eq!(harness.text_line(&now, 23), "06:38 · tue 13 · 14° ‚‚");
+    assert_eq!(harness.strip(&now, 23), "06:38 · tue 13 · 14° ‚‚");
     assert!(!cache_directory.join("weather.json").exists());
 }
 
@@ -329,7 +329,7 @@ fn expired_weather_drops_the_weather_part() {
     let mut harness = Harness::new(BUENOS_AIRES);
     harness.fetch(&default_instant(), Ok(forecast_body()));
 
-    assert_eq!(harness.text_line(&hours_later(13), 23), "19:38 · tue 13");
+    assert_eq!(harness.strip(&hours_later(13), 23), "19:38 · tue 13");
 }
 
 #[test]
@@ -357,10 +357,7 @@ fn running_fetch_adds_a_dim_ellipsis_after_300_ms() {
             .unwrap()
     };
 
-    assert_eq!(
-        harness.text_line(&later(299), 24),
-        "06:38 · tue 13 · 14° ‚‚"
-    );
+    assert_eq!(harness.strip(&later(299), 24), "06:38 · tue 13 · 14° ‚‚");
     harness
         .render_row(&later(300), 24)
         .backend()

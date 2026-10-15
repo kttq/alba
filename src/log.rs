@@ -59,17 +59,13 @@ fn logfmt_line(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Level {
-    Info,
     Warn,
-    Error,
 }
 
 impl fmt::Display for Level {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         let name = match self {
-            Self::Info => "info",
             Self::Warn => "warn",
-            Self::Error => "error",
         };
         formatter.write_str(name)
     }

@@ -540,7 +540,7 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
         return None;
     };
     let pieces = vec![
-        text(face.clock.text_line()),
+        text(face.clock.text_clock()),
         Piece::Icon(face.icon?, IconSize::Mini),
         composed(widest(readings, SizeTier::Mini)),
     ];
@@ -548,7 +548,7 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
 }
 
 fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
-    let clock = text(face.clock.text_line());
+    let clock = text(face.clock.text_clock());
     let date = text(face.calendar.weekday_and_day());
     let separator = Piece::Separator;
     let lines = match &face.weather_area {
