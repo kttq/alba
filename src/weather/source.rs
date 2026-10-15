@@ -9,15 +9,25 @@ use std::{
 
 use jiff::SignedDuration;
 
-use crate::config::Coordinates;
+use crate::config::{Coordinates, Language};
 
 /// The app calls `finished` on every tick, so neither method may block.
 pub trait WeatherSource {
-    /// Does nothing while a fetch is running.
-    fn request(&mut self, coordinates: Coordinates);
+    /// Does nothing while a request is running.
+    fn request(&mut self, request: Request);
 
-    /// The response body of the fetch that just finished, returned once.
+    /// The response body of the request that just finished, returned once.
     fn finished(&mut self) -> Option<Result<String, FetchError>>;
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Request {
+    Forecast(Coordinates),
+    /// Resolves a `location` name through geocoding.
+    Lookup {
+        name: String,
+        language: Language,
+    },
 }
 
 /// The text is for display only.
@@ -47,12 +57,12 @@ impl fmt::Display for FetchError {
         match self {
             Self::Network(reason) => write!(formatter, "network error: {reason}"),
             Self::Status { status, .. } => write!(formatter, "http status {status}"),
-            Self::Invalid(reason) => write!(formatter, "invalid forecast: {reason}"),
+            Self::Invalid(reason) => write!(formatter, "invalid response: {reason}"),
         }
     }
 }
 
-type Fetch = dyn Fn(Coordinates) -> Result<String, FetchError> + Send + Sync;
+type Fetch = dyn Fn(Request) -> Result<String, FetchError> + Send + Sync;
 
 pub struct BackgroundSource {
     fetch: Arc<Fetch>,
@@ -62,7 +72,7 @@ pub struct BackgroundSource {
 impl BackgroundSource {
     /// `fetch` must time out on its own.
     pub fn new(
-        fetch: impl Fn(Coordinates) -> Result<String, FetchError> + Send + Sync + 'static,
+        fetch: impl Fn(Request) -> Result<String, FetchError> + Send + Sync + 'static,
     ) -> Self {
         Self {
             fetch: Arc::new(fetch),
@@ -72,14 +82,14 @@ impl BackgroundSource {
 }
 
 impl WeatherSource for BackgroundSource {
-    fn request(&mut self, coordinates: Coordinates) {
+    fn request(&mut self, request: Request) {
         if self.running.is_some() {
             return;
         }
         let (sender, receiver) = mpsc::channel();
         let fetch = Arc::clone(&self.fetch);
         thread::spawn(move || {
-            let _ = sender.send(fetch(coordinates));
+            let _ = sender.send(fetch(request));
         });
         self.running = Some(receiver);
     }

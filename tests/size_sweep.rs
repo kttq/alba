@@ -5,7 +5,7 @@ use alba::{
     layout::{self, Face, LayoutReport, SizeTier},
     weather::FetchError,
 };
-use common::{BUENOS_AIRES, Harness, forecast_body};
+use common::{BUENOS_AIRES, Harness, NO_MATCH, forecast_body};
 use jiff::{ToSpan, Zoned};
 use ratatui::{
     Terminal,
@@ -31,15 +31,17 @@ enum WeatherStateFixture {
     FreshDay,
     FreshNight,
     Stale,
+    LocationNotFound,
 }
 
-const WEATHER_STATES: [WeatherStateFixture; 6] = [
+const WEATHER_STATES: [WeatherStateFixture; 7] = [
     WeatherStateFixture::NoLocation,
     WeatherStateFixture::Fetching,
     WeatherStateFixture::Offline,
     WeatherStateFixture::FreshDay,
     WeatherStateFixture::FreshNight,
     WeatherStateFixture::Stale,
+    WeatherStateFixture::LocationNotFound,
 ];
 
 fn config_variants() -> Vec<String> {
@@ -87,6 +89,9 @@ fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned)
     let located = format!("{BUENOS_AIRES}\n{config_text}");
     let mut harness = match weather_state {
         WeatherStateFixture::NoLocation => Harness::new(config_text),
+        WeatherStateFixture::LocationNotFound => {
+            Harness::new(&format!("location = \"atlantis\"\n{config_text}"))
+        }
         _ => Harness::new(&located),
     };
     let body = worst_case_forecast(config_text);
@@ -106,6 +111,10 @@ fn app_in(weather_state: WeatherStateFixture, config_text: &str) -> (App, Zoned)
             refreshing(&mut harness, &night, &night, body)
         }
         WeatherStateFixture::Stale => refreshing(&mut harness, &instant("01:38"), &noon, body),
+        WeatherStateFixture::LocationNotFound => {
+            harness.fetch(&noon, Ok(NO_MATCH.to_string()));
+            noon
+        }
     };
     (harness.app, shown_at)
 }

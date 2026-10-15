@@ -2,9 +2,14 @@ mod common;
 
 use std::fs;
 
-use alba::{app::Control, config::Coordinates, weather::FetchError};
+use alba::{
+    app::Control,
+    config::{Coordinates, Language},
+    weather::{FetchError, Request},
+};
 use common::{
-    BUENOS_AIRES, Harness, default_instant, forecast_body, make_read_only, temporary_directory,
+    BUENOS_AIRES, BUENOS_AIRES_COORDINATES, GEOCODED_BUENOS_AIRES, Harness, default_instant,
+    forecast_body, geocoding_body, make_read_only, temporary_directory,
 };
 use ratatui::{
     crossterm::event::{KeyCode, KeyEvent},
@@ -159,22 +164,54 @@ fn configured_coordinates_are_fetched_once() {
 
     assert_eq!(
         harness.weather_source.requests(),
-        [Coordinates {
+        [Request::Forecast(Coordinates {
             latitude: -34.6037,
             longitude: -58.3816
-        }]
+        })]
     );
 }
 
 #[test]
-fn no_coordinates_means_no_fetch() {
-    for config_text in ["", "location = \"buenos aires\""] {
-        let mut harness = Harness::new(config_text);
+fn no_location_means_no_fetch() {
+    let mut harness = Harness::new("");
 
-        harness.app.tick(&default_instant());
+    harness.app.tick(&default_instant());
 
-        assert_eq!(harness.weather_source.requests(), [], "{config_text}");
-    }
+    assert_eq!(harness.weather_source.requests(), []);
+}
+
+#[test]
+fn coordinates_win_over_a_location_name() {
+    let mut harness = Harness::new(&format!("location = \"paris\"\n{BUENOS_AIRES}"));
+
+    harness.app.tick(&default_instant());
+
+    assert_eq!(
+        harness.weather_source.requests(),
+        [Request::Forecast(BUENOS_AIRES_COORDINATES)]
+    );
+}
+
+#[test]
+fn location_name_shows_weather_once_it_resolves() {
+    let mut harness = Harness::new("location = \"buenos aires\"\nlanguage = \"es\"");
+    let now = default_instant();
+
+    harness.fetch(&now, Ok(geocoding_body()));
+    harness.weather_source.finish(Ok(forecast_body()));
+    harness.app.tick(&now);
+
+    assert_eq!(
+        harness.weather_source.requests(),
+        [
+            Request::Lookup {
+                name: "buenos aires".to_string(),
+                language: Language::Es,
+            },
+            Request::Forecast(GEOCODED_BUENOS_AIRES),
+        ]
+    );
+    assert_eq!(harness.text_line(&now, 23), "06:38 · mar 13 · 14° ‚‚");
 }
 
 #[test]
@@ -229,7 +266,7 @@ fn unusable_cache_counts_as_no_cache() {
     let now = default_instant();
     let breakages: [(&str, Breakage); 3] = [
         ("other version", |text| {
-            text.replace("\"version\":1", "\"version\":0")
+            text.replace("\"version\":2", "\"version\":0")
         }),
         ("malformed", |text| text[..text.len() / 2].to_string()),
         ("not text", |_| "\u{0}\u{fffd}".to_string()),

@@ -14,10 +14,10 @@ use std::{
 
 use alba::{
     app::App,
-    config::{Config, Coordinates},
+    config::{Config, Coordinates, Language, Location},
     log::Log,
     pixels::Canvas,
-    weather::{FetchError, Forecast, WeatherSource, WeatherStation},
+    weather::{FetchError, Forecast, Request, WeatherSource, WeatherStation},
 };
 use jiff::{Timestamp, Zoned};
 use ratatui::{
@@ -48,6 +48,21 @@ pub fn forecast_body() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/forecast.json"))
         .unwrap()
 }
+
+/// An Open-Meteo geocoding response for "buenos aires": `buenos aires, ar` at
+/// [`GEOCODED_BUENOS_AIRES`].
+pub fn geocoding_body() -> String {
+    fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/geocoding.json"))
+        .unwrap()
+}
+
+pub const GEOCODED_BUENOS_AIRES: Coordinates = Coordinates {
+    latitude: -34.61315,
+    longitude: -58.37723,
+};
+
+/// What Open-Meteo geocoding answers when nothing matches.
+pub const NO_MATCH: &str = r#"{"generationtime_ms":0.5}"#;
 
 pub fn fixture_forecast(name: &str) -> Forecast {
     edited_fixture_forecast(name, |_| {})
@@ -109,12 +124,12 @@ pub struct FakeWeatherSource(Rc<RefCell<Fetches>>);
 
 #[derive(Default)]
 struct Fetches {
-    requests: Vec<Coordinates>,
+    requests: Vec<Request>,
     finished: Option<Result<String, FetchError>>,
 }
 
 impl FakeWeatherSource {
-    pub fn requests(&self) -> Vec<Coordinates> {
+    pub fn requests(&self) -> Vec<Request> {
         self.0.borrow().requests.clone()
     }
 
@@ -124,8 +139,8 @@ impl FakeWeatherSource {
 }
 
 impl WeatherSource for FakeWeatherSource {
-    fn request(&mut self, coordinates: Coordinates) {
-        self.0.borrow_mut().requests.push(coordinates);
+    fn request(&mut self, request: Request) {
+        self.0.borrow_mut().requests.push(request);
     }
 
     fn finished(&mut self) -> Option<Result<String, FetchError>> {
@@ -196,7 +211,7 @@ impl Harness {
     }
 }
 
-/// A weather station for Buenos Aires, with its own log.
+/// A weather station with its own log.
 pub struct WeatherStationHarness {
     pub weather_station: WeatherStation,
     pub weather_source: FakeWeatherSource,
@@ -204,10 +219,24 @@ pub struct WeatherStationHarness {
 }
 
 impl WeatherStationHarness {
+    /// At the coordinates of Buenos Aires.
     pub fn with_cache(cache_directory: PathBuf) -> Self {
+        Self::at(
+            Location::Coordinates(BUENOS_AIRES_COORDINATES),
+            Language::En,
+            cache_directory,
+        )
+    }
+
+    pub fn named(name: &str, language: Language, cache_directory: PathBuf) -> Self {
+        Self::at(Location::Name(name.to_string()), language, cache_directory)
+    }
+
+    fn at(location: Location, language: Language, cache_directory: PathBuf) -> Self {
         let weather_source = FakeWeatherSource::default();
         let weather_station = WeatherStation::new(
-            Some(BUENOS_AIRES_COORDINATES),
+            Some(location),
+            language,
             Box::new(weather_source.clone()),
             cache_directory,
         );

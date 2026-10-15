@@ -10,7 +10,7 @@ use ratatui::{
 use crate::{
     calendar,
     clock::Clock,
-    config::{Config, Coordinates, Location, Units},
+    config::{Config, Units},
     icon::{Icon, IconSize},
     layout::{self, Face},
     log::Log,
@@ -49,7 +49,8 @@ impl App {
             strings: Strings::of(config.language),
             clock: Clock::new(config),
             weather_station: WeatherStation::new(
-                coordinates(config),
+                config.location.clone(),
+                config.language,
                 weather_source,
                 cache_directory,
             ),
@@ -103,12 +104,5 @@ impl App {
                 .and_then(|weather| Icon::of(weather, now))
                 .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }
-    }
-}
-
-fn coordinates(config: &Config) -> Option<Coordinates> {
-    match config.location {
-        Some(Location::Coordinates(coordinates)) => Some(coordinates),
-        _ => None,
     }
 }

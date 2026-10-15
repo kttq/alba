@@ -3,9 +3,9 @@
 use std::{ffi::OsString, fmt::Display, fs, io, path::Path};
 
 use alba::{
-    config::Coordinates,
+    config::{Coordinates, Location},
     paths::Paths,
-    weather::{Forecast, Weather, cache},
+    weather::{Forecast, ResolvedLocation, Weather, cache},
 };
 use jiff::{SignedDuration, Timestamp};
 use serde_json::Value;
@@ -76,7 +76,15 @@ impl FixtureHome {
         write_file(&paths.config_file, &self.config(coordinates))?;
         match weather {
             None => Ok(()),
-            Some(weather) => cache::write(&paths.cache_directory, coordinates, &weather),
+            Some(weather) => cache::write(
+                &paths.cache_directory,
+                &Location::Coordinates(coordinates),
+                &ResolvedLocation {
+                    coordinates,
+                    place_name: None,
+                },
+                &weather,
+            ),
         }
     }
 

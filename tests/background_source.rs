@@ -9,21 +9,21 @@ use std::{
 
 use alba::{
     config::Coordinates,
-    weather::{BackgroundSource, FetchError, WeatherSource},
+    weather::{BackgroundSource, FetchError, Request, WeatherSource},
 };
 
-const BUENOS_AIRES: Coordinates = Coordinates {
+const BUENOS_AIRES: Request = Request::Forecast(Coordinates {
     latitude: -34.6037,
     longitude: -58.3816,
-};
+});
 
-fn gated_source() -> (BackgroundSource, Receiver<Coordinates>, mpsc::Sender<()>) {
+fn gated_source() -> (BackgroundSource, Receiver<Request>, mpsc::Sender<()>) {
     let (started, starts) = mpsc::channel();
     let (release, gate) = mpsc::channel::<()>();
     let started = Mutex::new(started);
     let gate = Mutex::new(gate);
-    let source = BackgroundSource::new(move |coordinates| {
-        started.lock().unwrap().send(coordinates).unwrap();
+    let source = BackgroundSource::new(move |request| {
+        started.lock().unwrap().send(request).unwrap();
         gate.lock().unwrap().recv().unwrap();
         Ok("forecast".to_string())
     });
