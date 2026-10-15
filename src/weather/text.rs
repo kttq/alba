@@ -1,4 +1,4 @@
-use jiff::Timestamp;
+use jiff::{SignedDuration, Timestamp};
 use ratatui::{
     style::{Style, Stylize},
     text::{Line, Span},
@@ -98,6 +98,52 @@ pub fn aged_temperature_high_and_low_line(
         return None;
     };
     let mut line = temperature_high_and_low_line(weather_state, false, units, now)?;
+    push_age_label(&mut line, age, shows_fetch_indicator, strings);
+    Some(line)
+}
+
+/// For the bezel tiers: the age label follows the temperature, then the fetch indicator, then
+/// the high and low. None unless stale.
+pub fn temperature_age_high_and_low_line(
+    weather_state: WeatherState,
+    shows_fetch_indicator: bool,
+    units: Units,
+    now: Timestamp,
+    strings: &Strings,
+) -> Option<Line<'static>> {
+    let WeatherState::Stale { age, .. } = weather_state else {
+        return None;
+    };
+    let mut line = temperature_line(weather_state, false, units)?;
+    push_age_label(&mut line, age, shows_fetch_indicator, strings);
+    let high_and_low = temperature_high_and_low_line(weather_state, false, units, now)?;
+    line.extend(high_and_low.spans.into_iter().skip(1));
+    Some(line)
+}
+
+/// Two dim lines that say where to set the location; None unless no location is set.
+pub fn first_run_hint(
+    weather_state: WeatherState,
+    strings: &Strings,
+    shown_config_file: &str,
+) -> Option<[Line<'static>; 2]> {
+    if weather_state != WeatherState::NoLocation {
+        return None;
+    }
+    let style = Style::new().dark_gray();
+    Some([
+        Line::styled(strings.first_run_hint, style),
+        Line::styled(shown_config_file.to_string(), style),
+    ])
+}
+
+/// The age in whole hours, dim, then the fetch indicator.
+fn push_age_label(
+    line: &mut Line<'static>,
+    age: SignedDuration,
+    shows_fetch_indicator: bool,
+    strings: &Strings,
+) {
     let [before, after] = strings.age;
     line.push_span(Span::styled(
         format!(" {before}{}{after}", age.as_hours()),
@@ -106,7 +152,6 @@ pub fn aged_temperature_high_and_low_line(
     if shows_fetch_indicator {
         line.push_span(Span::raw("…").dim());
     }
-    Some(line)
 }
 
 /// What the weather area says without weather, each way widest first; empty with weather.

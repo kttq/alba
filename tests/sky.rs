@@ -315,3 +315,43 @@ fn moon_discs_through_the_cycle() {
 
     insta::assert_snapshot!(snapshot);
 }
+
+fn shown_timeline(now: &str, config_text: &str, width: u16) -> ratatui::buffer::Buffer {
+    use alba::{clock::Clock, config::Config, sky::ShownTimeline};
+    use ratatui::{layout::Rect, widgets::Widget};
+
+    let now: jiff::Zoned = now.parse().unwrap();
+    let config = Config::parse(config_text).unwrap();
+    let timeline = ShownTimeline::of(
+        &three_day_forecast(),
+        &now,
+        &Clock::new(&config),
+        Strings::of(config.language),
+    )
+    .unwrap();
+    let area = Rect::new(0, 0, width, 3);
+    let mut buffer = ratatui::buffer::Buffer::empty(area);
+    timeline.render(area, &mut buffer);
+    buffer
+}
+
+fn label_row(buffer: &ratatui::buffer::Buffer) -> String {
+    (0..buffer.area.width)
+        .map(|x| buffer[(x, 2)].symbol())
+        .collect()
+}
+
+#[test]
+fn night_timeline_drops_the_moon_phase_before_the_countdown() {
+    let night = "2026-10-13T20:00[UTC]";
+    let wide = shown_timeline(night, "", 60);
+    let narrow = shown_timeline(night, "", 36);
+    let spanish = shown_timeline(night, "language = \"es\"\nhour_format = 12", 36);
+
+    assert_eq!(
+        label_row(&wide),
+        "↓18:00     waxing crescent 10% · sunrise in 10h00     06:00↑"
+    );
+    assert_eq!(label_row(&narrow), "↓18:00    sunrise in 10h00    06:00↑");
+    assert_eq!(label_row(&spanish), "↓6:00pm   amanece en 10h00   6:00am↑");
+}

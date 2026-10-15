@@ -11,13 +11,15 @@ use ratatui::{
 };
 
 use crate::{
-    calendar,
+    bezel::Bezel,
+    calendar::{self, Calendar},
     clock::{Clock, DigitSize},
     config::{Config, Units},
-    icon::{Icon, IconSize},
+    icon::{Icon, IconPicture, IconSize},
     layout::{self, Face},
     log::Log,
     motion::{self, Motion},
+    sky::ShownTimeline,
     strings::Strings,
     weather::{self, WeatherSource, WeatherStation},
 };
@@ -27,7 +29,10 @@ pub struct App {
     units: Units,
     motion: bool,
     strings: &'static Strings,
+    /// For the first-run hint, with `HOME` shown as `~`.
+    shown_config_file: String,
     clock: Clock,
+    calendar: Calendar,
     weather_station: WeatherStation,
     log: Log,
 }
@@ -43,6 +48,7 @@ impl App {
     pub fn new(
         config: Config,
         weather_source: Box<dyn WeatherSource>,
+        shown_config_file: String,
         cache_directory: PathBuf,
         state_directory: &Path,
     ) -> Self {
@@ -50,7 +56,9 @@ impl App {
             units: config.units,
             motion: config.motion,
             strings: Strings::of(config.language),
+            shown_config_file,
             clock: Clock::new(&config),
+            calendar: Calendar::new(&config),
             weather_station: WeatherStation::new(
                 config.location,
                 config.language,
@@ -93,6 +101,7 @@ impl App {
         let weather_state = self.weather_station.weather_state(now);
         let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
         let motion = Motion::at(now.timestamp(), self.motion);
+        let icon = Icon::shown(weather_state, now);
         Face {
             text_clock: self.clock.text_line(now, motion),
             segment_clock: self.clock.segment_clock(now, motion, DigitSize::Small),
@@ -119,8 +128,29 @@ impl App {
             ),
             sparkline: weather::sparkline(weather_state, now.timestamp()),
             weather_state_lines: weather::weather_state_lines(weather_state, self.strings),
-            mini_icon: Icon::shown(weather_state, now)
-                .map(|icon| icon.canvas(IconSize::Mini, motion)),
+            mini_icon: icon.map(|icon| icon.canvas(IconSize::Mini, motion)),
+            full_icon: icon.map(|icon| IconPicture {
+                icon,
+                size: IconSize::Full,
+                motion,
+            }),
+            temperature_age_high_and_low: weather::temperature_age_high_and_low_line(
+                weather_state,
+                shows_fetch_indicator,
+                self.units,
+                now.timestamp(),
+                self.strings,
+            ),
+            first_run_hint: weather::first_run_hint(
+                weather_state,
+                self.strings,
+                &self.shown_config_file,
+            ),
+            timeline: weather_state.weather().and_then(|weather| {
+                ShownTimeline::of(&weather.forecast, now, &self.clock, self.strings)
+            }),
+            week_strip: self.calendar.week_strip(now),
+            bezel: Bezel::new(self.strings, now, weather_state.weather().is_some()),
         }
     }
 }

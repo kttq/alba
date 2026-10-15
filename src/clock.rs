@@ -72,6 +72,15 @@ impl Clock {
         Line::from(spans)
     }
 
+    /// A time of day in the clock's hour format, with the am or pm mark on a 12-hour clock.
+    pub fn time_text(&self, at: &Zoned) -> String {
+        let hour_and_minute = format!("{}:{:02}", self.hour(at), at.minute());
+        match self.hour_format {
+            HourFormat::TwentyFour => hour_and_minute,
+            HourFormat::Twelve => hour_and_minute + self.am_pm(at),
+        }
+    }
+
     pub fn segment_clock(
         &self,
         now: &Zoned,

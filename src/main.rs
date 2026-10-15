@@ -65,6 +65,7 @@ fn start() -> Result<(), String> {
     let mut app = App::new(
         config,
         weather_source,
+        paths.shown_config_file,
         paths.cache_directory,
         &paths.state_directory,
     );

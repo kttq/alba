@@ -42,7 +42,7 @@ Put evidence in `target/verify/<ticket>/`. `target/` is ignored by git, and clea
 - **Screenshot:** `$S/terminal.sh shot HOME target/verify/<ticket>/<theme>-<cols>x<rows>-<state>.png`. Read the PNG before you attach it: it must show the alba window and the state you claim.
 - **Headless:** save the printed grid and summary with `| tee target/verify/<ticket>/<name>.txt`. Add `--transcript FILE` to keep alba's output as timed JSON lines, to find which cells a redraw wrote and when.
 - **Attach** with `gh pr create|edit|comment --attach 'target/verify/<ticket>/<file>.png#<theme>, <cols>x<rows>, <state>'`. The alt text names the theme, the size, and the state.
-- Record each check and its result in the pull request body. A UI pull request attaches four palette shots (light and dark, 85×26 and 40×12) plus one shot per state or condition it changes.
+- Record each check and its result in the pull request body. A UI pull request attaches four palette shots (light and dark, 85×26 and 40×15) plus one shot per state or condition it changes.
 
 Prove the user path: the real binary, a config file, and a cache file. A side effect counts as proof only when you read it back, such as the log after an offline run.
 
