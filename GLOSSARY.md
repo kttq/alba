@@ -12,9 +12,9 @@ _Avoid_: Window, screen
 One of seven fixed layouts (Large, Wide, Tall, Medium, Compact, Mini, Strip), chosen as the largest that fits the pane.
 _Avoid_: Breakpoint, mode
 
-**Home view**:
-alba's only view, which composes the clock, weather, and calendar to fit the current size tier.
-_Avoid_: Main screen, dashboard, focus view
+**Face**:
+Everything alba shows at one instant (the clock, the weather, and the calendar), which the layout fits to the size tier.
+_Avoid_: Home view, view, dashboard, screen
 
 **Condition**:
 One of nine weather categories (clear, partly cloudy, cloudy, fog, drizzle, rain, heavy rain, snow, thunderstorm) that WMO codes map to.
@@ -29,7 +29,7 @@ The pixel-art drawing of a condition, in a full and a mini size, with two animat
 _Avoid_: Sprite (reserve for the const data that encodes icons and digits), emoji
 
 **Bezel**:
-An optional frame around the whole widget, like the edge of a pocket gadget.
+An optional frame at the edge of the face, like the edge of a pocket gadget, with labels in its borders.
 _Avoid_: Border, box
 
 **Timeline**:
@@ -43,6 +43,10 @@ _Avoid_: Footer, tagline, message
 **Ghost segment**:
 An unlit segment of the LCD clock, shown faintly so every digit keeps the shape of an 8.
 _Avoid_: Shadow digit, background segment
+
+**Motion**:
+The animation alba shows: the blinking colon, the icon frames and star twinkle, and the thunderstorm flash. It stops completely when motion is off.
+_Avoid_: Animation (reserve for icon frames), blink
 
 **Weather station**:
 The part of alba that holds the latest weather: it reads the cache at start, fetches the forecast, and writes the cache.
