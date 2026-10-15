@@ -1,5 +1,3 @@
-//! Resolves the configured `location` name through Open-Meteo geocoding.
-
 use serde::Deserialize;
 
 use crate::{
@@ -9,7 +7,6 @@ use crate::{
 
 const SEARCH_URL: &str = "https://geocoding-api.open-meteo.com/v1/search";
 
-/// A geocoding result: where the forecast is for, and the name that shows it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Place {
     /// Lowercased, followed by a comma and the country code when geocoding sends one.

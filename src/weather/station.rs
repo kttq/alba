@@ -23,7 +23,6 @@ pub enum WeatherState<'a> {
     Fetching,
     /// No usable weather, and the last fetch failed.
     Offline,
-    /// Geocoding found no place by the configured name.
     LocationNotFound(&'a str),
     Fresh(&'a Weather),
     Stale {
@@ -132,8 +131,7 @@ impl WeatherStation {
         }
     }
 
-    /// Lowercased, with the country code. None for configured coordinates, and for a name not
-    /// looked up yet.
+    /// None for configured coordinates, and for a name not resolved yet.
     pub fn place_name(&self) -> Option<&str> {
         self.resolved_location.as_ref()?.place_name.as_deref()
     }

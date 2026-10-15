@@ -23,7 +23,6 @@ pub trait WeatherSource {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Request {
     Forecast(Coordinates),
-    /// Resolves a `location` name through geocoding.
     Lookup {
         name: String,
         language: Language,
