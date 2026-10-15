@@ -1,6 +1,6 @@
 //! Drives alba headless in a pseudo-terminal, and prints what its screen shows.
 
-#[allow(dead_code)]
+#[allow(dead_code, reason = "the tests use the parts this example does not")]
 #[path = "../tests/common/pty.rs"]
 mod pty;
 

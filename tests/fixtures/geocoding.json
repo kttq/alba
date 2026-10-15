@@ -1,0 +1,20 @@
+{
+  "results": [
+    {
+      "id": 3435910,
+      "name": "Buenos Aires",
+      "latitude": -34.61315,
+      "longitude": -58.37723,
+      "elevation": 25.0,
+      "feature_code": "PPLC",
+      "country_code": "AR",
+      "admin1_id": 3433955,
+      "timezone": "America/Argentina/Buenos_Aires",
+      "population": 13076300,
+      "country_id": 3865483,
+      "country": "Argentina",
+      "admin1": "Buenos Aires F.D."
+    }
+  ],
+  "generationtime_ms": 0.6
+}

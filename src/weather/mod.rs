@@ -12,18 +12,38 @@ pub use condition::Condition;
 pub use forecast::{DayOrNight, Forecast, HighAndLow, SunEvent};
 pub use freshness::Freshness;
 pub use schedule::{LastFetchResult, next_fetch};
-pub use source::{BackgroundSource, FetchError, WeatherSource};
+pub use source::{BackgroundSource, FetchError, Request, WeatherSource};
 pub use station::{WeatherState, WeatherStation};
 pub use text::{temperature_line, text_line};
 
 use jiff::Timestamp;
 
-use crate::config::Units;
+use crate::{
+    config::{Coordinates, Units},
+    geocode::Place,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Weather {
     pub fetched_at: Timestamp,
     pub forecast: Forecast,
+}
+
+/// Where the forecast is for: the configured coordinates, or the place a name resolved to.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ResolvedLocation {
+    pub coordinates: Coordinates,
+    /// None for configured coordinates.
+    pub place_name: Option<String>,
+}
+
+impl From<Place> for ResolvedLocation {
+    fn from(place: Place) -> Self {
+        Self {
+            coordinates: place.coordinates,
+            place_name: Some(place.name),
+        }
+    }
 }
 
 /// Open-Meteo always sends Celsius, so a units change keeps the cache valid.

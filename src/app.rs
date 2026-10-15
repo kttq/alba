@@ -1,4 +1,7 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use jiff::Zoned;
 use ratatui::{
@@ -10,7 +13,7 @@ use ratatui::{
 use crate::{
     calendar,
     clock::Clock,
-    config::{Config, Coordinates, Location, Units},
+    config::{Config, Units},
     icon::{Icon, IconSize},
     layout::{self, Face},
     log::Log,
@@ -38,22 +41,23 @@ pub enum Control {
 impl App {
     /// Reads the cache and empties the log.
     pub fn new(
-        config: &Config,
+        config: Config,
         weather_source: Box<dyn WeatherSource>,
         cache_directory: PathBuf,
-        state_directory: PathBuf,
+        state_directory: &Path,
     ) -> Self {
         Self {
             units: config.units,
             motion: config.motion,
             strings: Strings::of(config.language),
-            clock: Clock::new(config),
+            clock: Clock::new(&config),
             weather_station: WeatherStation::new(
-                coordinates(config),
+                config.location,
+                config.language,
                 weather_source,
                 cache_directory,
             ),
-            log: Log::start(&state_directory),
+            log: Log::start(state_directory),
         }
     }
 
@@ -103,12 +107,5 @@ impl App {
                 .and_then(|weather| Icon::of(weather, now))
                 .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }
-    }
-}
-
-fn coordinates(config: &Config) -> Option<Coordinates> {
-    match config.location {
-        Some(Location::Coordinates(coordinates)) => Some(coordinates),
-        _ => None,
     }
 }

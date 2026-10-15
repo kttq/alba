@@ -8,6 +8,8 @@ pub struct Strings {
     pub short_weekdays: [&'static str; 7],
     /// In cycle order, from new moon.
     moon_phases: [&'static str; 8],
+    /// Followed by `: ` and the configured name.
+    pub location_not_found: &'static str,
 }
 
 impl Strings {
@@ -25,6 +27,7 @@ impl Strings {
             "last quarter",
             "waning crescent",
         ],
+        location_not_found: "location not found",
     };
     pub const ES: Self = Self {
         am: "am",
@@ -40,6 +43,7 @@ impl Strings {
             "cuarto menguante",
             "luna menguante",
         ],
+        location_not_found: "ubicación no encontrada",
     };
 
     pub fn moon_phase(&self, name: MoonPhaseName) -> &'static str {
