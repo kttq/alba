@@ -12,7 +12,6 @@ use ratatui::{
     layout::{Rect, Size},
     style::{Color, Modifier},
 };
-use serde_json::Value;
 
 fn with_weather(config_text: &str) -> Harness {
     with_weather_at(config_text, &default_instant())
@@ -21,15 +20,6 @@ fn with_weather(config_text: &str) -> Harness {
 fn with_weather_at(config_text: &str, now: &Zoned) -> Harness {
     let mut harness = Harness::new(&format!("{BUENOS_AIRES}\n{config_text}"));
     harness.fetch(now, Ok(forecast_body()));
-    harness
-}
-
-/// The default forecast, changed by `edit`.
-fn with_forecast(config_text: &str, edit: impl FnOnce(&mut Value)) -> Harness {
-    let mut forecast: Value = serde_json::from_str(&forecast_body()).unwrap();
-    edit(&mut forecast);
-    let mut harness = Harness::new(&format!("{BUENOS_AIRES}\n{config_text}"));
-    harness.fetch(&default_instant(), Ok(forecast.to_string()));
     harness
 }
 
@@ -128,21 +118,6 @@ fn without_weather_mini_does_not_fit_and_strip_takes_a_pane_below_compact() {
 }
 
 #[test]
-fn stale_weather_dims_the_mini_temperature() {
-    let harness = with_weather("");
-    let later = default_instant().checked_add(2.hours()).unwrap();
-
-    let terminal = rendered(&harness, &later, 18, 2);
-
-    let buffer = terminal.backend().buffer();
-    let degrees = (0..18)
-        .find(|&x| buffer[(x, 0)].symbol() == "°")
-        .expect("a temperature");
-    assert_eq!(buffer[(degrees, 0)].fg, Color::DarkGray);
-    assert_eq!(buffer[(degrees - 1, 0)].fg, Color::DarkGray);
-}
-
-#[test]
 fn compact_fits_twenty_three_by_eight_with_the_default_config() {
     let harness = with_weather("");
 
@@ -162,30 +137,6 @@ fn compact_fits_twenty_three_by_eight_with_the_default_config() {
         size_tier(&harness, &default_instant(), 23, 7),
         Some(SizeTier::Mini)
     );
-}
-
-#[test]
-fn compact_sparkline_bars_are_bright_blue_and_a_faint_low_bar_below_five_percent() {
-    let next_hour = default_instant().timestamp().as_second() + 3600;
-    let harness = with_forecast("", |forecast| {
-        let hourly = &mut forecast["hourly"];
-        let times: Vec<i64> = serde_json::from_value(hourly["time"].clone()).unwrap();
-        hourly["precipitation_probability"] = times
-            .iter()
-            .map(|&time| if time <= next_hour { 4 } else { 100 })
-            .collect();
-    });
-
-    let terminal = rendered(&harness, &default_instant(), 23, 8);
-
-    let buffer = terminal.backend().buffer();
-    assert_eq!(row_text(buffer, 7), "▀▀▀▀▀▀  ▁███████████");
-    let low_bar = &buffer[(8, 7)];
-    assert_eq!(low_bar.fg, Color::DarkGray);
-    assert!(low_bar.modifier.contains(Modifier::DIM));
-    let high_bar = &buffer[(9, 7)];
-    assert_eq!(high_bar.fg, Color::LightBlue);
-    assert!(!high_bar.modifier.contains(Modifier::DIM));
 }
 
 #[test]
@@ -267,7 +218,7 @@ fn compact_without_weather_shows_the_weather_state_beside_the_ghost_icon() {
 }
 
 #[test]
-fn stale_compact_dims_the_text_and_sparkline_and_shows_the_age_only_when_it_fits() {
+fn stale_compact_shows_the_age_only_when_it_fits_and_keeps_the_icon_colors() {
     let later = default_instant().checked_add(2.hours()).unwrap();
     let english = with_weather("");
     let spanish = with_weather("language = \"es\"");
@@ -278,16 +229,11 @@ fn stale_compact_dims_the_text_and_sparkline_and_shows_the_age_only_when_it_fits
 
     let buffer = narrow.backend().buffer();
     assert_eq!(row_text(buffer, 6), "▄██▄   14°  ↑19° ↓13°");
-    for x in 8..20 {
-        assert_eq!(buffer[(x, 6)].fg, Color::DarkGray, "column {x}");
-    }
-    for x in 8..20 {
-        assert_eq!(buffer[(x, 7)].fg, Color::DarkGray, "bar {x}");
-    }
     assert_eq!(buffer[(2, 6)].fg, Color::Reset, "the icon keeps its colors");
-    let buffer = wide.backend().buffer();
-    assert_eq!(row_text(buffer, 6), "▄██▄   14°  ↑19° ↓13° 2h ago");
-    assert_eq!(buffer[(23, 6)].fg, Color::DarkGray);
+    assert_eq!(
+        row_text(wide.backend().buffer(), 6),
+        "▄██▄   14°  ↑19° ↓13° 2h ago"
+    );
     assert_eq!(
         row_text(spanish_wide.backend().buffer(), 6),
         "▄██▄   14°  ↑19° ↓13° hace 2h"
@@ -478,21 +424,12 @@ fn medium_bottom_border_credits_open_meteo_only_with_weather() {
 }
 
 #[test]
-fn stale_medium_dims_the_text_and_sparkline_but_not_the_icon_or_timeline() {
+fn stale_medium_keeps_the_icon_and_timeline_colors() {
     let later = default_instant().checked_add(2.hours()).unwrap();
     let fresh = rendered(&with_weather(""), &default_instant(), 40, 15);
     let stale = rendered(&with_weather(""), &later, 40, 15);
 
     let buffer = stale.backend().buffer();
-    for x in 2..24 {
-        let cell = &buffer[(x, 6)];
-        if cell.symbol() != " " {
-            assert_eq!(cell.fg, Color::DarkGray, "column {x}");
-        }
-    }
-    for x in 26..29 {
-        assert_eq!(buffer[(x, 6)].fg, Color::DarkGray, "bar {x}");
-    }
     let fresh = fresh.backend().buffer();
     assert_eq!(buffer[(30, 3)], fresh[(30, 3)], "the icon keeps its colors");
     assert_eq!(

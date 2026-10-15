@@ -49,6 +49,20 @@ fn week_strip_pills_today_dims_past_days_and_tints_the_weekend() {
 }
 
 #[test]
+fn today_pill_leaves_the_spaces_beside_it_plain() {
+    let [_, days] = week_strip("", &default_instant());
+
+    let pill = (days.spans.iter())
+        .position(|span| span.style.add_modifier.contains(Modifier::REVERSED))
+        .expect("today's pill");
+    assert_eq!(days.spans[pill].content, "13");
+    for beside in [pill - 1, pill + 1] {
+        assert_eq!(days.spans[beside].content, " ");
+        assert_eq!(days.spans[beside].style, Style::new(), "span {beside}");
+    }
+}
+
+#[test]
 fn sunday_first_week_strip_tints_the_weekend_by_the_day_of_the_week() {
     let [header, days] = week_strip("week_start = \"sunday\"", &default_instant());
 

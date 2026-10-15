@@ -64,8 +64,7 @@ impl Calendar {
     /// The current week: the weekday header over the days.
     pub fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
         let today = now.date();
-        let weeks = self.weeks(today, 1);
-        [self.weekday_header(), week_row(&weeks[0], today)]
+        [self.weekday_header(), week_row(&self.week_of(today), today)]
     }
 
     fn weekday_header(&self) -> Line<'static> {
@@ -82,19 +81,12 @@ impl Calendar {
         Line::from(spaced(initials.collect()))
     }
 
-    /// `count` weeks from the configured first weekday, the first one holding `day`. A week at
-    /// the edge of the supported dates is short.
-    fn weeks(&self, day: Date, count: i64) -> Vec<Vec<Date>> {
+    /// The seven days of the week that holds `day`, from the configured first weekday. A week
+    /// at the edge of the supported dates is short.
+    fn week_of(&self, day: Date) -> Vec<Date> {
         let days_since_start = i64::from(day.weekday().since(self.first_weekday()));
-        (0..count)
-            .map(|week| {
-                (0..7)
-                    .filter_map(|offset| {
-                        day.checked_add((7 * week + offset - days_since_start).days())
-                            .ok()
-                    })
-                    .collect()
-            })
+        (0..7)
+            .filter_map(|offset| day.checked_add((offset - days_since_start).days()).ok())
             .collect()
     }
 

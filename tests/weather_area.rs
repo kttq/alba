@@ -7,14 +7,22 @@ use alba::{
 };
 use common::{default_instant, forecast_body};
 use jiff::SignedDuration;
-use ratatui::{style::Color, text::Line};
+use ratatui::{
+    style::{Color, Modifier},
+    text::Line,
+};
+use serde_json::Value;
 
 const CONFIG_FILE: &str = "~/.config/alba/config.toml";
 
 fn weather() -> Weather {
+    weather_from(&forecast_body())
+}
+
+fn weather_from(forecast_body: &str) -> Weather {
     Weather {
         fetched_at: default_instant().timestamp(),
-        forecast: Forecast::parse(&forecast_body()).unwrap(),
+        forecast: Forecast::parse(forecast_body).unwrap(),
     }
 }
 
@@ -107,6 +115,28 @@ fn stale_weather_dims_the_temperatures_and_the_sparkline() {
         "{:?}",
         stale.sparkline()
     );
+}
+
+#[test]
+fn sparkline_bars_are_bright_blue_and_a_faint_low_bar_below_five_percent() {
+    let next_hour = default_instant().timestamp().as_second() + 3600;
+    let mut forecast: Value = serde_json::from_str(&forecast_body()).unwrap();
+    let hourly = &mut forecast["hourly"];
+    let times: Vec<i64> = serde_json::from_value(hourly["time"].clone()).unwrap();
+    hourly["precipitation_probability"] = times
+        .iter()
+        .map(|&time| if time <= next_hour { 4 } else { 100 })
+        .collect();
+    let weather = weather_from(&forecast.to_string());
+
+    let readings = readings(WeatherState::Fresh(&weather), false);
+
+    let bars = &readings.sparkline().spans;
+    assert_eq!(text(readings.sparkline()), "▁███████████");
+    assert_eq!(bars[0].style.fg, Some(Color::DarkGray));
+    assert!(bars[0].style.add_modifier.contains(Modifier::DIM));
+    assert_eq!(bars[1].style.fg, Some(Color::LightBlue));
+    assert!(!bars[1].style.add_modifier.contains(Modifier::DIM));
 }
 
 #[test]
