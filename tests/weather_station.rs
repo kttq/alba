@@ -1,5 +1,7 @@
 mod common;
 
+use std::fs;
+
 use alba::{
     config::Language,
     weather::{FetchError, Request, WeatherState},
@@ -9,6 +11,7 @@ use common::{
     geocoding_body, temporary_directory,
 };
 use jiff::{SignedDuration, Zoned};
+use serde_json::{Value, json};
 
 fn at(seconds: i64) -> Zoned {
     default_instant()
@@ -327,5 +330,28 @@ fn cached_location_is_not_looked_up_again_until_the_name_changes() {
     assert_eq!(
         renamed.weather_source.requests(),
         [lookup("paris", Language::En)]
+    );
+}
+
+#[test]
+fn cached_coordinates_out_of_range_are_looked_up_again() {
+    let cache_directory = temporary_directory();
+    let mut first_run =
+        WeatherStationHarness::named("buenos aires", Language::En, cache_directory.clone());
+    first_run.tick(&at(0));
+    first_run.finish(&at(0), Ok(geocoding_body()));
+    first_run.finish(&at(0), Ok(forecast_body()));
+    let cache_file = cache_directory.join("weather.json");
+    let mut cache: Value = serde_json::from_str(&fs::read_to_string(&cache_file).unwrap()).unwrap();
+    cache["location"]["latitude"] = json!(123.0);
+    fs::write(&cache_file, cache.to_string()).unwrap();
+
+    let mut next_start =
+        WeatherStationHarness::named("buenos aires", Language::En, cache_directory);
+    next_start.tick(&at(0));
+
+    assert_eq!(
+        next_start.weather_source.requests(),
+        [lookup("buenos aires", Language::En)]
     );
 }

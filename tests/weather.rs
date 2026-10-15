@@ -266,7 +266,9 @@ fn unusable_cache_counts_as_no_cache() {
     let now = default_instant();
     let breakages: [(&str, Breakage); 3] = [
         ("other version", |text| {
-            text.replace("\"version\":2", "\"version\":0")
+            let mut cache: Value = serde_json::from_str(&text).unwrap();
+            cache["version"] = json!(0);
+            cache.to_string()
         }),
         ("malformed", |text| text[..text.len() / 2].to_string()),
         ("not text", |_| "\u{0}\u{fffd}".to_string()),

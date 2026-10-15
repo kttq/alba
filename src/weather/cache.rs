@@ -45,19 +45,15 @@ impl CachedLocation {
         }
     }
 
-    fn resolves(&self, location: &Location) -> bool {
-        match (location, &self.name) {
+    /// The cached coordinates, when they are valid and for the configured location.
+    fn coordinates_for(&self, location: &Location) -> Option<Coordinates> {
+        let coordinates = Coordinates::try_from(vec![self.latitude, self.longitude]).ok()?;
+        let matches = match (location, &self.name) {
             (Location::Name(configured), Some(name)) => configured == name,
-            (Location::Coordinates(configured), None) => *configured == self.coordinates(),
+            (Location::Coordinates(configured), None) => *configured == coordinates,
             _ => false,
-        }
-    }
-
-    fn coordinates(&self) -> Coordinates {
-        Coordinates {
-            latitude: self.latitude,
-            longitude: self.longitude,
-        }
+        };
+        matches.then_some(coordinates)
     }
 }
 
@@ -69,15 +65,16 @@ pub fn read(directory: &Path, location: &Location) -> Option<(Weather, ResolvedL
 
 fn usable(text: &str, location: &Location) -> Option<(Weather, ResolvedLocation)> {
     let file: CacheFile = serde_json::from_str(text).ok()?;
-    if file.version != FORMAT_VERSION || !file.location.resolves(location) {
+    if file.version != FORMAT_VERSION {
         return None;
     }
+    let coordinates = file.location.coordinates_for(location)?;
     let weather = Weather {
         fetched_at: Timestamp::from_second(file.fetched_at).ok()?,
         forecast: file.forecast,
     };
     let resolved_location = ResolvedLocation {
-        coordinates: file.location.coordinates(),
+        coordinates,
         place_name: file.location.place_name,
     };
     Some((weather, resolved_location))

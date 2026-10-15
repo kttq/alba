@@ -12,7 +12,7 @@ const SEARCH_URL: &str = "https://geocoding-api.open-meteo.com/v1/search";
 /// A geocoding result: where the forecast is for, and the name that shows it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Place {
-    /// Lowercased, with the country code: `buenos aires, ar`.
+    /// Lowercased, followed by a comma and the country code when geocoding sends one.
     pub name: String,
     pub coordinates: Coordinates,
 }

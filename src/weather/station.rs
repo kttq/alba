@@ -50,7 +50,7 @@ pub struct WeatherStation {
     language: Language,
     weather_source: Box<dyn WeatherSource>,
     cache_directory: PathBuf,
-    /// None until a configured name is looked up.
+    /// None while a configured name is not resolved.
     resolved_location: Option<ResolvedLocation>,
     weather: Option<Weather>,
     /// Holds until `r`, because an automatic retry would find no match again.
