@@ -188,16 +188,14 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// The large clock over the Large icon, the details column, and the month calendar, then the
-/// timeline, in the bezel.
 fn large_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
-    details_columns(face)
+    large_weather_area_arrangements(face)
         .into_iter()
-        .map(|details| {
+        .map(|weather_area| {
             let middle = row(
                 vec![
                     Cell::Next(icon_slot(face.icon, IconSize::Large)),
-                    Cell::Next(details),
+                    Cell::Next(weather_area),
                     Cell::Next(calendar_lines(face.calendar.month())),
                 ],
                 CALENDAR_GAP,
@@ -214,9 +212,9 @@ fn large_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         .collect()
 }
 
-/// Large's weather area, each way widest first: the readings over the labelled sparkline, the
-/// first-run hint, or the weather state line.
-fn details_columns(face: &Face) -> Vec<Arrangement<'_>> {
+/// Each way widest first: the readings over the labelled sparkline, the first-run hint, or the
+/// weather state line.
+fn large_weather_area_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let readings = match &face.weather_area {
         WeatherArea::NoWeather {
             first_run_hint: Some(first_run_hint),

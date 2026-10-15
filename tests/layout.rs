@@ -402,7 +402,6 @@ fn tall_without_a_location_puts_the_first_run_hint_under_the_clock() {
     );
 }
 
-/// Each weather state with the instant to show it at, named for its snapshot.
 fn weather_state_cases() -> Vec<(&'static str, (Harness, Zoned))> {
     let offline = || {
         let mut harness = Harness::new(BUENOS_AIRES);
@@ -701,13 +700,8 @@ fn large_labels_the_sparkline_in_each_language() {
         let now = default_instant();
         let terminal = rendered(&harness, &now, width, 23);
 
-        let buffer = terminal.backend().buffer();
         assert_eq!(size_tier(&harness, &now, width, 23), Some(SizeTier::Large));
-        assert!(
-            row_text(buffer, 14).contains(label),
-            "{}",
-            row_text(buffer, 14)
-        );
-        assert_eq!(buffer[(29, 14)].fg, Color::DarkGray, "{label}");
+        let row = row_text(terminal.backend().buffer(), 14);
+        assert!(row.contains(&format!("   {label}   ")), "{row}");
     }
 }

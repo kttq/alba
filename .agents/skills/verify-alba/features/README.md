@@ -24,6 +24,7 @@ The maintained source for verifying what a user sees in alba. Read this index be
 
 - [Strip line](./strip-line.md): the one-line face, its drop order, and its palette in light and dark themes.
 - [Medium](./medium.md): the 40×15 tier in the bezel, with the clock, the full icon, the timeline, and the week strip, and its no-data states.
+- [Large](./large.md): the 85×26 tier with the 8×15 clock, the Large icon, the details column with the labelled sparkline, the month calendar, and the timeline.
 - [Wide and Tall](./wide-tall.md): the tiers with the month calendar beside or below, the place name in Wide's bezel, and the Sunday-first week.
 - [Compact](./compact.md): the eight-row tier with the short date, the LCD clock, and the weather, and its no-data and stale states.
 - [Mini](./mini.md): the two-row tier with the text clock, the mini icon, and the temperature, and the switch to Strip.
