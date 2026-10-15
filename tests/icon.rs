@@ -1,7 +1,8 @@
 mod common;
 
 use alba::{
-    icon::{Animation, Icon, IconSize},
+    icon::{Icon, IconSize},
+    motion::Motion,
     sky::MoonPhase,
     weather::Condition,
 };
@@ -21,17 +22,26 @@ fn instant(time: &str) -> Zoned {
         .unwrap()
 }
 
-/// Away from the flash, which lights in the first quarter second of every eighth second.
-fn frame_one() -> Animation {
-    Animation::at(&instant("06:38:02.5"), true)
+fn frame_one() -> Motion {
+    Motion {
+        colon_lit: true,
+        icon_frame: 0,
+        flash: false,
+    }
 }
 
-fn frame_two() -> Animation {
-    Animation::at(&instant("06:38:03.5"), true)
+fn frame_two() -> Motion {
+    Motion {
+        icon_frame: 1,
+        ..frame_one()
+    }
 }
 
-fn flash() -> Animation {
-    Animation::at(&instant("06:38:00"), true)
+fn flash() -> Motion {
+    Motion {
+        flash: true,
+        ..frame_one()
+    }
 }
 
 fn tonight() -> MoonPhase {
@@ -63,11 +73,11 @@ fn every_icon() -> Vec<(&'static str, Icon)> {
     icons
 }
 
-fn rendered(icon: Icon, size: IconSize, animation: Animation) -> String {
+fn rendered(icon: Icon, size: IconSize, motion: Motion) -> String {
     let (width, height) = size.cells();
     let area = Rect::new(0, 0, width, height);
     let mut buffer = Buffer::empty(area);
-    icon.render(size, animation, area, &mut buffer);
+    icon.render(size, motion, area, &mut buffer);
     pixel_snapshot(&buffer, area)
 }
 
@@ -93,39 +103,6 @@ fn the_thunderstorm_flash_in_every_size() {
             rendered(Icon::Day(Condition::Thunderstorm), size, flash())
         );
     }
-}
-
-#[test]
-fn the_flash_lasts_one_tick_at_the_start_of_each_eight_seconds() {
-    let storm = |time: &str, motion: bool| {
-        let animation = Animation::at(&instant(time), motion);
-        rendered(
-            Icon::Day(Condition::Thunderstorm),
-            IconSize::Full,
-            animation,
-        )
-    };
-    let flashing = storm("06:38:00", true);
-    let still = storm("06:38:02.5", true);
-
-    assert_ne!(flashing, still);
-    assert_eq!(storm("06:38:08.249", true), flashing);
-    assert_eq!(storm("06:38:08.25", true), still);
-    assert_eq!(storm("06:38:04", true), still);
-    assert_eq!(storm("06:38:00", false), still);
-}
-
-#[test]
-fn frames_change_every_second_and_stop_without_motion() {
-    let rain = |time: &str, motion: bool| {
-        let animation = Animation::at(&instant(time), motion);
-        rendered(Icon::Day(Condition::Rain), IconSize::Full, animation)
-    };
-
-    assert_eq!(rain("06:38:02.5", true), rain("06:38:04", true));
-    assert_eq!(rain("06:38:03.5", true), rain("06:38:05", true));
-    assert_ne!(rain("06:38:02.5", true), rain("06:38:03.5", true));
-    assert_eq!(rain("06:38:03.5", false), rain("06:38:02.5", true));
 }
 
 #[test]
@@ -176,8 +153,8 @@ fn every_painted_pixel_survives_the_cell_packing() {
     }
     for (name, icon) in icons {
         for (_, size) in SIZES {
-            for animation in [frame_one(), frame_two(), flash()] {
-                let canvas = icon.canvas(size, animation);
+            for motion in [frame_one(), frame_two(), flash()] {
+                let canvas = icon.canvas(size, motion);
                 assert_eq!(
                     canvas_snapshot(&canvas),
                     canvas_text(&canvas),

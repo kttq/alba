@@ -4,6 +4,7 @@ use jiff::Zoned;
 use ratatui::{buffer::Buffer, layout::Rect, style::Style, widgets::Widget};
 
 use crate::{
+    motion::Motion,
     pixels::{Canvas, Legend},
     sky::{MoonPhase, Sky},
     sprites::{self, Frames},
@@ -28,30 +29,6 @@ pub enum IconSize {
     Large,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Animation {
-    frame: usize,
-    flash: bool,
-}
-
-impl Animation {
-    /// One frame per second. Without motion, frame 1 and no flash.
-    pub fn at(now: &Zoned, motion: bool) -> Self {
-        if !motion {
-            return Self {
-                frame: 0,
-                flash: false,
-            };
-        }
-        let second =
-            i64::from(now.hour()) * 3600 + i64::from(now.minute()) * 60 + i64::from(now.second());
-        Self {
-            frame: (second % 2) as usize,
-            flash: second % 8 == 0 && now.subsec_nanosecond() < 250_000_000,
-        }
-    }
-}
-
 impl IconSize {
     /// Width and height in cells.
     pub fn cells(self) -> (u16, u16) {
@@ -74,20 +51,20 @@ impl Icon {
         })
     }
 
-    pub fn canvas(self, size: IconSize, animation: Animation) -> Canvas {
+    pub fn canvas(self, size: IconSize, motion: Motion) -> Canvas {
         if size == IconSize::Large {
-            return self.canvas(IconSize::Full, animation).scaled(2);
+            return self.canvas(IconSize::Full, motion).scaled(2);
         }
         if let Self::Night(Condition::Clear, moon_phase) = self {
             return moon(size, moon_phase);
         }
-        let (frames, legend) = self.sprite(size, animation);
-        Canvas::from_rows(frames[animation_frame(self, animation)], legend)
+        let (frames, legend) = self.sprite(size, motion);
+        Canvas::from_rows(frames[icon_frame(self, motion)], legend)
     }
 
     /// Paints the canvas, then the stars into empty cells.
-    pub fn render(self, size: IconSize, animation: Animation, area: Rect, buffer: &mut Buffer) {
-        let canvas = self.canvas(size, animation);
+    pub fn render(self, size: IconSize, motion: Motion, area: Rect, buffer: &mut Buffer) {
+        let canvas = self.canvas(size, motion);
         canvas.render(area, buffer);
         if !self.is_starry() {
             return;
@@ -97,7 +74,7 @@ impl Icon {
             IconSize::Full => sprites::FULL_STARS,
             IconSize::Large => sprites::LARGE_STARS,
         };
-        let glyphs = sprites::STAR_GLYPHS[animation.frame];
+        let glyphs = sprites::STAR_GLYPHS[motion.icon_frame];
         for ((column, row), glyph) in stars.into_iter().zip(glyphs) {
             let empty = canvas.pixel(column, row * 2).is_none()
                 && canvas.pixel(column, row * 2 + 1).is_none();
@@ -116,7 +93,7 @@ impl Icon {
         )
     }
 
-    fn sprite(self, size: IconSize, animation: Animation) -> (Frames, &'static Legend) {
+    fn sprite(self, size: IconSize, motion: Motion) -> (Frames, &'static Legend) {
         let condition = match self {
             Self::Ghost => return (frames(Condition::Cloudy, size), sprites::GHOST_LEGEND),
             Self::Night(Condition::PartlyCloudy, _) => {
@@ -124,7 +101,7 @@ impl Icon {
             }
             Self::Day(condition) | Self::Night(condition, _) => condition,
         };
-        let legend = if condition == Condition::Thunderstorm && animation.flash {
+        let legend = if condition == Condition::Thunderstorm && motion.flash {
             sprites::FLASH_LEGEND
         } else {
             sprites::ICON_LEGEND
@@ -134,10 +111,10 @@ impl Icon {
 }
 
 /// The ghost icon stands still.
-fn animation_frame(icon: Icon, animation: Animation) -> usize {
+fn icon_frame(icon: Icon, motion: Motion) -> usize {
     match icon {
         Icon::Ghost => 0,
-        _ => animation.frame,
+        _ => motion.icon_frame,
     }
 }
 

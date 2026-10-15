@@ -2,7 +2,7 @@ mod common;
 
 use alba::{
     app::App,
-    layout::{self, HomeContent, LayoutReport, SizeTier},
+    layout::{self, Face, LayoutReport, SizeTier},
     weather::FetchError,
 };
 use common::{BUENOS_AIRES, Harness, forecast_body};
@@ -134,9 +134,9 @@ impl std::fmt::Display for Case<'_> {
     }
 }
 
-fn largest_fitting(content: &HomeContent, pane: Rect) -> Option<SizeTier> {
+fn largest_fitting(face: &Face, pane: Rect) -> Option<SizeTier> {
     SizeTier::IN_ORDER.into_iter().find(|&size_tier| {
-        layout::minimum_size(size_tier, content)
+        layout::minimum_size(size_tier, face)
             .is_some_and(|size| size.width <= pane.width && size.height <= pane.height)
     })
 }
@@ -190,7 +190,7 @@ fn every_pane_size_gets_the_largest_fitting_tier_without_clipping() {
     for config_text in config_variants() {
         for weather_state in WEATHER_STATES {
             let (app, now) = app_in(weather_state, &config_text);
-            let content = app.home_content(&now);
+            let face = app.face(&now);
             let mut rendered = Vec::new();
             for width in 1..=WIDEST_PANE {
                 for height in 1..=TALLEST_PANE {
@@ -200,9 +200,9 @@ fn every_pane_size_gets_the_largest_fitting_tier_without_clipping() {
                         weather_state,
                         pane,
                     };
-                    let report = layout::lay_out(pane, &content);
+                    let report = layout::lay_out(pane, &face);
 
-                    assert_eq!(report.size_tier, largest_fitting(&content, pane), "{case}");
+                    assert_eq!(report.size_tier, largest_fitting(&face, pane), "{case}");
                     assert_items_fit_without_overlap(&report, pane, &case);
 
                     let drawn = (report.size_tier, report.items.len());
