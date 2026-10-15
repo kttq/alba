@@ -32,6 +32,11 @@ enum Command {
     Log,
 }
 
+#[expect(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "alba prints only before it owns the terminal"
+)]
 fn main() -> ExitCode {
     let result = match parse_args(std::env::args().skip(1)) {
         Ok(Command::Run) => start(),

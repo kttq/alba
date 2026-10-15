@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, reason = "each test crate uses only part of the harness")]
 
 pub mod fixture_home;
 pub mod pty;

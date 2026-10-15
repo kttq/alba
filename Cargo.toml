@@ -28,5 +28,9 @@ panic = "abort"
 panic = "abort"
 
 [lints.clippy]
+allow_attributes_without_reason = "warn"
+implicit_clone = "warn"
 needless_pass_by_value = "warn"
+print_stderr = "warn"
+print_stdout = "warn"
 redundant_clone = "warn"
