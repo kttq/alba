@@ -79,3 +79,12 @@ fn every_xdg_variable_set_needs_no_home() {
 
     assert!(paths.is_some());
 }
+
+#[test]
+fn shown_config_file_puts_tilde_for_home_and_shows_other_paths_whole() {
+    let under_home = resolve(&[("HOME", "/home/gabo")]).unwrap();
+    let elsewhere = resolve(&[("HOME", "/home/gabo"), ("XDG_CONFIG_HOME", "/etc/gabo")]).unwrap();
+
+    assert_eq!(under_home.shown_config_file, "~/.config/alba/config.toml");
+    assert_eq!(elsewhere.shown_config_file, "/etc/gabo/alba/config.toml");
+}

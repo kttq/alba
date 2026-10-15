@@ -67,6 +67,7 @@ fn rain_by_day_at_each_tier_minimum_and_at_large_panes() {
         ("strip_minimum", 5, 1),
         ("compact_minimum", 23, 8),
         ("mini_minimum", 18, 2),
+        ("medium_minimum", 40, 12),
         ("85x26", 85, 26),
         ("250x80", 250, 80),
     ];
@@ -330,4 +331,295 @@ fn compact_icon_keeps_its_column_when_the_weather_returns() {
 
     assert_eq!(offline.backend().buffer()[(0, 7)].symbol(), "▀");
     assert_eq!(fresh.backend().buffer()[(0, 7)].symbol(), "▀");
+}
+
+#[test]
+fn medium_fits_forty_by_twelve_with_the_default_config() {
+    let harness = with_weather("");
+
+    assert_eq!(
+        minimum_size(&harness, &default_instant(), SizeTier::Medium),
+        Some(Size::new(40, 12))
+    );
+    assert_eq!(
+        size_tier(&harness, &default_instant(), 40, 12),
+        Some(SizeTier::Medium)
+    );
+    assert_eq!(
+        size_tier(&harness, &default_instant(), 39, 12),
+        Some(SizeTier::Compact)
+    );
+    assert_eq!(
+        size_tier(&harness, &default_instant(), 40, 11),
+        Some(SizeTier::Compact)
+    );
+}
+
+#[test]
+fn twelve_hour_clock_widens_medium_by_three_columns() {
+    let noon = default_instant().with().hour(12).build().unwrap();
+    let harness = with_weather_at("hour_format = 12", &noon);
+
+    assert_eq!(
+        minimum_size(&harness, &noon, SizeTier::Medium),
+        Some(Size::new(43, 12))
+    );
+}
+
+#[test]
+fn medium_weather_states() {
+    let offline = || {
+        let mut harness = Harness::new(BUENOS_AIRES);
+        harness.fetch(
+            &default_instant(),
+            Err(FetchError::Network("timed out".to_string())),
+        );
+        (harness, default_instant())
+    };
+    let fetching = || {
+        let mut harness = Harness::new(BUENOS_AIRES);
+        harness.app.tick(&default_instant());
+        (harness, default_instant().checked_add(1.second()).unwrap())
+    };
+    let refreshing = |at: Zoned| {
+        let mut harness = with_weather("");
+        harness.app.key(KeyEvent::from(KeyCode::Char('r')));
+        harness.app.tick(&at);
+        (harness, at.checked_add(1.second()).unwrap())
+    };
+    let night = default_instant().with().hour(23).build().unwrap();
+    let cases = [
+        ("medium_no_location", (Harness::new(""), default_instant())),
+        ("medium_fetching", fetching()),
+        ("medium_offline", offline()),
+        (
+            "medium_stale",
+            (
+                with_weather(""),
+                default_instant().checked_add(2.hours()).unwrap(),
+            ),
+        ),
+        (
+            "medium_expired",
+            (
+                with_weather(""),
+                default_instant().checked_add(13.hours()).unwrap(),
+            ),
+        ),
+        ("medium_night", (with_weather_at("", &night), night)),
+        ("medium_fetch_indicator", refreshing(default_instant())),
+        (
+            "medium_stale_fetch_indicator",
+            refreshing(default_instant().checked_add(2.hours()).unwrap()),
+        ),
+    ];
+
+    for (name, (harness, now)) in cases {
+        assert_eq!(
+            size_tier(&harness, &now, 40, 12),
+            Some(SizeTier::Medium),
+            "{name}"
+        );
+        insta::assert_snapshot!(name, rendered(&harness, &now, 40, 12).backend());
+    }
+}
+
+fn named_with_weather(config_text: &str, now: &Zoned) -> Harness {
+    let mut harness = Harness::new(&format!("location = \"buenos aires\"\n{config_text}"));
+    harness.fetch(now, Ok(common::geocoding_body()));
+    harness.weather_source.finish(Ok(forecast_body()));
+    harness.app.tick(now);
+    harness
+}
+
+#[test]
+fn medium_top_border_centres_the_place_name_and_truncates_it_to_keep_a_dash_from_each_label() {
+    let noon = default_instant().with().hour(12).build().unwrap();
+    let narrow = named_with_weather("", &default_instant());
+    let wide = named_with_weather("hour_format = 12", &noon);
+
+    let narrow = rendered(&narrow, &default_instant(), 40, 12);
+    let wide = rendered(&wide, &noon, 43, 12);
+
+    assert_eq!(
+        row_text(narrow.backend().buffer(), 0),
+        "╭─ tue 13 oct ─ buenos aires… ─ wk 42 ─╮"
+    );
+    assert_eq!(
+        row_text(wide.backend().buffer(), 0),
+        "╭─ tue 13 oct ─ buenos aires, ar ─ wk 42 ─╮"
+    );
+    let name = narrow.backend().buffer()[(16, 0)].clone();
+    assert_eq!((name.symbol(), name.fg), ("b", Color::DarkGray));
+}
+
+#[test]
+fn medium_top_border_is_blue_date_and_dim_week_in_spanish_too() {
+    let terminal = rendered(
+        &with_weather("language = \"es\""),
+        &default_instant(),
+        40,
+        12,
+    );
+
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        row_text(buffer, 0),
+        "╭─ mar 13 oct ──────────────── sem 42 ─╮"
+    );
+    assert_eq!(buffer[(3, 0)].fg, Color::LightBlue);
+    assert_eq!(buffer[(31, 0)].fg, Color::DarkGray);
+    assert_eq!(buffer[(0, 0)].fg, Color::DarkGray);
+}
+
+#[test]
+fn medium_bottom_border_greets_by_the_hour_in_each_language() {
+    let cases = [
+        ("", "04:59", "╰» sleepy time ✦"),
+        ("", "05:00", "╰» good morning ♥"),
+        ("", "12:00", "╰» good afternoon ★"),
+        ("", "18:00", "╰» good evening ★"),
+        ("", "23:00", "╰» sleepy time ✦"),
+        ("language = \"es\"", "05:00", "╰» buenos días ♥"),
+        ("language = \"es\"", "19:59", "╰» buenas tardes ★"),
+        ("language = \"es\"", "20:00", "╰» buenas noches ★"),
+        ("language = \"es\"", "23:00", "╰» a mimir ✦"),
+    ];
+
+    for (config_text, time, greeting) in cases {
+        let now: Zoned = format!("2026-10-13T{time}[America/Argentina/Buenos_Aires]")
+            .parse()
+            .unwrap();
+        let terminal = rendered(&Harness::new(config_text), &now, 40, 12);
+
+        let bottom = row_text(terminal.backend().buffer(), 11);
+        assert!(bottom.starts_with(greeting), "{time}: {bottom}");
+        assert_eq!(terminal.backend().buffer()[(3, 11)].fg, Color::Green);
+    }
+}
+
+#[test]
+fn medium_bottom_border_credits_open_meteo_only_with_weather() {
+    let with = rendered(&with_weather(""), &default_instant(), 40, 12);
+    let without = rendered(&Harness::new(BUENOS_AIRES), &default_instant(), 40, 12);
+
+    assert!(row_text(with.backend().buffer(), 11).ends_with("── open-meteo ─╯"));
+    assert!(row_text(without.backend().buffer(), 11).ends_with("─────╯"));
+}
+
+#[test]
+fn medium_week_strip_pills_today_dims_past_days_and_tints_the_weekend() {
+    let terminal = rendered(&with_weather(""), &default_instant(), 40, 12);
+
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        row_text(buffer, 9),
+        "│         mo tu we th fr sa su         │"
+    );
+    assert_eq!(
+        row_text(buffer, 10),
+        "│         12 13 14 15 16 17 18         │"
+    );
+    let style = |x: u16, y: u16| (buffer[(x, y)].fg, buffer[(x, y)].modifier);
+    let dim = (Color::DarkGray, Modifier::empty());
+    let weekend = (Color::Green, Modifier::empty());
+    let pill = (Color::Yellow, Modifier::REVERSED);
+    assert_eq!(style(10, 9), dim, "a weekday name");
+    assert_eq!(style(25, 9), weekend, "a weekend name");
+    assert_eq!(style(10, 10), dim, "a past day");
+    for x in 12..16 {
+        assert_eq!(style(x, 10), pill, "today's pill, column {x}");
+    }
+    assert_eq!(
+        style(16, 10),
+        (Color::Reset, Modifier::empty()),
+        "a coming weekday"
+    );
+    assert_eq!(style(25, 10), weekend, "a coming weekend day");
+}
+
+#[test]
+fn sunday_first_week_strip_tints_the_weekend_by_the_day_of_the_week() {
+    let terminal = rendered(
+        &with_weather("week_start = \"sunday\""),
+        &default_instant(),
+        40,
+        12,
+    );
+
+    let buffer = terminal.backend().buffer();
+    assert_eq!(
+        row_text(buffer, 9),
+        "│         su mo tu we th fr sa         │"
+    );
+    assert_eq!(
+        row_text(buffer, 10),
+        "│         11 12 13 14 15 16 17         │"
+    );
+    assert_eq!(buffer[(10, 9)].fg, Color::Green, "sunday, first");
+    assert_eq!(buffer[(28, 9)].fg, Color::Green, "saturday, last");
+    assert_eq!(buffer[(28, 10)].fg, Color::Green);
+    assert_eq!(buffer[(13, 9)].fg, Color::DarkGray, "monday");
+}
+
+#[test]
+fn stale_medium_dims_the_text_and_sparkline_but_not_the_icon_or_timeline() {
+    let later = default_instant().checked_add(2.hours()).unwrap();
+    let fresh = rendered(&with_weather(""), &default_instant(), 40, 12);
+    let stale = rendered(&with_weather(""), &later, 40, 12);
+
+    let buffer = stale.backend().buffer();
+    for x in 2..24 {
+        let cell = &buffer[(x, 5)];
+        if cell.symbol() != " " {
+            assert_eq!(cell.fg, Color::DarkGray, "column {x}");
+        }
+    }
+    for x in 26..29 {
+        assert_eq!(buffer[(x, 5)].fg, Color::DarkGray, "bar {x}");
+    }
+    let fresh = fresh.backend().buffer();
+    assert_eq!(buffer[(30, 2)], fresh[(30, 2)], "the icon keeps its colors");
+    assert_eq!(
+        buffer[(20, 6)].fg,
+        fresh[(20, 6)].fg,
+        "the timeline keeps its colors"
+    );
+}
+
+#[test]
+fn medium_without_a_match_says_location_not_found() {
+    let mut harness = Harness::new("location = \"atlantis\"");
+    harness.fetch(&default_instant(), Ok(NO_MATCH.to_string()));
+
+    let terminal = rendered(&harness, &default_instant(), 40, 12);
+
+    assert_eq!(
+        row_text(terminal.backend().buffer(), 5),
+        "│ location not found: atlantis         │"
+    );
+}
+
+#[test]
+fn polar_night_leaves_the_medium_timeline_rows_empty() {
+    let now: Zoned = "2025-02-14T10:00[Arctic/Longyearbyen]".parse().unwrap();
+    let body = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/forecast_longyearbyen_polar.json"
+    ))
+    .unwrap();
+    let mut harness = Harness::new(BUENOS_AIRES);
+    harness.fetch(&now, Ok(body));
+
+    let terminal = rendered(&harness, &now, 40, 12);
+
+    let buffer = terminal.backend().buffer();
+    assert_eq!(size_tier(&harness, &now, 40, 12), Some(SizeTier::Medium));
+    for y in 6..9 {
+        assert_eq!(
+            row_text(buffer, y),
+            "│                                      │",
+            "row {y}"
+        );
+    }
 }

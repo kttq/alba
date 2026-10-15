@@ -15,8 +15,9 @@ pub use schedule::{LastFetchResult, next_fetch};
 pub use source::{BackgroundSource, FetchError, Request, WeatherSource};
 pub use station::{WeatherState, WeatherStation};
 pub use text::{
-    aged_temperature_high_and_low_line, sparkline, temperature_high_and_low_line, temperature_line,
-    text_line, weather_state_lines,
+    aged_temperature_high_and_low_line, first_run_hint, sparkline,
+    temperature_age_high_and_low_line, temperature_high_and_low_line, temperature_line, text_line,
+    weather_state_lines,
 };
 
 use jiff::Timestamp;

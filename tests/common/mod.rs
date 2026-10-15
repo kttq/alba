@@ -173,6 +173,7 @@ impl Harness {
         let app = App::new(
             Config::parse(config_text).unwrap(),
             Box::new(weather_source.clone()),
+            "~/.config/alba/config.toml".to_string(),
             cache_directory.clone(),
             &state_directory,
         );

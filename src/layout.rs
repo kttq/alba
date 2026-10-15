@@ -1,6 +1,12 @@
 //! Picks the size tier that fits the pane, centres it, and places each piece of the face.
 
-use crate::{clock::SegmentClock, icon::IconSize, pixels::Canvas};
+use crate::{
+    bezel::{Bezel, BorderRun, BorderSide},
+    clock::SegmentClock,
+    icon::{IconPicture, IconSize},
+    pixels::Canvas,
+    sky::ShownTimeline,
+};
 
 use ratatui::{
     buffer::Buffer,
@@ -26,10 +32,22 @@ pub struct Face {
     pub weather_state_lines: Vec<Line<'static>>,
     /// The ghost icon without weather data; None for a weather code with no condition.
     pub mini_icon: Option<Canvas>,
+    /// As the mini icon, with its stars.
+    pub full_icon: Option<IconPicture>,
+    /// For the bezel tiers, where the age label follows the temperature. Only for stale weather.
+    pub temperature_age_high_and_low: Option<Line<'static>>,
+    /// Only without a location.
+    pub first_run_hint: Option<[Line<'static>; 2]>,
+    /// None without weather data, and when no sunrise and sunset surround now.
+    pub timeline: Option<ShownTimeline>,
+    /// The weekday header over the current week.
+    pub week_strip: [Line<'static>; 2],
+    pub bezel: Bezel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SizeTier {
+    Medium,
     Compact,
     Mini,
     Strip,
@@ -37,7 +55,7 @@ pub enum SizeTier {
 
 impl SizeTier {
     /// The first that fits wins.
-    pub const IN_ORDER: [Self; 3] = [Self::Compact, Self::Mini, Self::Strip];
+    pub const IN_ORDER: [Self; 4] = [Self::Medium, Self::Compact, Self::Mini, Self::Strip];
 }
 
 #[derive(Debug)]
@@ -47,6 +65,8 @@ pub struct LayoutReport<'a> {
     pub items: Vec<PlacedItem<'a>>,
 }
 
+/// The area can be larger than the required size: a border run or the timeline stretches to
+/// fill it.
 #[derive(Debug, Clone, Copy)]
 pub struct PlacedItem<'a> {
     pub piece: Piece<'a>,
@@ -58,7 +78,11 @@ pub struct PlacedItem<'a> {
 pub enum Piece<'a> {
     Text(&'a Line<'static>),
     Picture(&'a Canvas),
+    Icon(IconPicture),
     SegmentClock(&'a SegmentClock),
+    Timeline(&'a ShownTimeline),
+    BorderRun(BorderRun<'a>),
+    BorderSide,
     Separator,
 }
 
@@ -69,7 +93,13 @@ impl Piece<'_> {
         match self {
             Self::Text(line) => Size::new(line.width() as u16, 1),
             Self::Picture(canvas) => Size::new(canvas.width(), canvas.height().div_ceil(2)),
+            Self::Icon(icon) => {
+                let (width, height) = icon.size.cells();
+                Size::new(width, height)
+            }
             Self::SegmentClock(segment_clock) => segment_clock.size(),
+            Self::Timeline(timeline) => timeline.required_size(),
+            Self::BorderRun(_) | Self::BorderSide => Size::new(1, 1),
             Self::Separator => Size::new(Span::raw(SEPARATOR).width() as u16, 1),
         }
     }
@@ -78,16 +108,38 @@ impl Piece<'_> {
         match self {
             Self::Text(line) => line.render(area, buffer),
             Self::Picture(canvas) => canvas.render(area, buffer),
+            Self::Icon(icon) => icon.render(area, buffer),
             Self::SegmentClock(segment_clock) => segment_clock.render(area, buffer),
+            Self::Timeline(timeline) => timeline.render(area, buffer),
+            Self::BorderRun(border_run) => border_run.render(area, buffer),
+            Self::BorderSide => BorderSide.render(area, buffer),
             Self::Separator => Span::raw(SEPARATOR).render(area, buffer),
         }
     }
 }
 
-/// One way to show a size tier: its pieces at fixed offsets inside its bounding box.
+/// One way to show a size tier: its pieces in fixed areas inside its bounding box.
 struct Arrangement<'a> {
     size: Size,
-    pieces: Vec<(Piece<'a>, Position)>,
+    pieces: Vec<(Piece<'a>, Rect)>,
+}
+
+impl<'a> Arrangement<'a> {
+    /// One piece in an area of its required size.
+    fn of(piece: Piece<'a>) -> Self {
+        let size = piece.required_size();
+        Self {
+            size,
+            pieces: vec![(piece, Rect::from((Position::ORIGIN, size)))],
+        }
+    }
+
+    fn moved(self, by: Position) -> impl Iterator<Item = (Piece<'a>, Rect)> {
+        (self.pieces.into_iter()).map(move |(piece, area)| {
+            let position = Position::new(area.x + by.x, area.y + by.y);
+            (piece, Rect::from((position, area.as_size())))
+        })
+    }
 }
 
 pub fn lay_out<'a>(pane: Rect, face: &'a Face) -> LayoutReport<'a> {
@@ -122,9 +174,134 @@ pub fn minimum_size(size_tier: SizeTier, face: &Face) -> Option<Size> {
 /// Widest first.
 fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     match size_tier {
+        SizeTier::Medium => medium_arrangements(face),
         SizeTier::Compact => compact_arrangements(face),
         SizeTier::Mini => mini_arrangement(face).into_iter().collect(),
         SizeTier::Strip => strip_arrangements(face),
+    }
+}
+
+/// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
+/// Without a location, the first-run hint takes the weather row and the timeline's first row.
+fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
+    medium_weather_rows(face)
+        .into_iter()
+        .map(|weather_rows| {
+            let band = clock_and_icon(face);
+            let mut blocks = vec![Block::Left(band)];
+            blocks.extend(weather_rows);
+            blocks.push(Block::Centred(column(
+                face.week_strip
+                    .iter()
+                    .map(|line| centred(Piece::Text(line)))
+                    .collect(),
+            )));
+            framed(&face.bezel, column(blocks))
+        })
+        .collect()
+}
+
+/// The icon's columns stay when there is no icon, so nothing moves when it returns.
+fn clock_and_icon(face: &Face) -> Arrangement<'_> {
+    let icon_x = face.segment_clock.size().width + CLOCK_GAP;
+    let mut pieces = vec![(Piece::SegmentClock(&face.segment_clock), Position::ORIGIN)];
+    pieces.extend((face.full_icon.map(Piece::Icon)).map(|icon| (icon, Position::new(icon_x, 0))));
+    let arrangement = at_offsets(pieces);
+    let (icon_width, _) = IconSize::Full.cells();
+    Arrangement {
+        size: Size::new(icon_x + icon_width, arrangement.size.height),
+        ..arrangement
+    }
+}
+
+/// Between the clock and the full icon.
+const CLOCK_GAP: u16 = 1;
+
+/// The rows under the clock and icon, each way widest first.
+fn medium_weather_rows(face: &Face) -> Vec<Vec<Block<'_>>> {
+    let timeline = || match &face.timeline {
+        Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
+        None => Block::Gap(TIMELINE_ROWS),
+    };
+    if let Some(first_run_hint) = &face.first_run_hint {
+        let hint = column(
+            first_run_hint
+                .iter()
+                .map(|line| left(Piece::Text(line)))
+                .collect(),
+        );
+        return vec![vec![
+            Block::Left(hint),
+            Block::Gap(WEATHER_ROWS + TIMELINE_ROWS - 2),
+        ]];
+    }
+    let temperature = face
+        .temperature_age_high_and_low
+        .as_ref()
+        .or(face.temperature_high_and_low.as_ref());
+    let Some(temperature) = temperature else {
+        return (face.weather_state_lines.iter())
+            .map(|line| vec![left(Piece::Text(line)), timeline()])
+            .collect();
+    };
+    let icon_x = face.segment_clock.size().width + CLOCK_GAP;
+    let mut pieces = vec![(Piece::Text(temperature), Position::ORIGIN)];
+    if let Some(sparkline) = &face.sparkline {
+        let x = icon_x.max(temperature.width() as u16 + ICON_GAP);
+        pieces.push((Piece::Text(sparkline), Position::new(x, 0)));
+    }
+    vec![vec![Block::Left(at_offsets(pieces)), timeline()]]
+}
+
+const WEATHER_ROWS: u16 = 1;
+const TIMELINE_ROWS: u16 = 3;
+
+/// Each piece in an area of its required size, at its offset.
+fn at_offsets(pieces: Vec<(Piece<'_>, Position)>) -> Arrangement<'_> {
+    let pieces: Vec<_> = (pieces.into_iter())
+        .map(|(piece, offset)| (piece, Rect::from((offset, piece.required_size()))))
+        .collect();
+    let size = pieces.iter().fold(Size::ZERO, |size, (_, area)| {
+        Size::new(size.width.max(area.right()), size.height.max(area.bottom()))
+    });
+    Arrangement { size, pieces }
+}
+
+/// Inside the bezel, with a column of space on each side. The bezel hugs the content, and widens
+/// only when its labels need more room.
+fn framed<'a>(bezel: &'a Bezel, content: Arrangement<'a>) -> Arrangement<'a> {
+    let label_width = |left: &Line, right: &Line| (left.width() + right.width()) as u16 + 1;
+    let width = (content.size.width + 4)
+        .max(label_width(&bezel.top_left, &bezel.top_right))
+        .max(label_width(&bezel.bottom_left, &bezel.bottom_right));
+    let height = content.size.height + 2;
+    let mut pieces = Vec::new();
+    let place_name = bezel.place_name.as_deref();
+    for (y, left, right, place_name) in [
+        (0, &bezel.top_left, &bezel.top_right, place_name),
+        (height - 1, &bezel.bottom_left, &bezel.bottom_right, None),
+    ] {
+        let left_width = left.width() as u16;
+        let right_width = right.width() as u16;
+        pieces.push((Piece::Text(left), Rect::new(0, y, left_width, 1)));
+        let run_width = width - left_width - right_width;
+        pieces.push((
+            Piece::BorderRun(BorderRun { place_name }),
+            Rect::new(left_width, y, run_width, 1),
+        ));
+        pieces.push((
+            Piece::Text(right),
+            Rect::new(width - right_width, y, right_width, 1),
+        ));
+    }
+    for x in [0, width - 1] {
+        pieces.push((Piece::BorderSide, Rect::new(x, 1, 1, height - 2)));
+    }
+    let content_x = (width - content.size.width) / 2;
+    pieces.extend(content.moved(Position::new(content_x, 1)));
+    Arrangement {
+        size: Size::new(width, height),
+        pieces,
     }
 }
 
@@ -170,15 +347,16 @@ fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<Piece<'a>>) -> Arran
         .map(|canvas| (Piece::Picture(canvas), Position::ORIGIN))
         .into_iter()
         .collect();
-    let mut width = icon_width;
-    let text_height = text_rows.len() as u16;
     for (y, piece) in text_rows.into_iter().enumerate() {
-        width = width.max(text_x + piece.required_size().width);
         pieces.push((piece, Position::new(text_x, y as u16)));
     }
+    let arrangement = at_offsets(pieces);
     Arrangement {
-        size: Size::new(width, icon_height.max(text_height)),
-        pieces,
+        size: Size::new(
+            arrangement.size.width.max(icon_width),
+            arrangement.size.height.max(icon_height),
+        ),
+        ..arrangement
     }
 }
 
@@ -188,15 +366,18 @@ const ICON_GAP: u16 = 2;
 enum Block<'a> {
     Centred(Arrangement<'a>),
     Left(Arrangement<'a>),
+    /// Stretched across the column.
+    FullWidth(Piece<'a>),
     /// Empty rows.
     Gap(u16),
 }
 
 fn centred(piece: Piece<'_>) -> Block<'_> {
-    Block::Centred(Arrangement {
-        size: piece.required_size(),
-        pieces: vec![(piece, Position::ORIGIN)],
-    })
+    Block::Centred(Arrangement::of(piece))
+}
+
+fn left(piece: Piece<'_>) -> Block<'_> {
+    Block::Left(Arrangement::of(piece))
 }
 
 /// Stacked top to bottom in the width of the widest block. A centred block puts an odd leftover
@@ -206,6 +387,7 @@ fn column(blocks: Vec<Block<'_>>) -> Arrangement<'_> {
         .iter()
         .map(|block| match block {
             Block::Centred(arrangement) | Block::Left(arrangement) => arrangement.size.width,
+            Block::FullWidth(piece) => piece.required_size().width,
             Block::Gap(_) => 0,
         })
         .max()
@@ -219,16 +401,20 @@ fn column(blocks: Vec<Block<'_>>) -> Arrangement<'_> {
                 (arrangement, x)
             }
             Block::Left(arrangement) => (arrangement, 0),
+            Block::FullWidth(piece) => {
+                let height = piece.required_size().height;
+                pieces.push((piece, Rect::new(0, y, width, height)));
+                y += height;
+                continue;
+            }
             Block::Gap(rows) => {
                 y += rows;
                 continue;
             }
         };
-        pieces.extend(
-            (arrangement.pieces.into_iter())
-                .map(|(piece, offset)| (piece, Position::new(x + offset.x, y + offset.y))),
-        );
-        y += arrangement.size.height;
+        let height = arrangement.size.height;
+        pieces.extend(arrangement.moved(Position::new(x, y)));
+        y += height;
     }
     Arrangement {
         size: Size::new(width, y),
@@ -275,7 +461,8 @@ fn row(pieces: Vec<Piece<'_>>, gap: u16) -> Arrangement<'_> {
     let mut placed = Vec::new();
     for piece in pieces {
         let size = piece.required_size();
-        placed.push((piece, Position::new(x, (height - size.height) / 2)));
+        let position = Position::new(x, (height - size.height) / 2);
+        placed.push((piece, Rect::from((position, size))));
         x += size.width + gap;
     }
     Arrangement {
@@ -299,18 +486,10 @@ fn placed<'a>(arrangement: &Arrangement<'a>, pane: Rect) -> Vec<PlacedItem<'a>> 
     arrangement
         .pieces
         .iter()
-        .map(|&(piece, offset)| {
-            let required_size = piece.required_size();
-            PlacedItem {
-                piece,
-                required_size,
-                area: Rect::new(
-                    block.x + offset.x,
-                    block.y + offset.y,
-                    required_size.width,
-                    required_size.height,
-                ),
-            }
+        .map(|&(piece, area)| PlacedItem {
+            piece,
+            required_size: piece.required_size(),
+            area: Rect::new(block.x + area.x, block.y + area.y, area.width, area.height),
         })
         .collect()
 }

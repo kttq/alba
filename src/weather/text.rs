@@ -109,6 +109,48 @@ pub fn aged_temperature_high_and_low_line(
     Some(line)
 }
 
+/// For the bezel tiers: the age label follows the temperature, then the fetch indicator, then
+/// the high and low. None unless stale.
+pub fn temperature_age_high_and_low_line(
+    weather_state: WeatherState,
+    shows_fetch_indicator: bool,
+    units: Units,
+    now: Timestamp,
+    strings: &Strings,
+) -> Option<Line<'static>> {
+    let WeatherState::Stale { age, .. } = weather_state else {
+        return None;
+    };
+    let mut line = temperature_line(weather_state, false, units)?;
+    let [before, after] = strings.age;
+    line.push_span(Span::styled(
+        format!(" {before}{}{after}", age.as_hours()),
+        Style::new().dark_gray(),
+    ));
+    if shows_fetch_indicator {
+        line.push_span(Span::raw("…").dim());
+    }
+    let high_and_low = temperature_high_and_low_line(weather_state, false, units, now)?;
+    line.extend(high_and_low.spans.into_iter().skip(1));
+    Some(line)
+}
+
+/// Two dim lines that say where to set the location; None unless no location is set.
+pub fn first_run_hint(
+    weather_state: WeatherState,
+    strings: &Strings,
+    shown_config_file: &str,
+) -> Option<[Line<'static>; 2]> {
+    if weather_state != WeatherState::NoLocation {
+        return None;
+    }
+    let style = Style::new().dark_gray();
+    Some([
+        Line::styled(strings.first_run_hint, style),
+        Line::styled(shown_config_file.to_string(), style),
+    ])
+}
+
 /// What the weather area says without weather, each way widest first; empty with weather.
 pub fn weather_state_lines(weather_state: WeatherState, strings: &Strings) -> Vec<Line<'static>> {
     let texts = match weather_state {
