@@ -17,11 +17,13 @@ use jiff::{SignedDuration, Timestamp};
 
 const USAGE: &str = "\
 usage: fixture HOME [--weather fresh|stale|expired|none] [--age MINUTES] [--code WMO]
-                    [--night] [--no-location] [--config 'key = value' ...]
+                    [--night] [--no-location] [--location NAME] [--config 'key = value' ...]
 
 The cache is tests/fixtures/forecast.json (Buenos Aires, rain, 14°, day), shifted so its
 middle day is today. Default ages: fresh 5 minutes, stale 90 minutes, expired 13 hours.
---weather none writes no cache. --night sets the current is_day to 0. --config adds a line.";
+--weather none writes no cache. --night sets the current is_day to 0. --location sets the
+config's location to NAME and caches it as resolved to buenos aires, ar, so alba needs no
+lookup. --config adds a line.";
 
 fn main() -> ExitCode {
     if env::args().any(|argument| argument == "-h" || argument == "--help") {
@@ -58,6 +60,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<(PathBuf, Fixtur
             "--code" => fixture_home.weather_code = Some(number(&value()?)?),
             "--night" => fixture_home.night = true,
             "--no-location" => fixture_home.has_location = false,
+            "--location" => fixture_home.location_name = Some(value()?),
             "--config" => fixture_home.config_lines.push(value()?),
             option if option.starts_with("--") => return Err(format!("unknown option {option}")),
             _ if home.is_none() => home = Some(PathBuf::from(argument)),

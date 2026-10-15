@@ -11,6 +11,8 @@ use jiff::{SignedDuration, Timestamp};
 use serde_json::Value;
 
 const DAY: i64 = 86_400;
+const PLACE_NAME: &str = "buenos aires, ar";
+
 /// Open-Meteo stamps `current` at the start of its 15-minute interval.
 const CURRENT_INTERVAL: i64 = 900;
 
@@ -44,6 +46,9 @@ pub struct FixtureHome {
     pub weather_code: Option<u16>,
     pub night: bool,
     pub has_location: bool,
+    /// Sets `location` to this name instead of `coordinates`, with the name already resolved
+    /// in the cache, so alba starts without a lookup.
+    pub location_name: Option<String>,
     pub config_lines: Vec<String>,
 }
 
@@ -55,6 +60,7 @@ impl Default for FixtureHome {
             weather_code: None,
             night: false,
             has_location: true,
+            location_name: None,
             config_lines: Vec::new(),
         }
     }
@@ -73,15 +79,19 @@ impl FixtureHome {
             CachedWeather::NoCache => None,
             _ => Some(self.weather(&mut forecast, now)?),
         };
-        write_file(&paths.config_file, &self.config(coordinates))?;
+        write_file(&paths.config_file, &self.config(coordinates)?)?;
+        let (location, place_name) = match &self.location_name {
+            Some(name) => (Location::Name(name.clone()), Some(PLACE_NAME.to_string())),
+            None => (Location::Coordinates(coordinates), None),
+        };
         match weather {
             None => Ok(()),
             Some(weather) => cache::write(
                 &paths.cache_directory,
-                &Location::Coordinates(coordinates),
+                &location,
                 &ResolvedLocation {
                     coordinates,
-                    place_name: None,
+                    place_name,
                 },
                 &weather,
             ),
@@ -98,19 +108,21 @@ impl FixtureHome {
         })
     }
 
-    /// Writes the coordinates exactly as the cache stores them, so alba uses the cache.
-    fn config(&self, coordinates: Coordinates) -> String {
-        let location = self.has_location.then(|| {
-            format!(
+    /// Writes the location exactly as the cache stores it, so alba uses the cache.
+    fn config(&self, coordinates: Coordinates) -> io::Result<String> {
+        let location = match &self.location_name {
+            _ if !self.has_location => None,
+            Some(name) => Some(format!("location = {}", serde_json::to_string(name)?)),
+            None => Some(format!(
                 "coordinates = [{}, {}]",
                 coordinates.latitude, coordinates.longitude
-            )
-        });
-        location
-            .into_iter()
-            .chain(self.config_lines.iter().cloned())
-            .map(|line| line + "\n")
-            .collect()
+            )),
+        };
+        Ok(location
+            .iter()
+            .chain(&self.config_lines)
+            .flat_map(|line| [line.as_str(), "\n"])
+            .collect())
     }
 
     /// Stamps `current` with the fetch time, and applies the weather code and night.

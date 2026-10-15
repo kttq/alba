@@ -468,6 +468,23 @@ fn a_fresh_cache_starts_without_a_fetch() {
     not(target_os = "macos"),
     ignore = "offline runs need macOS sandbox-exec"
 )]
+fn a_cached_location_name_shows_its_weather_without_a_lookup() {
+    let named = FixtureHome {
+        location_name: Some("buenos aires".to_string()),
+        ..FixtureHome::default()
+    };
+
+    let alba = start(&named, STRIP);
+
+    assert_eq!(strip_parts(&alba).len(), 3, "{:?}", strip_parts(&alba));
+    assert_eq!(log_after(&named, ""), "");
+}
+
+#[test]
+#[cfg_attr(
+    not(target_os = "macos"),
+    ignore = "offline runs need macOS sandbox-exec"
+)]
 fn without_a_location_r_fetches_nothing() {
     assert_eq!(log_after(&no_location(), "r"), "");
 }
