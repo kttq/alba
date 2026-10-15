@@ -24,14 +24,14 @@ pub struct ShownCalendar {
     month: [Line<'static>; MONTH_ROWS],
     short_date: Line<'static>,
     weekday_and_day: Line<'static>,
+    iso_week: Line<'static>,
 }
 
-/// For Strip, which has no room for the month.
-pub fn weekday_and_day(strings: &Strings, now: &Zoned) -> Line<'static> {
+fn weekday_and_day(strings: &Strings, now: &Zoned) -> Line<'static> {
     Line::from(format!("{} {}", short_weekday(strings, now), now.day()).light_blue())
 }
 
-pub fn short_date(strings: &Strings, now: &Zoned) -> Line<'static> {
+fn short_date(strings: &Strings, now: &Zoned) -> Line<'static> {
     let month = strings.short_months[now.month() as usize - 1];
     Line::from(format!("{} {} {month}", short_weekday(strings, now), now.day()).light_blue())
 }
@@ -40,8 +40,7 @@ fn short_weekday(strings: &Strings, now: &Zoned) -> &'static str {
     strings.short_weekdays[now.weekday().to_sunday_zero_offset() as usize]
 }
 
-/// The ISO 8601 week number, dim.
-pub fn iso_week(strings: &Strings, now: &Zoned) -> Line<'static> {
+fn iso_week(strings: &Strings, now: &Zoned) -> Line<'static> {
     let week = now.date().iso_week_date().week();
     Line::from(format!("{} {week}", strings.iso_week).dark_gray())
 }
@@ -60,11 +59,11 @@ impl Calendar {
             month: self.month(now),
             short_date: short_date(self.strings, now),
             weekday_and_day: weekday_and_day(self.strings, now),
+            iso_week: iso_week(self.strings, now),
         }
     }
 
-    /// The current week: the weekday header over the days.
-    pub fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
+    fn week_strip(&self, now: &Zoned) -> [Line<'static>; 2] {
         let today = now.date();
         [
             self.weekday_header(),
@@ -72,9 +71,9 @@ impl Calendar {
         ]
     }
 
-    /// The month title and the weekday header over six weeks from the week that holds the 1st,
-    /// so the height never changes between months. Days outside the month stay empty.
-    pub fn month(&self, now: &Zoned) -> [Line<'static>; MONTH_ROWS] {
+    /// From the week that holds the 1st, so the height never changes between months. Days
+    /// outside the month stay empty.
+    fn month(&self, now: &Zoned) -> [Line<'static>; MONTH_ROWS] {
         let today = now.date();
         let first = today.first_of_month();
         let title = format!(
@@ -153,8 +152,14 @@ impl ShownCalendar {
         &self.short_date
     }
 
+    /// For Strip, which has no room for the month.
     pub fn weekday_and_day(&self) -> &Line<'static> {
         &self.weekday_and_day
+    }
+
+    /// The ISO 8601 week number, dim.
+    pub fn iso_week(&self) -> &Line<'static> {
+        &self.iso_week
     }
 }
 

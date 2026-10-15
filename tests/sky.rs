@@ -323,7 +323,7 @@ fn shown_timeline(now: &str, config_text: &str, width: u16) -> ratatui::buffer::
     let now: jiff::Zoned = now.parse().unwrap();
     let config = Config::parse(config_text).unwrap();
     let timeline = ShownTimeline::of(
-        &three_day_forecast(),
+        &Sky::at(&three_day_forecast(), now.timestamp()),
         &now,
         &Clock::new(&config),
         Strings::of(config.language),

@@ -5,6 +5,7 @@ pub mod bezel;
 pub mod calendar;
 pub mod clock;
 pub mod config;
+pub mod face;
 pub mod geocode;
 pub mod icon;
 pub mod layout;

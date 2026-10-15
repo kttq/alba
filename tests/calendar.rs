@@ -9,7 +9,8 @@ use ratatui::{
 };
 
 fn week_strip(config_text: &str, now: &Zoned) -> [Line<'static>; 2] {
-    Calendar::new(&Config::parse(config_text).unwrap()).week_strip(now)
+    let calendar = Calendar::new(&Config::parse(config_text).unwrap());
+    calendar.at(now).week_strip().clone()
 }
 
 /// Each cell's text and style, without the spaces between the cells.
@@ -88,7 +89,8 @@ fn week_strip_crosses_into_the_next_month() {
 }
 
 fn month(config_text: &str, now: &Zoned) -> [Line<'static>; 8] {
-    Calendar::new(&Config::parse(config_text).unwrap()).month(now)
+    let calendar = Calendar::new(&Config::parse(config_text).unwrap());
+    calendar.at(now).month().clone()
 }
 
 /// One line per row, without the trailing blanks of the empty days.

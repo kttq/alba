@@ -14,7 +14,7 @@ pub struct Strings {
     /// Followed by a space and the ISO week number.
     pub iso_week: &'static str,
     /// Each greeting with the local hour it starts at, from the earliest.
-    greetings: [(i8, &'static str); 4],
+    pub greetings: [(i8, &'static str); 4],
     /// Followed by a space and the time left.
     pub sunset_in: &'static str,
     pub sunrise_in: &'static str,
@@ -184,16 +184,6 @@ impl Strings {
             Condition::Thunderstorm => 8,
         };
         self.conditions[index]
-    }
-
-    /// The greeting for a local hour, 0 to 23. Before the first start hour, the last greeting
-    /// still holds from the evening.
-    pub fn greeting(&self, hour: i8) -> &'static str {
-        let (_, last) = self.greetings[self.greetings.len() - 1];
-        (self.greetings.iter())
-            .take_while(|(start, _)| *start <= hour)
-            .last()
-            .map_or(last, |(_, greeting)| greeting)
     }
 
     pub fn of(language: Language) -> &'static Self {

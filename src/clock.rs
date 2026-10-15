@@ -38,7 +38,7 @@ pub struct ShownClock {
     clock: Clock,
     now: Zoned,
     motion: Motion,
-    text_line: Line<'static>,
+    text_clock: Line<'static>,
 }
 
 #[derive(Debug)]
@@ -75,11 +75,11 @@ impl Clock {
             clock: self.clone(),
             now: now.clone(),
             motion,
-            text_line: self.text_line(now, motion),
+            text_clock: self.text_clock(now, motion),
         }
     }
 
-    pub fn text_line(&self, now: &Zoned, motion: Motion) -> Line<'static> {
+    pub fn text_clock(&self, now: &Zoned, motion: Motion) -> Line<'static> {
         let mut spans = vec![
             Span::raw(self.hour(now)),
             colon(motion),
@@ -132,10 +132,9 @@ impl Clock {
         }
     }
 
-    /// In cells, without drawing the digits.
+    /// In cells, without drawing the digits. The drawing places its mark by the same size.
     pub fn segment_size(&self, digit_size: DigitSize) -> Size {
-        let shape = digit_size.shape();
-        let digits = Size::new(shape.clock_width(), shape.height.div_ceil(2));
+        let digits = digit_size.shape().cells();
         if self.hour_format == HourFormat::TwentyFour {
             return digits;
         }
@@ -244,8 +243,8 @@ fn colon(motion: Motion) -> Span<'static> {
 }
 
 impl ShownClock {
-    pub fn text_line(&self) -> &Line<'static> {
-        &self.text_line
+    pub fn text_clock(&self) -> &Line<'static> {
+        &self.text_clock
     }
 
     pub fn segment_size(&self, digit_size: DigitSize) -> Size {
@@ -258,6 +257,11 @@ impl ShownClock {
 }
 
 impl DigitShape {
+    /// The digits and the colon, in cells.
+    fn cells(&self) -> Size {
+        Size::new(self.clock_width(), self.height.div_ceil(2))
+    }
+
     /// In pixels: four digits and the colon, each with its gaps.
     fn clock_width(&self) -> u16 {
         4 * self.width + 2 * DIGIT_GAP + self.thickness + 2 * self.colon_gap()
@@ -320,28 +324,6 @@ fn fill(canvas: &mut Canvas, x: u16, y: u16, width: u16, height: u16, pixel: Pix
     }
 }
 
-impl SegmentClock {
-    /// In cells.
-    pub fn size(&self) -> Size {
-        let digits = self.digits_size();
-        match &self.mark {
-            None => digits,
-            Some(mark) => Size::new(
-                digits.width + MARK_GAP + mark_width(mark),
-                digits.height.max(mark.len() as u16),
-            ),
-        }
-    }
-
-    fn digits_size(&self) -> Size {
-        Size::new(self.digits.width(), self.digits.height().div_ceil(2))
-    }
-}
-
-fn mark_width(mark: &[Line<'static>; 2]) -> u16 {
-    mark.iter().map(Line::width).max().unwrap_or(0) as u16
-}
-
 /// The mark sits top-aligned beside the digits.
 impl Widget for &SegmentClock {
     fn render(self, area: Rect, buffer: &mut Buffer) {
@@ -349,7 +331,7 @@ impl Widget for &SegmentClock {
         let Some(mark) = &self.mark else {
             return;
         };
-        let mark_x = self.digits_size().width + MARK_GAP;
+        let mark_x = self.digits.width() + MARK_GAP;
         let mark_area = Rect {
             x: area.x + mark_x,
             width: area.width.saturating_sub(mark_x),

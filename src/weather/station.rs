@@ -41,6 +41,15 @@ impl<'a> WeatherState<'a> {
     }
 }
 
+/// What the weather station gives the face at one instant.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShownWeather<'a> {
+    pub weather_state: WeatherState<'a>,
+    pub shows_fetch_indicator: bool,
+    /// None for configured coordinates, and for a name not resolved yet.
+    pub place_name: Option<&'a str>,
+}
+
 /// Keeps the current weather: from the cache at start, then from fetches on the fetch
 /// schedule or on request.
 pub struct WeatherStation {
@@ -140,6 +149,14 @@ impl WeatherStation {
         self.running_fetch.as_ref().is_some_and(|running_fetch| {
             now.timestamp().duration_since(running_fetch.started_at) >= FETCH_INDICATOR_DELAY
         })
+    }
+
+    pub fn shown(&self, now: &Zoned) -> ShownWeather<'_> {
+        ShownWeather {
+            weather_state: self.weather_state(now),
+            shows_fetch_indicator: self.shows_fetch_indicator(now),
+            place_name: self.place_name(),
+        }
     }
 
     /// The next tick starts a fetch, unless one is running.

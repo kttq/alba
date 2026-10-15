@@ -218,8 +218,7 @@ const SUN_CORE: Pixel = Pixel::new(PixelColor::BrightYellow);
 
 impl ShownTimeline {
     /// None when no sunrise and sunset surround now, so the timeline rows stay empty.
-    pub fn of(forecast: &Forecast, now: &Zoned, clock: &Clock, strings: &Strings) -> Option<Self> {
-        let sky = Sky::at(forecast, now.timestamp());
+    pub fn of(sky: &Sky, now: &Zoned, clock: &Clock, strings: &Strings) -> Option<Self> {
         let timeline = sky.timeline?;
         let time_text = |at: Timestamp| clock.time_text(&at.to_zoned(now.time_zone().clone()));
         let (start, end) = (time_text(timeline.start), time_text(timeline.end));

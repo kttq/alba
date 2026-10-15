@@ -2,8 +2,9 @@ mod common;
 
 use alba::{
     config::Units,
+    layout::SizeTier,
     strings::Strings,
-    weather::{Forecast, Part, Readings, Weather, WeatherArea, WeatherState},
+    weather::{Forecast, Readings, Weather, WeatherArea, WeatherState},
 };
 use common::{default_instant, forecast_body};
 use jiff::SignedDuration;
@@ -55,32 +56,48 @@ fn text(line: &Line) -> String {
     line.to_string()
 }
 
-const AGE_FIRST: [Part; 3] = [Part::Temperature, Part::Age, Part::HighAndLow];
-const AGE_LAST: [Part; 3] = [Part::Temperature, Part::HighAndLow, Part::Age];
-
-#[test]
-fn readings_line_puts_the_parts_in_the_given_order() {
-    let weather = weather();
-    let readings = readings(WeatherState::Fresh(&weather), false);
-
-    assert_eq!(text(&readings.line(&[Part::Temperature])), "14°");
-    assert_eq!(
-        text(&readings.line(&[Part::Temperature, Part::HighAndLow])),
-        "14°  ↑19° ↓13°"
-    );
-    assert_eq!(
-        text(&readings.line(&[Part::Temperature, Part::ConditionMark])),
-        "14° ‚‚"
-    );
+/// Each way to show the size tier's temperature line, widest first.
+fn temperature_lines(readings: &Readings, size_tier: SizeTier) -> Vec<String> {
+    (readings.temperature_lines(size_tier).iter())
+        .map(text)
+        .collect()
 }
 
 #[test]
-fn fresh_weather_has_no_age_label() {
+fn each_size_tier_shows_its_parts_of_the_readings() {
     let weather = weather();
     let readings = readings(WeatherState::Fresh(&weather), false);
 
-    assert!(!readings.is_stale());
-    assert_eq!(text(&readings.line(&AGE_FIRST)), "14°  ↑19° ↓13°");
+    for size_tier in [
+        SizeTier::Large,
+        SizeTier::Wide,
+        SizeTier::Tall,
+        SizeTier::Medium,
+        SizeTier::Compact,
+    ] {
+        assert_eq!(
+            temperature_lines(&readings, size_tier),
+            ["14°  ↑19° ↓13°"],
+            "{size_tier:?}"
+        );
+    }
+    assert_eq!(temperature_lines(&readings, SizeTier::Mini), ["14°"]);
+    assert_eq!(temperature_lines(&readings, SizeTier::Strip), ["14° ‚‚"]);
+}
+
+#[test]
+fn compact_puts_the_age_label_last_and_drops_it_first() {
+    let weather = weather();
+    let stale = readings(stale(&weather), false);
+
+    assert_eq!(
+        temperature_lines(&stale, SizeTier::Compact),
+        ["14°  ↑19° ↓13° 2h ago", "14°  ↑19° ↓13°"]
+    );
+    assert_eq!(
+        temperature_lines(&stale, SizeTier::Medium),
+        ["14° 2h ago  ↑19° ↓13°"]
+    );
 }
 
 #[test]
@@ -89,12 +106,17 @@ fn fetch_indicator_follows_the_age_label_when_shown_and_the_temperature_otherwis
     let fresh = readings(WeatherState::Fresh(&weather), true);
     let stale = readings(stale(&weather), true);
 
-    assert_eq!(text(&fresh.line(&AGE_FIRST)), "14°…  ↑19° ↓13°");
-    assert_eq!(text(&stale.line(&AGE_FIRST)), "14° 2h ago…  ↑19° ↓13°");
-    assert_eq!(text(&stale.line(&AGE_LAST)), "14°  ↑19° ↓13° 2h ago…");
     assert_eq!(
-        text(&stale.line(&[Part::Temperature, Part::HighAndLow])),
-        "14°…  ↑19° ↓13°"
+        temperature_lines(&fresh, SizeTier::Large),
+        ["14°…  ↑19° ↓13°"]
+    );
+    assert_eq!(
+        temperature_lines(&stale, SizeTier::Large),
+        ["14° 2h ago…  ↑19° ↓13°"]
+    );
+    assert_eq!(
+        temperature_lines(&stale, SizeTier::Compact),
+        ["14°  ↑19° ↓13° 2h ago…", "14°…  ↑19° ↓13°"]
     );
 }
 
@@ -104,11 +126,11 @@ fn stale_weather_dims_the_temperatures_and_the_sparkline() {
     let fresh = readings(WeatherState::Fresh(&weather), false);
     let stale = readings(stale(&weather), false);
 
-    let line = stale.line(&[Part::Temperature, Part::HighAndLow]);
+    let line = stale.temperature_lines(SizeTier::Compact).swap_remove(1);
     for span in line.spans.iter().filter(|span| span.content.contains('°')) {
         assert_eq!(span.style.fg, Some(Color::DarkGray), "{span:?}");
     }
-    let line = fresh.line(&[Part::Temperature]);
+    let line = fresh.temperature_lines(SizeTier::Mini).swap_remove(0);
     assert_eq!(line.spans[0].style.fg, None);
     assert!(
         (stale.sparkline().spans.iter()).all(|bar| bar.style.fg == Some(Color::DarkGray)),
@@ -189,10 +211,10 @@ fn condition_name_is_the_main_text_color_and_dims_when_stale() {
     let fresh = readings(WeatherState::Fresh(&weather), false);
     let stale = readings(stale(&weather), false);
 
-    let line = fresh.line(&[Part::Condition]);
+    let line = fresh.condition_line();
     assert_eq!(text(&line), "rain");
     assert_eq!(line.spans[0].style.fg, None);
-    let line = stale.line(&[Part::Condition]);
+    let line = stale.condition_line();
     assert_eq!(text(&line), "rain");
     assert_eq!(line.spans[0].style.fg, Some(Color::DarkGray));
 }

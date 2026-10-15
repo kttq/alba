@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use super::{Condition, Weather, WeatherState, whole_degrees};
-use crate::{config::Units, strings::Strings};
+use crate::{config::Units, layout::SizeTier, strings::Strings};
 
 /// One per eighth of 100%: `▁` up to 12.5%, `█` above 87.5%.
 const SPARKLINE_BARS: [&str; 8] = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
@@ -39,9 +39,8 @@ pub struct Readings {
     shows_fetch_indicator: bool,
 }
 
-/// A part of a readings line, in the order a size tier gives.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Part {
+enum Part {
     Temperature,
     /// Nothing unless the weather is stale.
     Age,
@@ -124,13 +123,32 @@ impl Readings {
         }
     }
 
-    pub fn is_stale(&self) -> bool {
-        self.age_label.is_some()
+    /// The line with the temperature that the size tier shows, each way widest first. In
+    /// Compact, the age label goes last and drops first.
+    pub fn temperature_lines(&self, size_tier: SizeTier) -> Vec<Line<'static>> {
+        use Part::{Age, ConditionMark, HighAndLow, Temperature};
+        match size_tier {
+            SizeTier::Large | SizeTier::Wide | SizeTier::Tall | SizeTier::Medium => {
+                vec![self.line(&[Temperature, Age, HighAndLow])]
+            }
+            SizeTier::Compact if self.age_label.is_some() => vec![
+                self.line(&[Temperature, HighAndLow, Age]),
+                self.line(&[Temperature, HighAndLow]),
+            ],
+            SizeTier::Compact => vec![self.line(&[Temperature, HighAndLow])],
+            SizeTier::Mini => vec![self.line(&[Temperature])],
+            SizeTier::Strip => vec![self.line(&[Temperature, ConditionMark])],
+        }
+    }
+
+    /// The condition's name; empty for a weather code with no condition.
+    pub fn condition_line(&self) -> Line<'static> {
+        self.line(&[Part::Condition])
     }
 
     /// The parts in the given order. The fetch indicator follows the age label when the line
     /// shows it, and the temperature otherwise.
-    pub fn line(&self, parts: &[Part]) -> Line<'static> {
+    fn line(&self, parts: &[Part]) -> Line<'static> {
         let fetch_indicator_after = match self.age_label {
             Some(_) if parts.contains(&Part::Age) => Part::Age,
             _ => Part::Temperature,
