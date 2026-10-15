@@ -3,12 +3,11 @@ use ratatui::{style::Stylize, text::Line};
 
 use crate::strings::Strings;
 
-/// `tue 13`, for Strip.
+/// For Strip, which has no room for the month.
 pub fn weekday_and_day(strings: &Strings, now: &Zoned) -> Line<'static> {
     Line::from(format!("{} {}", short_weekday(strings, now), now.day()).light_blue())
 }
 
-/// `tue 13 oct`.
 pub fn short_date(strings: &Strings, now: &Zoned) -> Line<'static> {
     let month = strings.short_months[now.month() as usize - 1];
     Line::from(format!("{} {} {month}", short_weekday(strings, now), now.day()).light_blue())

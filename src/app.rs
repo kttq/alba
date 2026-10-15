@@ -110,14 +110,17 @@ impl App {
                 self.units,
                 now.timestamp(),
             ),
-            age_label: weather::age_label(weather_state, self.strings),
+            aged_temperature_high_and_low: weather::aged_temperature_high_and_low_line(
+                weather_state,
+                shows_fetch_indicator,
+                self.units,
+                now.timestamp(),
+                self.strings,
+            ),
             sparkline: weather::sparkline(weather_state, now.timestamp()),
             weather_status: weather::status_lines(weather_state, self.strings),
-            mini_icon: match weather_state.weather() {
-                Some(weather) => Icon::of(weather, now),
-                None => Some(Icon::Ghost),
-            }
-            .map(|icon| icon.canvas(IconSize::Mini, motion)),
+            mini_icon: Icon::shown(weather_state, now)
+                .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }
     }
 }

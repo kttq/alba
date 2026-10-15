@@ -8,6 +8,7 @@ use ratatui::{
     Terminal,
     backend::TestBackend,
     buffer::Buffer,
+    crossterm::event::{KeyCode, KeyEvent},
     layout::{Rect, Size},
     style::{Color, Modifier},
 };
@@ -248,8 +249,8 @@ fn compact_without_weather_shows_the_status_beside_the_ghost_icon() {
         ),
         (
             no_match("location = \"atlantis\""),
-            27,
-            "location not found",
+            29,
+            "location not found: …",
         ),
     ];
 
@@ -289,5 +290,26 @@ fn stale_compact_dims_the_text_and_sparkline_and_shows_the_age_only_when_it_fits
     assert_eq!(
         row_text(spanish_wide.backend().buffer(), 6),
         "▄██▄   14°  ↑19° ↓13° hace 2h"
+    );
+}
+
+#[test]
+fn stale_compact_shows_the_fetch_indicator_after_the_age_label_or_the_temperature() {
+    let later = default_instant().checked_add(2.hours()).unwrap();
+    let mut harness = with_weather("");
+    harness.app.key(KeyEvent::from(KeyCode::Char('r')));
+    harness.app.tick(&later);
+    let shown_at = later.checked_add(1.second()).unwrap();
+
+    let narrow = rendered(&harness, &shown_at, 23, 8);
+    let wide = rendered(&harness, &shown_at, 30, 8);
+
+    assert_eq!(
+        row_text(narrow.backend().buffer(), 6),
+        "▄██▄   14°…  ↑19° ↓13°"
+    );
+    assert_eq!(
+        row_text(wide.backend().buffer(), 6),
+        "▄██▄   14°  ↑19° ↓13° 2h ago…"
     );
 }

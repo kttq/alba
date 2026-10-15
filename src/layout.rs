@@ -20,7 +20,7 @@ pub struct Face {
     pub temperature: Option<Line<'static>>,
     pub temperature_high_and_low: Option<Line<'static>>,
     /// Only for stale weather.
-    pub age_label: Option<Line<'static>>,
+    pub aged_temperature_high_and_low: Option<Line<'static>>,
     pub sparkline: Option<Line<'static>>,
     /// What the weather area says without weather data, each way widest first.
     pub weather_status: Vec<Line<'static>>,
@@ -128,8 +128,8 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
     }
 }
 
-/// The short date, the clock, an empty row, and the weather: the icon beside a text row over the
-/// sparkline. Without weather data, the status takes the text row.
+/// Without weather data, the status takes the weather's text row, so nothing moves when the
+/// weather returns.
 fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     compact_text_rows(face)
         .into_iter()
@@ -144,40 +144,26 @@ fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         .collect()
 }
 
-/// Pieces side by side, one column apart.
-type TextRow<'a> = Vec<Piece<'a>>;
-
 /// Each way to fill the text rows beside the icon, widest first.
-fn compact_text_rows(face: &Face) -> Vec<Vec<TextRow<'_>>> {
+fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
     let Some(temperature_high_and_low) = &face.temperature_high_and_low else {
         return (face.weather_status.iter())
-            .map(|status| vec![vec![Piece::Text(status)]])
+            .map(|status| vec![Piece::Text(status)])
             .collect();
     };
-    let sparkline_row: Option<TextRow> = face
-        .sparkline
-        .as_ref()
-        .map(|sparkline| vec![Piece::Text(sparkline)]);
-    let with_age = (face.age_label.as_ref()).map(|age_label| {
-        vec![
-            Piece::Text(temperature_high_and_low),
-            Piece::Text(age_label),
-        ]
-    });
-    let without_age = vec![Piece::Text(temperature_high_and_low)];
-    with_age
-        .into_iter()
-        .chain([without_age])
+    let sparkline = face.sparkline.as_ref().map(Piece::Text);
+    (face.aged_temperature_high_and_low.iter())
+        .chain([temperature_high_and_low])
         .map(|first_row| {
-            std::iter::once(first_row)
-                .chain(sparkline_row.clone())
+            std::iter::once(Piece::Text(first_row))
+                .chain(sparkline)
                 .collect()
         })
         .collect()
 }
 
 /// The text keeps its place when there is no icon, so it never jumps.
-fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<TextRow<'a>>) -> Arrangement<'a> {
+fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<Piece<'a>>) -> Arrangement<'a> {
     let (icon_width, icon_height) = IconSize::Mini.cells();
     let text_x = icon_width + ICON_GAP;
     let mut pieces: Vec<_> = icon
@@ -186,13 +172,9 @@ fn icon_beside<'a>(icon: Option<&'a Canvas>, text_rows: Vec<TextRow<'a>>) -> Arr
         .collect();
     let mut width = icon_width;
     let text_height = text_rows.len() as u16;
-    for (y, text_row) in text_rows.into_iter().enumerate() {
-        let text_row = row(text_row, 1);
-        width = width.max(text_x + text_row.size.width);
-        pieces.extend(
-            (text_row.pieces.into_iter())
-                .map(|(piece, offset)| (piece, Position::new(text_x + offset.x, y as u16))),
-        );
+    for (y, piece) in text_rows.into_iter().enumerate() {
+        width = width.max(text_x + piece.required_size().width);
+        pieces.push((piece, Position::new(text_x, y as u16)));
     }
     Arrangement {
         size: Size::new(width, icon_height.max(text_height)),

@@ -14,7 +14,7 @@ pub struct Strings {
     pub no_location: &'static str,
     pub fetching: &'static str,
     pub offline: &'static str,
-    /// Around the whole hours of the age label: `2h ago`, `hace 2h`.
+    /// The text before and after the whole hours of the age label.
     pub age: [&'static str; 2],
 }
 

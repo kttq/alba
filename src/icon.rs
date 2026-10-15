@@ -8,7 +8,7 @@ use crate::{
     pixels::{Canvas, Legend},
     sky::{MoonPhase, Sky},
     sprites::{self, Frames},
-    weather::{Condition, DayOrNight, Weather},
+    weather::{Condition, DayOrNight, Weather, WeatherState},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -49,6 +49,14 @@ impl Icon {
             DayOrNight::Day => Self::Day(condition),
             DayOrNight::Night => Self::Night(condition, sky.moon_phase),
         })
+    }
+
+    /// The ghost icon without weather data.
+    pub fn shown(weather_state: WeatherState, now: &Zoned) -> Option<Self> {
+        match weather_state.weather() {
+            Some(weather) => Self::of(weather, now),
+            None => Some(Self::Ghost),
+        }
     }
 
     pub fn canvas(self, size: IconSize, motion: Motion) -> Canvas {

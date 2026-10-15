@@ -40,7 +40,7 @@ pub fn temperature_line(
     Some(Line::from(spans))
 }
 
-/// The temperature, then the high and low: `14°  ↑19° ↓13°`.
+/// High and low from the forecast day's row, after the temperature.
 pub fn temperature_high_and_low_line(
     weather_state: WeatherState,
     shows_fetch_indicator: bool,
@@ -85,17 +85,28 @@ pub fn sparkline(weather_state: WeatherState, now: Timestamp) -> Option<Line<'st
     Some(Line::from_iter(bars))
 }
 
-/// Whole hours, rounded down; None unless stale.
-pub fn age_label(weather_state: WeatherState, strings: &Strings) -> Option<Line<'static>> {
+/// The age label follows the high and low, and the fetch indicator moves after the label.
+/// None unless stale.
+pub fn aged_temperature_high_and_low_line(
+    weather_state: WeatherState,
+    shows_fetch_indicator: bool,
+    units: Units,
+    now: Timestamp,
+    strings: &Strings,
+) -> Option<Line<'static>> {
     let WeatherState::Stale { age, .. } = weather_state else {
         return None;
     };
+    let mut line = temperature_high_and_low_line(weather_state, false, units, now)?;
     let [before, after] = strings.age;
-    let hours = age.as_hours();
-    Some(Line::styled(
-        format!("{before}{hours}{after}"),
+    line.push_span(Span::styled(
+        format!(" {before}{}{after}", age.as_hours()),
         Style::new().dark_gray(),
-    ))
+    ));
+    if shows_fetch_indicator {
+        line.push_span(Span::raw("…").dim());
+    }
+    Some(line)
 }
 
 /// What the weather area says without weather, each way widest first; empty with weather.
@@ -121,7 +132,7 @@ fn dropping_after_separator(text: &str) -> Vec<String> {
     }
 }
 
-/// The name shortens with `…` one character at a time, then drops.
+/// The name shortens with `…` one character at a time, down to `…` alone.
 fn location_not_found(strings: &Strings, name: &str) -> Vec<String> {
     let name: Vec<char> = name
         .chars()
@@ -134,7 +145,7 @@ fn location_not_found(strings: &Strings, name: &str) -> Vec<String> {
             .rev()
             .map(|kept| format!("{prefix}: {}…", String::from_iter(&name[..kept]))),
     );
-    texts.push(prefix.to_string());
+    texts.push(format!("{prefix}: …"));
     texts
 }
 
