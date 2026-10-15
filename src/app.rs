@@ -11,9 +11,10 @@ use crate::{
     calendar,
     clock::Clock,
     config::{Config, Coordinates, Location, Units},
-    icon::{Animation, Icon, IconSize},
+    icon::{Icon, IconSize},
     layout::{self, Face},
     log::Log,
+    motion::{self, Motion},
     strings::Strings,
     weather::{self, WeatherSource, WeatherStation},
 };
@@ -61,7 +62,7 @@ impl App {
     }
 
     pub fn tick_interval(&self) -> Duration {
-        self.clock.tick_interval()
+        motion::tick_interval(self.motion)
     }
 
     /// Raw mode swallows the interrupt signal, so `ctrl-c` arrives here as a key.
@@ -87,8 +88,9 @@ impl App {
     pub fn face(&self, now: &Zoned) -> Face {
         let weather_state = self.weather_station.weather_state(now);
         let shows_fetch_indicator = self.weather_station.shows_fetch_indicator(now);
+        let motion = Motion::at(now.timestamp(), self.motion);
         Face {
-            text_clock: self.clock.text_line(now),
+            text_clock: self.clock.text_line(now, motion),
             short_date: calendar::short_date(self.strings, now),
             weather_line: weather::text_line(weather_state, shows_fetch_indicator, self.units),
             temperature: weather::temperature_line(
@@ -99,7 +101,7 @@ impl App {
             mini_icon: weather_state
                 .weather()
                 .and_then(|weather| Icon::of(weather, now))
-                .map(|icon| icon.canvas(IconSize::Mini, Animation::at(now, self.motion))),
+                .map(|icon| icon.canvas(IconSize::Mini, motion)),
         }
     }
 }
