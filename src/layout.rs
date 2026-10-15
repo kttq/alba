@@ -177,14 +177,15 @@ fn arrangements(size_tier: SizeTier, face: &Face) -> Vec<Arrangement<'_>> {
 /// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
 /// Without a location, the first-run hint takes the weather row and the timeline's first row.
 fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
-    medium_weather_rows(face)
+    let icon_column = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
+    medium_weather_rows(face, icon_column)
         .into_iter()
         .map(|[weather_row, timeline_rows]| {
             framed(
                 &face.bezel,
                 column(vec![
                     Block::Gap(BREATHING_ROWS),
-                    Block::Left(clock_and_icon(face)),
+                    Block::Left(clock_and_icon(face, icon_column)),
                     weather_row,
                     Block::Gap(BREATHING_ROWS),
                     timeline_rows,
@@ -208,22 +209,27 @@ fn week_strip(face: &Face) -> Block<'_> {
     ))
 }
 
+fn clock_and_icon(face: &Face, icon_column: u16) -> Arrangement<'_> {
+    row(
+        vec![
+            next(Piece::SegmentClock(&face.clock, DigitSize::Small)),
+            Cell::AtColumn(icon_column, icon_slot(face.icon, IconSize::Full)),
+        ],
+        0,
+    )
+}
+
 /// The icon's columns stay when there is no icon, so nothing moves when it returns.
-fn clock_and_icon(face: &Face) -> Arrangement<'_> {
-    let icon_x = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
-    let mut pieces = vec![(
-        Piece::SegmentClock(&face.clock, DigitSize::Small),
-        Position::ORIGIN,
-    )];
-    pieces.extend(
-        (face.icon.map(|icon| Piece::Icon(icon, IconSize::Full)))
-            .map(|icon| (icon, Position::new(icon_x, 0))),
-    );
-    let arrangement = at_offsets(pieces);
-    let (icon_width, _) = IconSize::Full.cells();
-    Arrangement {
-        size: Size::new(icon_x + icon_width, arrangement.size.height),
-        ..arrangement
+fn icon_slot(icon: Option<ShownIcon>, icon_size: IconSize) -> Arrangement<'static> {
+    match icon {
+        Some(icon) => Arrangement::of(Piece::Icon(icon, icon_size)),
+        None => {
+            let (width, height) = icon_size.cells();
+            Arrangement {
+                size: Size::new(width, height),
+                pieces: Vec::new(),
+            }
+        }
     }
 }
 
@@ -231,7 +237,7 @@ fn clock_and_icon(face: &Face) -> Arrangement<'_> {
 const CLOCK_GAP: u16 = 1;
 
 /// The weather row and the timeline rows under the clock and icon, each way widest first.
-fn medium_weather_rows(face: &Face) -> Vec<[Block<'_>; 2]> {
+fn medium_weather_rows(face: &Face, icon_column: u16) -> Vec<[Block<'_>; 2]> {
     let timeline = || match &face.timeline {
         Some(timeline) => Block::FullWidth(Piece::Timeline(timeline)),
         None => Block::Gap(TIMELINE_ROWS),
@@ -259,31 +265,18 @@ fn medium_weather_rows(face: &Face) -> Vec<[Block<'_>; 2]> {
         WeatherArea::Readings(readings) => readings,
     };
     let temperature = readings.line(&[Part::Temperature, Part::Age, Part::HighAndLow]);
-    let icon_x = face.clock.segment_size(DigitSize::Small).width + CLOCK_GAP;
-    let sparkline_x = icon_x.max(temperature.width() as u16 + ICON_GAP);
-    let pieces = vec![
-        (composed(temperature), Position::ORIGIN),
-        (text(readings.sparkline()), Position::new(sparkline_x, 0)),
-    ];
-    vec![[Block::Left(at_offsets(pieces)), timeline()]]
+    let weather_row = row(
+        vec![
+            next(composed(temperature)),
+            Cell::AtColumn(icon_column, Arrangement::of(text(readings.sparkline()))),
+        ],
+        ICON_GAP,
+    );
+    vec![[Block::Left(weather_row), timeline()]]
 }
 
 const WEATHER_ROWS: u16 = 1;
 const TIMELINE_ROWS: u16 = 3;
-
-/// Each piece in an area of its required size, at its offset.
-fn at_offsets(pieces: Vec<(Piece<'_>, Position)>) -> Arrangement<'_> {
-    let pieces: Vec<_> = (pieces.into_iter())
-        .map(|(piece, offset)| {
-            let area = Rect::from((offset, piece.required_size()));
-            (piece, area)
-        })
-        .collect();
-    let size = pieces.iter().fold(Size::ZERO, |size, (_, area)| {
-        Size::new(size.width.max(area.right()), size.height.max(area.bottom()))
-    });
-    Arrangement { size, pieces }
-}
 
 /// Inside the bezel, with a column of space on each side. The bezel hugs the content, and widens
 /// only when its labels need more room.
@@ -319,8 +312,8 @@ fn framed<'a>(bezel: &'a Bezel, content: Arrangement<'a>) -> Arrangement<'a> {
     }
 }
 
-/// Without weather data, the weather state line takes the weather's text row, and the weather sits at the left
-/// edge whatever its width, so nothing moves when the weather returns.
+/// Without weather data, the weather state line takes the weather's text row, and the weather
+/// sits at the left edge whatever its width, so nothing moves when the weather returns.
 fn compact_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     compact_text_rows(face)
         .into_iter()
@@ -355,25 +348,15 @@ fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
         .collect()
 }
 
-/// The text keeps its place when there is no icon, so it never jumps.
 fn icon_beside(icon: Option<ShownIcon>, text_rows: Vec<Piece<'_>>) -> Arrangement<'_> {
-    let (icon_width, icon_height) = IconSize::Mini.cells();
-    let text_x = icon_width + ICON_GAP;
-    let mut pieces: Vec<_> = icon
-        .map(|icon| (Piece::Icon(icon, IconSize::Mini), Position::ORIGIN))
-        .into_iter()
-        .collect();
-    for (y, piece) in text_rows.into_iter().enumerate() {
-        pieces.push((piece, Position::new(text_x, y as u16)));
-    }
-    let arrangement = at_offsets(pieces);
-    Arrangement {
-        size: Size::new(
-            arrangement.size.width.max(icon_width),
-            arrangement.size.height.max(icon_height),
-        ),
-        ..arrangement
-    }
+    let text_rows = column(text_rows.into_iter().map(left).collect());
+    row(
+        vec![
+            Cell::Next(icon_slot(icon, IconSize::Mini)),
+            Cell::Next(text_rows),
+        ],
+        ICON_GAP,
+    )
 }
 
 const ICON_GAP: u16 = 2;
@@ -448,7 +431,7 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
         Piece::Icon(face.icon?, IconSize::Mini),
         composed(readings.line(&[Part::Temperature])),
     ];
-    Some(row(pieces, 2))
+    Some(row(pieces.into_iter().map(next).collect(), 2))
 }
 
 fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
@@ -472,27 +455,47 @@ fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         }
         WeatherArea::NoWeather { .. } => vec![vec![clock.clone(), separator, date], vec![clock]],
     };
-    lines.into_iter().map(|pieces| row(pieces, 0)).collect()
+    (lines.into_iter())
+        .map(|pieces| row(pieces.into_iter().map(next).collect(), 0))
+        .collect()
+}
+
+/// One part of a row.
+enum Cell<'a> {
+    /// After the cell before it and the gap.
+    Next(Arrangement<'a>),
+    /// At a column that a size tier shares between rows, or later when the cells before it
+    /// reach past it.
+    AtColumn(u16, Arrangement<'a>),
+}
+
+fn next(piece: Piece<'_>) -> Cell<'_> {
+    Cell::Next(Arrangement::of(piece))
 }
 
 /// Side by side with `gap` columns between them, each centred vertically.
-fn row(pieces: Vec<Piece<'_>>, gap: u16) -> Arrangement<'_> {
-    let height = pieces
-        .iter()
-        .map(|piece| piece.required_size().height)
+fn row(cells: Vec<Cell<'_>>, gap: u16) -> Arrangement<'_> {
+    let cells: Vec<_> = (cells.into_iter())
+        .map(|cell| match cell {
+            Cell::Next(arrangement) => (0, arrangement),
+            Cell::AtColumn(column, arrangement) => (column, arrangement),
+        })
+        .collect();
+    let height = (cells.iter())
+        .map(|(_, arrangement)| arrangement.size.height)
         .max()
         .unwrap_or(0);
-    let mut x = 0;
-    let mut placed = Vec::new();
-    for piece in pieces {
-        let size = piece.required_size();
-        let position = Position::new(x, (height - size.height) / 2);
-        placed.push((piece, Rect::from((position, size))));
-        x += size.width + gap;
+    let mut end = None;
+    let mut pieces = Vec::new();
+    for (column, arrangement) in cells {
+        let x = column.max(end.map_or(0, |end| end + gap));
+        let y = (height - arrangement.size.height) / 2;
+        end = Some(x + arrangement.size.width);
+        pieces.extend(arrangement.moved(Position::new(x, y)));
     }
     Arrangement {
-        size: Size::new(x.saturating_sub(gap), height),
-        pieces: placed,
+        size: Size::new(end.unwrap_or(0), height),
+        pieces,
     }
 }
 
