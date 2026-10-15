@@ -1,7 +1,7 @@
 #!/bin/sh
 # Launch alba in its own macOS Terminal window, screenshot it, and stop it.
 #
-# usage: terminal.sh launch HOME [--theme light|dark] [--cols N] [--rows N] [--offline]
+# usage: terminal.sh launch HOME [--theme light|dark] [--cols N] [--rows N] [--full-screen] [--offline]
 #        terminal.sh shot HOME FILE.png
 #        terminal.sh stop HOME
 #        terminal.sh doctor
@@ -90,6 +90,12 @@ pane_size() {
 	stty -f "/dev/$tty" size | awk '{ print $2 "x" $1 }'
 }
 
+# Zooms the window to fill the screen, less the menu bar and the Dock. A macOS full-screen
+# space would need Accessibility permission for a keystroke; the pane is the same size.
+fill_screen() {
+	osascript -e "tell application \"Terminal\" to set zoomed of window id $1 to true" >/dev/null
+}
+
 alive() {
 	[ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null
 }
@@ -97,12 +103,13 @@ alive() {
 launch() {
 	home=$1
 	shift
-	theme=dark cols=85 rows=26 offline=""
+	theme=dark cols=85 rows=26 offline="" full_screen=""
 	while [ $# -gt 0 ]; do
 		case $1 in
 		--theme) theme=$2 && shift 2 ;;
 		--cols) cols=$2 && shift 2 ;;
 		--rows) rows=$2 && shift 2 ;;
+		--full-screen) full_screen=1 && shift ;;
 		--offline) offline=1 && shift ;;
 		*) die "unknown option: $1" ;;
 		esac
@@ -117,9 +124,12 @@ launch() {
 
 	write_run_script "$home" "$offline"
 	rm -f "$home/alba.pid" "$home/window.id"
-	title="alba · $theme · ${cols}x${rows}${offline:+ · offline}"
+	size="${cols}x${rows}"
+	[ -n "$full_screen" ] && size="full screen"
+	title="alba · $theme · $size${offline:+ · offline}"
 	# Terminal also opens a startup window; it stays until stop, and shot leaves it out.
 	open_window "$home" "$settings" "$cols" "$rows" "$title" >"$home/window.id"
+	[ -n "$full_screen" ] && fill_screen "$(cat "$home/window.id")"
 
 	for _ in $(seq 50); do
 		alive "$home/alba.pid" && break
@@ -129,9 +139,9 @@ launch() {
 	# The resize redraw follows at once; a second lets the fetch indicator settle.
 	sleep 1
 	pane=$(pane_size "$(cat "$home/alba.pid")")
-	[ "$pane" = "${cols}x${rows}" ] ||
+	[ -n "$full_screen" ] || [ "$pane" = "${cols}x${rows}" ] ||
 		echo "warning: the pane is $pane, not ${cols}x${rows}; a window manager resized the window" >&2
-	echo "alba $(cat "$home/alba.pid") in Terminal window $(cat "$home/window.id"): $title"
+	echo "alba $(cat "$home/alba.pid") in Terminal window $(cat "$home/window.id"): $title, pane $pane"
 }
 
 shot() {
