@@ -6,7 +6,7 @@ use crate::{
     face::Face,
     icon::{IconSize, ShownIcon},
     sky::ShownTimeline,
-    weather::{Part, WeatherArea},
+    weather::{Readings, WeatherArea},
 };
 
 use std::borrow::Cow;
@@ -220,12 +220,8 @@ fn large_weather_area_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
         WeatherArea::Readings(readings) => readings,
     };
     vec![column(vec![
-        left(composed(readings.line(&[
-            Part::Temperature,
-            Part::Age,
-            Part::HighAndLow,
-        ]))),
-        left(composed(readings.line(&[Part::Condition]))),
+        left(composed(widest(readings, SizeTier::Large))),
+        left(composed(readings.condition_line())),
         Block::Gap(1),
         left(text(readings.sparkline_label())),
         left(text(readings.sparkline())),
@@ -234,7 +230,7 @@ fn large_weather_area_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
 
 fn wide_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let icon_column = icon_column(face);
-    weather_and_timeline(face, icon_column, ConditionRow::Without)
+    weather_and_timeline(face, SizeTier::Wide, icon_column)
         .into_iter()
         .map(|rows| {
             let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
@@ -256,7 +252,7 @@ const CALENDAR_GAP: u16 = 3;
 
 fn tall_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let icon_column = icon_column(face);
-    weather_and_timeline(face, icon_column, ConditionRow::With)
+    weather_and_timeline(face, SizeTier::Tall, icon_column)
         .into_iter()
         .map(|rows| {
             let mut blocks = vec![Block::Left(clock_and_icon(face, icon_column))];
@@ -275,7 +271,7 @@ fn calendar_lines<'a>(lines: &'a [Line<'static>]) -> Arrangement<'a> {
 /// The clock and the full icon, the weather row, the timeline, and the week strip, in the bezel.
 fn medium_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let icon_column = icon_column(face);
-    weather_and_timeline(face, icon_column, ConditionRow::Without)
+    weather_and_timeline(face, SizeTier::Medium, icon_column)
         .into_iter()
         .map(|rows| {
             let mut blocks = vec![
@@ -329,21 +325,12 @@ fn icon_slot(icon: Option<ShownIcon>, icon_size: IconSize) -> Arrangement<'stati
 /// Between the clock and the full icon.
 const CLOCK_GAP: u16 = 1;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ConditionRow {
-    With,
-    Without,
-}
-
-/// The rows under the clock and icon: the weather row, the condition row when asked for, and the
+/// The rows under the clock and icon: the weather row, the condition row in Tall, and the
 /// timeline, each way widest first. Without a location, the first-run hint takes the first two
 /// rows.
-fn weather_and_timeline(
-    face: &Face,
-    icon_column: u16,
-    condition_row: ConditionRow,
-) -> Vec<Vec<Block<'_>>> {
-    let condition_rows = u16::from(condition_row == ConditionRow::With);
+fn weather_and_timeline(face: &Face, size_tier: SizeTier, icon_column: u16) -> Vec<Vec<Block<'_>>> {
+    let has_condition_row = size_tier == SizeTier::Tall;
+    let condition_rows = u16::from(has_condition_row);
     let readings = match &face.weather_area {
         WeatherArea::NoWeather {
             first_run_hint: Some(first_run_hint),
@@ -371,20 +358,25 @@ fn weather_and_timeline(
         }
         WeatherArea::Readings(readings) => readings,
     };
-    let temperature = readings.line(&[Part::Temperature, Part::Age, Part::HighAndLow]);
     let weather_row = row(
         vec![
-            next(composed(temperature)),
+            next(composed(widest(readings, size_tier))),
             Cell::AtColumn(icon_column, Arrangement::of(text(readings.sparkline()))),
         ],
         ICON_GAP,
     );
     let mut blocks = vec![Block::Left(weather_row)];
-    if condition_row == ConditionRow::With {
-        blocks.push(left(composed(readings.line(&[Part::Condition]))));
+    if has_condition_row {
+        blocks.push(left(composed(readings.condition_line())));
     }
     blocks.extend([Block::Gap(BREATHING_ROWS), timeline(face)]);
     vec![blocks]
+}
+
+/// The size tiers other than Compact have one way to show the temperature line.
+fn widest(readings: &Readings, size_tier: SizeTier) -> Line<'static> {
+    let mut lines = readings.temperature_lines(size_tier);
+    lines.swap_remove(0)
 }
 
 /// Empty rows without a timeline, so the layout does not jump.
@@ -463,14 +455,7 @@ fn compact_text_rows(face: &Face) -> Vec<Vec<Piece<'_>>> {
         }
         WeatherArea::Readings(readings) => readings,
     };
-    let with_age = [Part::Temperature, Part::HighAndLow, Part::Age];
-    let without_age = [Part::Temperature, Part::HighAndLow];
-    let first_rows = if readings.is_stale() {
-        vec![readings.line(&with_age), readings.line(&without_age)]
-    } else {
-        vec![readings.line(&without_age)]
-    };
-    (first_rows.into_iter())
+    (readings.temperature_lines(SizeTier::Compact).into_iter())
         .map(|first_row| vec![composed(first_row), text(readings.sparkline())])
         .collect()
 }
@@ -556,7 +541,7 @@ fn mini_arrangement(face: &Face) -> Option<Arrangement<'_>> {
     let pieces = vec![
         text(face.clock.text_line()),
         Piece::Icon(face.icon?, IconSize::Mini),
-        composed(readings.line(&[Part::Temperature])),
+        composed(widest(readings, SizeTier::Mini)),
     ];
     Some(row(pieces.into_iter().map(next).collect(), 2))
 }
@@ -567,7 +552,7 @@ fn strip_arrangements(face: &Face) -> Vec<Arrangement<'_>> {
     let separator = Piece::Separator;
     let lines = match &face.weather_area {
         WeatherArea::Readings(readings) => {
-            let weather = composed(readings.line(&[Part::Temperature, Part::ConditionMark]));
+            let weather = composed(widest(readings, SizeTier::Strip));
             vec![
                 vec![
                     clock.clone(),

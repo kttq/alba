@@ -8,7 +8,7 @@ mod schedule;
 mod source;
 mod station;
 
-pub use area::{Part, Readings, WeatherArea};
+pub use area::{Readings, WeatherArea};
 pub use condition::Condition;
 pub use forecast::{DayOrNight, Forecast, HighAndLow, SunEvent};
 pub use freshness::Freshness;
